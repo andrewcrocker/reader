@@ -75,6 +75,9 @@ describe('formatting', () => {
   it('queue summary', () => {
     expect(queueSummary([art({}), art({ id: 'b' })], { ...ctx, speed: 1.4 })).toBe('2 articles · 20 m at 1.4×');
     expect(queueSummary([art({}), art({ id: 'c', status: 'fetching', sentences: [] })], ctx)).toBe('1 article · 14 m at 1.0× + 1 fetching');
+    // A failed row has no text but isn't fetching.
+    expect(queueSummary([art({}), art({ id: 'd', status: 'failed', sentences: [] })], ctx)).toBe('1 article · 14 m at 1.0×');
+
     expect(queueSummary([], ctx)).toBe('Your queue is empty');
   });
 });

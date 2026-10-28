@@ -68,12 +68,15 @@ export function Lyrics() {
     if (!following) return;
     setFollowing(false);
   };
+  // Which way "Back to current" points. Runs on every scroll: `following` may not have re-rendered yet.
   const onScroll = () => {
-    if (following) return;
     const box = scrollRef.current;
     const el = box?.querySelector<HTMLElement>(`[data-i="${cur}"]`);
-    if (box && el) setDirection(el.getBoundingClientRect().top < box.getBoundingClientRect().top ? 'up' : 'down');
+    if (!box || !el) return;
+    const b = box.getBoundingClientRect();
+    setDirection(el.getBoundingClientRect().top < b.top + b.height / 3 ? 'up' : 'down');
   };
+
 
   const byline = [a.byline, siteLabel(a)].filter(Boolean).join(' · ');
   const span = (i: number) => {

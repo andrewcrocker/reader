@@ -83,7 +83,12 @@ export function Queue() {
   // ---- Drag reorder (multi-select only): the row swaps with a neighbor as the pointer passes its middle ----
   const handleDown = (id: string) => (e: RPointerEvent) => {
     e.preventDefault();
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      /* pointer already gone */
+    }
+
     let order = upNext.map((a) => a.id);
     setPreview(order);
     setDraggingId(id);

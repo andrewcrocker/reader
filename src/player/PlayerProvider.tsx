@@ -209,7 +209,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const now = Date.now();
     if (s.keepPlayed === 'delete') await purgeArticle(done.id);
     else await db.articles.update(done.id, { playedAt: now, archivedAt: done.archivedAt ?? now, positionSec: 0 });
+    // Replaying from the Archive starts over.
+    if (audioRef.current) audioRef.current.currentTime = 0;
+    setTime(0);
     if (next) play(next.id);
+
   }, [play]);
 
   // ---- Article tint follows the playing article ----

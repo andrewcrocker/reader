@@ -16,9 +16,9 @@ import { MiniPlayer } from './MiniPlayer';
 
 const set = (patch: Partial<S>) => void updateSettings(patch);
 
-function Seg<T extends string | number>({ label, value, options, onChange }: { label: string; value: T; options: { v: T; label: string; disabled?: boolean }[]; onChange: (v: T) => void }) {
+function Seg<T extends string | number>({ label, value, options, onChange, full }: { label: string; value: T; options: { v: T; label: string; disabled?: boolean }[]; onChange: (v: T) => void; full?: boolean }) {
   return (
-    <div className="seg compact" role="radiogroup" aria-label={label}>
+    <div className={full ? 'seg' : 'seg compact'} role="radiogroup" aria-label={label}>
       {options.map((o) => (
         <button key={o.v} role="radio" aria-checked={value === o.v} disabled={o.disabled} onClick={() => onChange(o.v)} style={o.disabled ? { opacity: 0.5 } : undefined}>
           {o.label}
@@ -194,7 +194,8 @@ export function Settings() {
         <div className="s-row pad">
           <span className="k">Engine</span>
           <div style={{ marginTop: 10 }}>
-            <Seg label="Engine" value={s.engineKind} options={[{ v: 'device', label: 'On this phone' }, { v: 'cloud', label: 'Cloud', disabled: true }]} onChange={(v) => set({ engineKind: v })} />
+            <Seg full label="Engine" value={s.engineKind}
+ options={[{ v: 'device', label: 'On this phone' }, { v: 'cloud', label: 'Cloud', disabled: true }]} onChange={(v) => set({ engineKind: v })} />
           </div>
           <span className="d" style={{ marginTop: 8 }}>Cloud voices use your own API key and need a connection. Not available yet.</span>
         </div>

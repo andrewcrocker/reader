@@ -22,8 +22,9 @@ function useDownload() {
 
 const COVERS = [
   { domain: 'one', title: 'Saved for later', site: 'Your queue' },
-  { domain: 'tide', title: 'Read to you, in a natural voice', site: 'On this phone' },
-  { domain: 'field', title: 'Articles, read aloud', site: 'Read-Aloud' },
+  { domain: 'tide', title: 'Even offline', site: 'On this phone' },
+  { domain: 'field', title: 'Read to you in a natural voice', site: 'Read-Aloud' },
+
 ];
 
 function CoverStack() {

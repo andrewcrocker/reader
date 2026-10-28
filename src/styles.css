@@ -331,7 +331,8 @@ a { color: var(--accent); }
 .seg button { height: 40px; border: 0; border-radius: 20px; background: transparent; font-weight: 500; font-size: 14px; color: var(--fg); }
 .seg button[aria-selected='true'], .seg button[aria-checked='true'] { background: var(--seg-on); font-weight: 600; }
 .seg.compact { display: flex; border-radius: 22px; }
-.seg.compact button { height: 36px; width: 52px; border-radius: 18px; }
+.seg.compact button { height: 36px; min-width: 52px; padding: 0 12px; border-radius: 18px; white-space: nowrap; }
+
 .paste-btn {
   height: 72px; border: 0; border-radius: 16px; background: var(--accent); color: var(--on-accent);
   display: flex; align-items: center; gap: 14px; padding: 0 20px; text-align: left; width: 100%;

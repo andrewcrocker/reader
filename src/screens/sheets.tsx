@@ -205,7 +205,8 @@ export function SpeedSheet() {
       <div className="presets" role="group" aria-label="Presets">
         {PRESETS.map((v) => (
           <button key={v} className={`pill${Math.abs(p.speed - v) < 0.001 ? ' on' : ''}`} aria-pressed={Math.abs(p.speed - v) < 0.001} aria-label={spoken(v)} onClick={() => p.setSpeed(v)}>
-            {v === 1 ? '1.0' : v}
+            {Number.isInteger(v) ? v.toFixed(1) : v}
+
           </button>
         ))}
       </div>
@@ -226,7 +227,9 @@ export function ExplainSheet({ id }: { id: string }) {
   if (!a) return null;
   const failed = a.status === 'failed';
   const site = siteLabel(a);
-  const found = lengthSec(a);
+  // Same speed-adjusted length the row shows ("6 m found").
+  const foundSec = lengthSec(a);
+  const foundMin = foundSec === undefined ? undefined : Math.max(1, Math.round(foundSec / player.speed / 60));
   const pasteText = () => openSheet({ kind: 'add', tab: 'text', title: a.title !== a.url ? a.title : undefined, replaceId: a.id });
   const original = a.url ? (
     <a className="btn outline block" href={a.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
@@ -252,7 +255,8 @@ export function ExplainSheet({ id }: { id: string }) {
           <p>
             {failed
               ? a.error || 'The page didn’t send back any article text.'
-              : `We found about ${found ? fmtDuration(found).replace(' m', ' minutes').replace(' h ', ' hours ') : 'a few minutes'} of it. The rest is probably behind a sign-in or paywall.`}
+              : `We found about ${foundMin ? `${foundMin} minute${foundMin === 1 ? '' : 's'}` : 'a few minutes'} of it. The rest is probably behind a sign-in or paywall.`}
+
           </p>
         </div>
       </div>

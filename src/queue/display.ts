@@ -178,7 +178,9 @@ export function rowMeta(a: Article, state: DisplayState, ctx: Ctx & { isNew?: bo
   }
 
   const title = hasRealTitle(a) ? a.title : urlTitle(a.url);
-  const minutes = rem !== undefined && state !== 'played' ? `${Math.max(1, Math.round(rem / 60))} minutes` : undefined;
+  const mins = rem !== undefined ? Math.max(1, Math.round(rem / 60)) : 0;
+  const minutes = rem !== undefined && state !== 'played' ? `${mins} minute${mins === 1 ? '' : 's'}` : undefined;
+
   const spoken = [title, site, minutes, spokenState].filter(Boolean).join(', ');
   return { glyph, tone, segs, progress, spoken };
 }
@@ -186,7 +188,8 @@ export function rowMeta(a: Article, state: DisplayState, ctx: Ctx & { isNew?: bo
 /** Header line: "8 articles · 2 h 46 m at 1.4×" (+ " + 1 fetching"). */
 export function queueSummary(upNext: Article[], ctx: Ctx): string {
   if (!upNext.length) return 'Your queue is empty';
-  const fetching = upNext.filter((a) => !a.sentences.length).length;
+  const fetching = upNext.filter((a) => a.status === 'fetching' || a.status === 'waiting').length;
+
   const counted = upNext.filter((a) => a.sentences.length);
   const total = counted.reduce((n, a) => n + (remainingSec(a, ctx.speed) ?? 0), 0);
   const parts = [`${counted.length} article${counted.length === 1 ? '' : 's'}`];
