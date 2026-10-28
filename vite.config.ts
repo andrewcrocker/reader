@@ -47,9 +47,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icons/*.png'],
       manifest: {
-        // "Read-Aloud" is a working name (DESIGN "Still open").
-        name: 'Read-Aloud',
-        short_name: 'Read-Aloud',
+        // "Reader" is the app's name (DESIGN "Still open": wordmark and icon).
+        name: 'Reader',
+        short_name: 'Reader',
         description: 'Save articles, listen later.',
         start_url: '/',
         display: 'standalone',

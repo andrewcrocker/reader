@@ -288,7 +288,7 @@ Bottom sheet on `surface-sheet`, scrim behind. Header: "Add to queue" and close.
 - **Link tab:**
   - A large `accent` button (72 tall): clipboard glyph, "Paste link," and a one-line preview of the clipboard URL. It is disabled with "No link on your clipboard" when empty.
   - Below an "or type it" divider: a URL field with an Add button (disabled until valid).
-  - Tip: "Share › Read-Aloud from any app. If a page won't load, switch to Text."
+  - Tip: "Share › Reader from any app. If a page won't load, switch to Text."
 - **Text tab:**
   - Title (optional; first line is used if blank), then the article text (Literata 15) with a word count and listen estimate.
   - "Save to queue" (full width, `accent`).
@@ -376,7 +376,7 @@ Two steps with Online voices (the default): Welcome, then Save from anywhere. Th
    - **Continue** is enabled immediately: "The download keeps going in the background."
    - Disabled offline, with a note.
 3. **Save from anywhere:**
-   - Three numbered steps: tap Share, choose Read-Aloud (schematic share row with our icon ringed), "It's in your queue."
+   - Three numbered steps: tap Share, choose Reader (schematic share row with our icon ringed), "It's in your queue."
    - A one-liner about the + button.
    - **Go to my queue** lands on the empty Queue.
    - A "Voice 71%" status chip in the top right shows while the download continues.
@@ -446,5 +446,6 @@ Target WCAG 2.2 AA.
 - **Sleep timer**, per-article voices
 
 **Still open:**
-- [ ] Name and wordmark. "Read-Aloud" is a working name used in copy and the share target. The icon and wordmark wait on this.
+- [x] Name: **Reader** (2026-10-28), used in copy, the share target, the page title and link previews. The URL stays `read-aloud-c1w.pages.dev`.
+- [ ] Wordmark and icon.
 - [ ] Native later (SPEC.md §12): the arrival snackbar becomes a system toast without opening the app.

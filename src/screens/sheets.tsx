@@ -103,7 +103,7 @@ function LinkTab() {
           </button>
         </div>
       </form>
-      <p className="hint">Tip: the fastest way is Share › Read-Aloud from any app. If a page won’t load, switch to Text and paste the article itself.</p>
+      <p className="hint">Tip: the fastest way is Share › Reader from any app. If a page won’t load, switch to Text and paste the article itself.</p>
     </>
   );
 }

@@ -23,7 +23,7 @@ function useDownload() {
 const COVERS = [
   { domain: 'one', title: 'Saved for later', site: 'Your queue' },
   { domain: 'tide', title: 'Even offline', site: 'On this phone' },
-  { domain: 'field', title: 'Read to you in a natural voice', site: 'Read-Aloud' },
+  { domain: 'field', title: 'Read to you in a natural voice', site: 'Reader' },
 
 ];
 
@@ -193,7 +193,7 @@ export function FirstRun() {
 const appIcon = (
   <span aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
     <img src="/icons/icon-192.png" alt="" width={40} height={40} style={{ borderRadius: 12, boxShadow: '0 0 0 3px var(--bg), 0 0 0 5px var(--accent)' }} />
-    <span className="hint">Read-Aloud</span>
+    <span className="hint">Reader</span>
   </span>
 );
 
@@ -213,13 +213,13 @@ function SaveStep({ canInstall, onDone }: { canInstall: boolean; onDone: () => v
   const steps: { text: string; extra?: ReactNode }[] = ios
     ? [
         { text: 'In any app, copy the article’s link' },
-        { text: 'Open Read-Aloud and tap +', extra: appIcon },
+        { text: 'Open Reader and tap +', extra: appIcon },
         { text: 'Tap Paste link. It’s in your queue.' },
       ]
     : installed
       ? [
           { text: 'In any app, tap Share', extra: shareChip },
-          { text: 'Choose Read-Aloud', extra: appIcon },
+          { text: 'Choose Reader', extra: appIcon },
           { text: 'It’s in your queue. Audio is ready in a few minutes.' },
         ]
       : [
@@ -233,7 +233,7 @@ function SaveStep({ canInstall, onDone }: { canInstall: boolean; onDone: () => v
               <span className="hint">In Chrome’s ⋮ menu, tap Install app.</span>
             ),
           },
-          { text: 'Then, in any app, tap Share and choose Read-Aloud', extra: appIcon },
+          { text: 'Then, in any app, tap Share and choose Reader', extra: appIcon },
           { text: 'It’s in your queue. Audio is ready in a few minutes.' },
         ];
   return (
@@ -244,7 +244,7 @@ function SaveStep({ canInstall, onDone }: { canInstall: boolean; onDone: () => v
           ? 'iPhone doesn’t let web apps into the share sheet, so saving is a copy and a paste.'
           : installed
             ? 'When you find something to read later, send it here.'
-            : 'Read-Aloud shows up in your share sheet once it’s installed.'}
+            : 'Reader shows up in your share sheet once it’s installed.'}
       </p>
       <ol className="steps">
         {steps.map((st, i) => (

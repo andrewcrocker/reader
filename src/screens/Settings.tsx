@@ -143,7 +143,7 @@ function Menu() {
   const invite = async () => {
     const url = `${location.origin}/#invite=${encodeURIComponent(s.proxySecret)}`;
     try {
-      if (navigator.share) await navigator.share({ title: 'Read-Aloud', text: 'Save articles and listen to them later.', url });
+      if (navigator.share) await navigator.share({ title: 'Reader', text: 'Save articles and listen to them later.', url });
       else {
         await navigator.clipboard.writeText(url);
         showSnack({ text: 'Invite link copied' });

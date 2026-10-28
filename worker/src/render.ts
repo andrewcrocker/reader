@@ -257,11 +257,11 @@ export async function sendCapAlert(env: Pick<RenderEnv, 'RESEND_API_KEY' | 'ALER
   const resets = new Date(r.retryAt).toUTCString();
   const text =
     r.alert === 100
-      ? `Read-Aloud refused a voice request: today's budget of ${r.cap.toLocaleString('en-US')} characters is used up. Articles wait and finish after the reset (${resets}).`
-      : `Read-Aloud has used ${r.used.toLocaleString('en-US')} of today's ${r.cap.toLocaleString('en-US')} voice characters. It resets ${resets}.`;
+      ? `Reader refused a voice request: today's budget of ${r.cap.toLocaleString('en-US')} characters is used up. Articles wait and finish after the reset (${resets}).`
+      : `Reader has used ${r.used.toLocaleString('en-US')} of today's ${r.cap.toLocaleString('en-US')} voice characters. It resets ${resets}.`;
   await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: 'Read-Aloud <onboarding@resend.dev>', to: [env.ALERT_EMAIL], subject: `Read-Aloud: voice budget ${pct}`, text }),
+    body: JSON.stringify({ from: 'Reader <onboarding@resend.dev>', to: [env.ALERT_EMAIL], subject: `Reader: voice budget ${pct}`, text }),
   }).catch(() => {});
 }
