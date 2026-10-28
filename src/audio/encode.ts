@@ -9,7 +9,8 @@ export async function encodeMp3(parts: Int16Array[], sampleRate: number): Promis
     return await new Promise<Blob>((resolve, reject) => {
       worker.onmessage = (e: MessageEvent<Mp3Out>) => {
         if (e.data.type === 'done') resolve(e.data.blob);
-        else reject(new Error(e.data.message));
+        else if (e.data.type === 'error') reject(new Error(e.data.message));
+
       };
       worker.onerror = (e) => reject(new Error(e.message || 'mp3 worker failed'));
       const post = (m: Mp3In, t: Transferable[] = []) => worker.postMessage(m, t);

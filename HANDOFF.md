@@ -23,7 +23,8 @@ All seven steps from the previous handoff are built. `npm run typecheck`, `npm t
 
 ## Gaps (spec says yes, not built)
 
-- Progressive playback while rendering (`renderedUntilSec`). Now Playing shows the three-layer scrubber and "Preparing audio · N%", but play stays disabled until the full render.
+- Progressive playback works in browsers with MediaSource MP3 support (Chrome, including Android). Elsewhere (iPhone Safari) play still waits for the full render. Rendering stops when the app is backgrounded or the screen is off, so a stream stops at the last rendered sentence.
+
 - Cloud TTS (BYO key): the Engine control shows Cloud as disabled ("Not available yet"); no form, no Worker `/tts`.
 - Voice samples synthesize on the device, so they need the model. DESIGN wants short bundled clips that work before the download.
 - Voice-quality sizes (330 / 92 MB) are the design's labels; confirm against the spike.

@@ -7,7 +7,9 @@ export function sentenceAt(sentences: Sentence[], t: number): number {
   let found = 0;
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
-    const start = sentences[mid].start ?? 0;
+    // Sentences not timed yet (still rendering) sort after everything that is.
+    const start = sentences[mid].start ?? Infinity;
+
     if (start <= t) {
       found = mid;
       lo = mid + 1;

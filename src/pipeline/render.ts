@@ -3,6 +3,7 @@ import { floatToInt16, silence, SAMPLE_RATE, wavBlob } from '../audio/pcm';
 import { encodeMp3 } from '../audio/encode';
 import { saveAudio } from '../audio/storage';
 import type { KokoroEngine } from '../tts/engine';
+import { placeChunk } from './timeline';
 
 /**
  * Renders any chunks not yet saved, then concatenates everything into one audio file
@@ -44,17 +45,9 @@ async function finalize(article: Article): Promise<void> {
   for (const chunk of chunks) {
     const pcm = new Int16Array(rows[chunk.i].pcm);
     const dur = pcm.length / sampleRate;
-    // Sentence times inside a multi-sentence chunk are estimated by character share.
-    const group = sentences.slice(chunk.sentenceStart, chunk.sentenceStart + chunk.sentenceCount);
-    const totalChars = group.reduce((n, s) => n + s.text.length, 0) || 1;
-    let st = t;
-    for (const s of group) {
-      const d = (dur * s.text.length) / totalChars;
-      s.start = st;
-      s.end = st + d;
-      st += d;
-    }
-    parts.push(pcm, silence(chunk.pauseAfter, sampleRate));
+    placeChunk(sentences, chunk, t, dur);
+    parts.push
+(pcm, silence(chunk.pauseAfter, sampleRate));
     t += dur + chunk.pauseAfter;
   }
 

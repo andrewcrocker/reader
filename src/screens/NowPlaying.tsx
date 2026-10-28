@@ -27,7 +27,9 @@ export function NowPlaying({ embedded }: { embedded?: boolean }) {
   if (settings.lyricsOn) return <Lyrics embedded={embedded} />;
 
   const byline = [a.byline, siteLabel(a)].filter(Boolean).join(' · ');
-  const renderingNow = !p.loaded && (a.status === 'rendering' || a.status === 'extracted');
+  // Still rendering: either playing what's rendered so far (streaming) or waiting for the first part.
+  const renderingNow = p.streaming || (!p.loaded && (a.status === 'rendering' || a.status === 'extracted'));
+  const rendered = p.streaming ? (p.duration ? p.renderedUntil / p.duration : 0) : renderingNow ? a.renderProgress ?? 0 : 1;
   const pct = Math.round((a.renderProgress ?? 0) * 100);
   // The peek shows the next row whatever its state; auto-advance skips ones that can't play yet.
   const next = upNext.find((x) => x.id !== a.id && x.queueOrder > a.queueOrder) ?? (a.archivedAt ? upNext[0] : undefined);
@@ -74,8 +76,14 @@ export function NowPlaying({ embedded }: { embedded?: boolean }) {
           {byline && <p className="np-byline">{byline}</p>}
         </div>
         <div className="np-scrub">
-          <Scrubber time={p.time} duration={p.duration} rendered={renderingNow ? a.renderProgress ?? 0 : 1} disabled={!p.loaded} onSeek={p.seek} />
-          <Times time={p.time} duration={p.duration} speed={p.speed} center={renderingNow ? `Preparing audio · ${pct}%` : undefined} />
+          <Scrubber time={p.time} duration={p.duration} rendered={rendered} disabled={!p.loaded} onSeek={p.seek} />
+          <Times
+            time={p.time}
+            duration={p.duration}
+            speed={p.speed}
+            center={p.streaming && p.waiting && p.playing ? 'Preparing the next part…' : renderingNow ? `Preparing audio · ${pct}%` : undefined}
+          />
+
         </div>
         <div className="transport">
           <button className="t-btn" disabled={!p.loaded} aria-label="Previous sentence" onClick={() => p.sentence(-1)}>

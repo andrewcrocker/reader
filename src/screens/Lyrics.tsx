@@ -22,10 +22,13 @@ export function Lyrics({ embedded }: { embedded?: boolean }) {
   const p = usePlayer();
   const a = p.current!;
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [cur, setCur] = useState(() => sentenceAt(a.sentences, p.time));
+  // p.sentences gains times chunk by chunk while the article streams.
+  const sentences = useRef(p.sentences);
+  sentences.current = p.sentences;
+  const [cur, setCur] = useState(() => sentenceAt(p.sentences, p.time));
   const [following, setFollowing] = useState(true);
   const [direction, setDirection] = useState<'up' | 'down'>('up');
-  const timed = a.sentences.some((s) => s.start !== undefined);
+  const timed = p.sentences.some((s) => s.start !== undefined);
 
   // SPEC §8: read audio.currentTime in rAF (timeupdate is ~4 Hz); no loop while hidden.
   useEffect(() => {
@@ -33,7 +36,7 @@ export function Lyrics({ embedded }: { embedded?: boolean }) {
     let raf = 0;
     const tick = () => {
       const el = p.audio();
-      if (el) setCur(sentenceAt(a.sentences, el.currentTime));
+      if (el) setCur(sentenceAt(sentences.current, el.currentTime));
       if (document.visibilityState === 'visible') raf = requestAnimationFrame(tick);
     };
     const onVis = () => {
@@ -47,7 +50,7 @@ export function Lyrics({ embedded }: { embedded?: boolean }) {
       document.removeEventListener('visibilitychange', onVis);
     };
     // p.audio() always returns the one root element, so the closure can't go stale.
-  }, [a.id, a.sentences, timed]);
+  }, [a.id, timed]);
 
   const scrollToCurrent = (smooth: boolean) => {
     const box = scrollRef.current;
@@ -80,7 +83,8 @@ export function Lyrics({ embedded }: { embedded?: boolean }) {
 
   const byline = [a.byline, siteLabel(a)].filter(Boolean).join(' · ');
   const span = (i: number) => {
-    const s = a.sentences[i];
+    const s = p.sentences[i];
+
     if (!s) return null;
     const cls = i < cur ? 's past' : i === cur ? 's cur' : 's';
     return (

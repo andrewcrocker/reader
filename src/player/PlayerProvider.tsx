@@ -9,6 +9,7 @@ import { purgeArticle } from '../pipeline/runner';
 import { useAppData } from '../app/data';
 import { applyTint } from './tint';
 import { nextSentenceStart, prevSentenceStart } from './sentences';
+import { canStream, RenderStream, type StreamTimeline } from './stream';
 
 // One <audio> at the root, shared by the mini player, Now Playing, and Lyrics (SPEC §7).
 
@@ -25,6 +26,13 @@ export interface PlayerApi {
   duration: number;
   /** Audio is loaded and can play. */
   loaded: boolean;
+  /** Playing while the article still renders; `renderedUntil` is how far audio exists. */
+  streaming: boolean;
+  renderedUntil: number;
+  /** Playback caught up with rendering and is waiting for more audio. */
+  waiting: boolean;
+  /** The current article's sentences, with times for whatever is playable so far. */
+  sentences: Article['sentences'];
   speed: number;
   audio: () => HTMLAudioElement | null;
   play: (id?: string) => void;
@@ -46,7 +54,10 @@ export function usePlayer(): PlayerApi {
   return v;
 }
 
-export const isPlayable = (a: Article) => a.status === 'ready' && !!a.audioKey && !a.deletedAt;
+const hasFile = (a: Article) => a.status === 'ready' && !!a.audioKey;
+
+/** Can play now: a finished file, or (where the browser supports it) streamed while rendering. */
+export const isPlayable = (a: Article) => !a.deletedAt && (hasFile(a) || (a.status === 'rendering' && canStream()));
 
 /** Neighbor in Up next, by queue order, that can play now. */
 function neighbor(upNext: Article[], current: Article | undefined, dir: 1 | -1): Article | undefined {
@@ -65,22 +76,45 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [time, setTime] = useState(current?.positionSec ?? 0);
   const [fileDuration, setFileDuration] = useState(0);
   const [speed, setSpeedState] = useState(settings.speed);
+  const [timeline, setTimeline] = useState<StreamTimeline | null>(null);
+  const [waiting, setWaiting] = useState(false);
   const pendingPlay = useRef(false);
-  const latest = useRef({ current, upNext, settings, speed });
-  latest.current = { current, upNext, settings, speed };
+  const stream = useRef<RenderStream | null>(null);
+  const loadedRef = useRef<string | null>(null);
+  /** Position and play state carried from the stream to the finished file of the same article. */
+  const handoff = useRef<{ id: string; time: number; playing: boolean } | null>(null);
+  const sentences = timeline?.sentences ?? current?.sentences ?? [];
+  const latest = useRef({ current, upNext, settings, speed, sentences });
+  latest.current = { current, upNext, settings, speed, sentences };
 
   useEffect(() => setSpeedState(settings.speed), [settings.speed]);
 
-  // ---- Load the current article's file ----
-  const audioKey = current && isPlayable(current) ? current.audioKey : undefined;
+  // ---- Load the current article: its finished file, or a stream while it renders ----
+  const source = !current ? 'none' : hasFile(current) ? `file:${current.audioKey}` : isPlayable(current) ? 'stream' : 'none';
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
+    const cur = latest.current.current;
+    // Same article, already playing from the stream: carry the position over to the file.
+    handoff.current = cur && loadedRef.current === cur.id && el.currentSrc ? { id: cur.id, time: el.currentTime, playing: !el.paused } : null;
     let url: string | null = null;
     let live = true;
+    loadedRef.current = null;
     setLoadedId(null);
     setFileDuration(0);
-    setTime(latest.current.current?.positionSec ?? 0);
+    setWaiting(false);
+    if (!handoff.current) setTime(cur?.positionSec ?? 0);
+    if (source === 'stream' && cur) {
+      const s = new RenderStream(cur, setTimeline);
+      stream.current = s;
+      el.src = s.url;
+      return () => {
+        s.dispose();
+        stream.current = null;
+      };
+    }
+    setTimeline(null);
+    const audioKey = source.startsWith('file:') ? source.slice(5) : undefined;
     if (!audioKey) {
       el.removeAttribute('src');
       el.load();
@@ -101,7 +135,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       live = false;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [audioKey]);
+  }, [current?.id, source]);
+
+  // Each finished chunk bumps render progress; hand the new audio to the stream.
+  useEffect(() => void stream.current?.poke(), [current?.renderProgress]);
 
   const savePosition = useCallback(() => {
     const el = audioRef.current;
@@ -152,7 +189,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       const el = audioRef.current;
       if (!el?.currentSrc) return;
       // Clamp to what exists; seeking past the rendered point snaps back to it.
-      el.currentTime = Math.max(0, Math.min(t, (el.duration || t) - 0.05));
+      const end = stream.current ? (el.buffered.length ? el.buffered.end(el.buffered.length - 1) : 0) : el.duration || t;
+      el.currentTime = Math.max(0, Math.min(t, end - 0.05));
       setTime(el.currentTime);
       savePosition();
     },
@@ -167,7 +205,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const sentence = useCallback(
     (dir: 1 | -1) => {
       const el = audioRef.current;
-      const s = latest.current.current?.sentences ?? [];
+      const s = latest.current.sentences;
+
       if (!el || !s.length) return;
       const t = dir === 1 ? nextSentenceStart(s, el.currentTime) : prevSentenceStart(s, el.currentTime);
       if (t !== undefined) seek(t);
@@ -286,7 +325,16 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const duration = fileDuration || current?.durationSec || (current ? lengthSec(current) ?? 0 : 0);
+  const streaming = source === 'stream';
+  const chunkCount = current?.chunks?.length ?? 0;
+  // While streaming the file only covers what's rendered, so estimate the whole length from the
+  // rendered share (more accurate than the word-count estimate once a few chunks are in).
+  const duration = streaming
+    ? timeline?.chunks && chunkCount
+      ? (timeline.until * chunkCount) / timeline.chunks
+      : (current && lengthSec(current)) ?? 0
+    : fileDuration || current?.durationSec || (current ? lengthSec(current) ?? 0 : 0);
+  const renderedUntil = streaming ? timeline?.until ?? 0 : duration;
   const next = neighbor(upNext, current, 1);
 
   const api = useMemo<PlayerApi>(
@@ -296,6 +344,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       time,
       duration,
       loaded: !!current && loadedId === current.id,
+      streaming,
+      renderedUntil,
+      waiting,
+      sentences,
       speed,
       audio: () => audioRef.current,
       play,
@@ -307,7 +359,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       setSpeed,
       next,
     }),
-    [current, playing, time, duration, loadedId, speed, play, toggle, seek, skip, sentence, article, setSpeed, next],
+    [current, playing, time, duration, loadedId, streaming, renderedUntil, waiting, sentences, speed, play, toggle, seek, skip, sentence, article, setSpeed, next],
   );
 
   return (
@@ -322,17 +374,25 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           setFileDuration(el.duration);
           el.playbackRate = el.defaultPlaybackRate = latest.current.speed;
           el.preservesPitch = true;
-          // Resume where we left off unless we were at the very end.
-          if (cur && cur.positionSec > 0 && cur.positionSec < el.duration - 1) el.currentTime = cur.positionSec;
+          const carried = handoff.current?.id === cur?.id ? handoff.current : null;
+          handoff.current = null;
+          if (carried) el.currentTime = Math.min(carried.time, el.duration - 0.05);
+          // Resume where we left off unless we were at the very end (a stream's length isn't known yet).
+          else if (cur && cur.positionSec > 0 && (stream.current || cur.positionSec < el.duration - 1)) el.currentTime = cur.positionSec;
           setTime(el.currentTime);
+          loadedRef.current = cur?.id ?? null;
           setLoadedId(cur?.id ?? null);
           positionState();
-          if (pendingPlay.current) {
+          if (pendingPlay.current || carried?.playing) {
             pendingPlay.current = false;
             void el.play().catch(() => {});
           }
         }}
         onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
+        // Caught up with rendering: the element waits for the next chunk on its own.
+        onWaiting={() => setWaiting(true)}
+        onPlaying={() => setWaiting(false)}
+
         onSeeked={positionState}
         onRateChange={positionState}
         onPlay={() => {

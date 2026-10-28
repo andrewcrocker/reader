@@ -15,8 +15,10 @@ export function MiniPlayer() {
   if (!a || wide) return null;
 
   const rendering = a.status === 'rendering' || a.status === 'extracted';
+  const pct = Math.round((a.renderProgress ?? 0) * 100);
   const left = Math.max(0, p.duration - p.time) / p.speed;
-  const sub = rendering ? `Preparing ${Math.round((a.renderProgress ?? 0) * 100)}%` : `${fmtDuration(left)} left`;
+  const sub = p.streaming && p.loaded ? `${fmtDuration(left)} left · preparing ${pct}%` : rendering ? `Preparing ${pct}%` : `${fmtDuration(left)} left`;
+
   return (
     <div
       className="mini"
