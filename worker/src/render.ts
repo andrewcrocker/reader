@@ -15,7 +15,7 @@ export const DEFAULT_DAILY_CHAR_CAP = 330_000;
 
 export type RenderEnv = {
   AUDIO: R2Bucket;
-  RENDER: Workflow<RenderParams>;
+  RENDER: Workflow<PartParams>;
   QUOTA: DurableObjectNamespace<QuotaApi & Rpc.DurableObjectBranded>;
   DEEPINFRA_API_KEY: string;
   RESEND_API_KEY?: string;
@@ -25,6 +25,37 @@ export type RenderEnv = {
 
 export type RenderChunk = { i: number; text: string };
 export type RenderParams = { voice: string; chunks: RenderChunk[] };
+/** One Workflow run: a slice of an article's chunks, written under the article's job id. */
+export type PartParams = RenderParams & { job: string };
+
+/**
+ * Chunks per Workflow run. On the Workers free plan a run may make only 50 outside requests, and
+ * each chunk is one request to the voice host (plus one per retry), so long articles are split.
+ */
+export const PART_SIZE = 30;
+
+export function splitParts<T>(items: T[], size = PART_SIZE): T[][] {
+  const parts: T[][] = [];
+  for (let i = 0; i < items.length; i += size) parts.push(items.slice(i, i + size));
+  return parts;
+}
+
+/** A job's status from its parts': failed if any failed, done when all are, else still going. */
+export function combineStatus(statuses: string[]): string {
+  if (!statuses.length) return 'unknown';
+  if (statuses.some((s) => s === 'errored' || s === 'terminated')) return 'errored';
+  if (statuses.every((s) => s === 'complete')) return 'complete';
+  if (statuses.every((s) => s === 'unknown')) return 'unknown';
+  return 'running';
+}
+
+const partId = (job: string, k: number) => `${job}-p${k}`;
+const manifestKey = (job: string) => `jobs/${job}/job.json`;
+
+async function partCount(env: RenderEnv, job: string): Promise<number> {
+  const m = await env.AUDIO.get(manifestKey(job));
+  return m ? ((await m.json()) as { parts: number }).parts : 0;
+}
 
 /** What the quota counter answers for a reservation. */
 export type Reservation = { ok: boolean; used: number; cap: number; alert?: 80 | 100; retryAt: number };
@@ -101,7 +132,11 @@ export function registerRenderRoutes<E extends RenderEnv>(app: Hono<{ Bindings: 
     if (!r.ok) return c.json({ error: 'busy', retryAt: r.retryAt }, 429);
 
     const job = crypto.randomUUID();
-    await c.env.RENDER.create({ id: job, params: parsed });
+    const parts = splitParts(parsed.chunks);
+    await c.env.AUDIO.put(manifestKey(job), JSON.stringify({ parts: parts.length }));
+    for (const [k, chunks] of parts.entries()) {
+      await c.env.RENDER.create({ id: partId(job, k), params: { job, voice: parsed.voice, chunks } });
+    }
     return c.json({ job, chunks: parsed.chunks.length }, 202);
   });
 
@@ -109,17 +144,23 @@ export function registerRenderRoutes<E extends RenderEnv>(app: Hono<{ Bindings: 
   app.get('/render/:job', async (c) => {
     const job = c.req.param('job');
     if (!JOB_ID.test(job)) return c.json({ error: 'bad job id' }, 400);
-    let status: string;
-    try {
-      status = (await (await c.env.RENDER.get(job)).status()).status;
-    } catch {
-      status = 'unknown'; // finished and cleaned up, or never existed; `ready` still says what's there
-    }
+    // A part we can't look up is 'unknown': finished and cleaned up, or never existed. `ready` still says what's there.
+    const n = await partCount(c.env, job);
+    const statuses = await Promise.all(
+      Array.from({ length: n }, (_, k) =>
+        c.env.RENDER.get(partId(job, k))
+          .then((inst) => inst.status())
+          .then((s) => s.status as string)
+          .catch(() => 'unknown'),
+      ),
+    );
+    const status = combineStatus(statuses);
     const ready: { i: number; sec: number }[] = [];
     let cursor: string | undefined;
     do {
       const page = await c.env.AUDIO.list({ prefix: `jobs/${job}/`, cursor, include: ['customMetadata'] });
       for (const o of page.objects) {
+        if (!o.key.endsWith('.mp3')) continue;
         const i = Number(o.key.slice(o.key.lastIndexOf('/') + 1, -'.mp3'.length));
         ready.push({ i, sec: Number(o.customMetadata?.sec ?? 0) });
       }
@@ -150,17 +191,20 @@ export function registerRenderRoutes<E extends RenderEnv>(app: Hono<{ Bindings: 
   app.delete('/render/:job', async (c) => {
     const job = c.req.param('job');
     if (!JOB_ID.test(job)) return c.json({ error: 'bad job id' }, 400);
+    const n = await partCount(c.env, job);
+    await Promise.all(
+      Array.from({ length: n }, (_, k) =>
+        c.env.RENDER.get(partId(job, k))
+          .then((inst) => inst.terminate())
+          .catch(() => {}), // already finished
+      ),
+    );
     let cursor: string | undefined;
     do {
       const page = await c.env.AUDIO.list({ prefix: `jobs/${job}/`, cursor });
       if (page.objects.length) await c.env.AUDIO.delete(page.objects.map((o) => o.key));
       cursor = page.truncated ? page.cursor : undefined;
     } while (cursor);
-    try {
-      await (await c.env.RENDER.get(job)).terminate();
-    } catch {
-      /* already finished */
-    }
     return c.body(null, 204);
   });
 }

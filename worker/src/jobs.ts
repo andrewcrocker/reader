@@ -1,15 +1,14 @@
 import { DurableObject, WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from 'cloudflare:workers';
 import { NonRetryableError } from 'cloudflare:workflows';
-import { applyReservation, synthesizeChunk, VoiceHostError, type QuotaApi, type RenderEnv, type RenderParams, type Reservation } from './render';
+import { applyReservation, synthesizeChunk, VoiceHostError, type PartParams, type QuotaApi, type RenderEnv, type Reservation } from './render';
 
 /** How many chunks go to the voice host at once. More didn't help in the spike: its queue is per account. */
 const PARALLEL = 4;
 
-/** Renders one article: each chunk is a step, so a crash or redeploy resumes where it stopped. */
-export class RenderWorkflow extends WorkflowEntrypoint<RenderEnv, RenderParams> {
-  async run(event: Readonly<WorkflowEvent<RenderParams>>, step: WorkflowStep) {
-    const { voice, chunks } = event.payload;
-    const job = event.instanceId;
+/** Renders one part of an article: each chunk is a step, so a crash or redeploy resumes where it stopped. */
+export class RenderWorkflow extends WorkflowEntrypoint<RenderEnv, PartParams> {
+  async run(event: Readonly<WorkflowEvent<PartParams>>, step: WorkflowStep) {
+    const { voice, chunks, job } = event.payload;
     for (let start = 0; start < chunks.length; start += PARALLEL) {
       await Promise.all(
         chunks.slice(start, start + PARALLEL).map((chunk) =>

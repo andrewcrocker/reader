@@ -73,7 +73,8 @@ export function Queue() {
       void moveToTop([a.id]);
       return showSnack({ text: 'Back in Up next. Preparing the audio again.' });
     }
-    if (state === 'rendering') {
+    // The text is in: open it now, so read-along works right away; audio starts once it can.
+    if (state === 'rendering' || (state === 'queued' && a.sentences.length)) {
       player.play(a.id);
       return openNowPlaying();
     }

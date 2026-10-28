@@ -5,7 +5,7 @@ import { disposeSharedEngine, EngineLostError, getSharedEngine, reusableEngine, 
 import { buildScript, htmlToBlocks, introBlock, plainTextToBlocks, type Block } from './textprep';
 import { ExtractError, fetchHtml, parseArticle } from './extract';
 import { renderArticle } from './render';
-import { collectArticle, ServerJobFailedError, ServerWaitError, setRetryHandler, submitPending } from './serverRender';
+import { collectArticle, ServerWaitError, setRetryHandler, submitPending } from './serverRender';
 import { deleteJob } from '../tts/server';
 
 // Two loops, each working through the queue in order: one fetches and extracts pages, one renders
@@ -273,7 +273,8 @@ async function renderStep(): Promise<boolean> {
   } catch (err) {
     // Engine or server trouble isn't this article's fault: leave it queued and stop until the next kick.
     if (err instanceof EngineError || err instanceof ServerWaitError) return false;
-    if (await db.articles.get(next.id)) await db.articles.update(next.id, failure(err));
+    // The text is fine (it was fetched already); it's the audio that failed.
+    if (await db.articles.get(next.id)) await db.articles.update(next.id, { ...failure(err), errorKind: 'audio', serverJob: undefined });
   }
   return true;
 }
@@ -288,7 +289,6 @@ function nextForServer(all: Article[]): Article | undefined {
 /** Failed state with a one-line, user-facing reason (DESIGN §9). */
 function failure(err: unknown): Partial<Article> {
   if (err instanceof ExtractError) return { status: 'failed', error: err.message, errorKind: err.kind };
-  if (err instanceof ServerJobFailedError) return { status: 'failed', error: err.message, errorKind: undefined, serverJob: undefined };
   return { status: 'failed', error: err instanceof Error ? err.message : String(err), errorKind: undefined };
 }
 

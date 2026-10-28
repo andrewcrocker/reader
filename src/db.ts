@@ -44,8 +44,8 @@ export interface Article {
   extractionQuality?: 'full' | 'partial';
   /** One-line, user-facing reason when failed. */
   error?: string;
-  /** Whose fault a failed fetch was: the page/site, or our fetch service (proxy) not answering. */
-  errorKind?: 'page' | 'service';
+  /** What failed: the page/site, our fetch service (proxy) not answering, or making the audio. */
+  errorKind?: 'page' | 'service' | 'audio';
 
   extractionMethod?: string;
   contentHtml?: string;

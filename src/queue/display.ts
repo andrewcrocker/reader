@@ -135,7 +135,10 @@ export function rowMeta(a: Article, state: DisplayState, ctx: Ctx & { isNew?: bo
       case 'failed':
         glyph = 'failed';
         tone = 'error';
-        push(a.source === 'text' ? 'Couldn’t prepare this text' : a.errorKind === 'service' ? 'Couldn’t connect' : 'Couldn’t load the page', true);
+        push(
+          a.errorKind === 'audio' ? 'Couldn’t make the audio' : a.source === 'text' ? 'Couldn’t prepare this text' : a.errorKind === 'service' ? 'Couldn’t connect' : 'Couldn’t load the page',
+          true,
+        );
 
         spokenState = 'failed';
         break;

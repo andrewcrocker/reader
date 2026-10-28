@@ -29,8 +29,12 @@ export async function submitPending(articles: Article[]): Promise<void> {
   if (!pending.length) return;
   const s = await getSettings();
   for (const a of pending) {
+    // Only what's missing: a retry after a failed job keeps the chunks already collected.
+    const have = new Set((await db.renderedChunks.where('articleId').equals(a.id).primaryKeys()).map(([, i]) => i));
+    const missing = (a.chunks ?? []).filter((c) => !have.has(c.i));
+    if (!missing.length) continue; // collectArticle finishes it without a job
     try {
-      const job = await submitJob(s, voiceFor(a), a.chunks ?? []);
+      const job = await submitJob(s, voiceFor(a), missing);
       await db.articles.update(a.id, { serverJob: job, busyUntil: undefined });
     } catch (err) {
       if (err instanceof ServerBusyError) {
@@ -58,6 +62,11 @@ function scheduleRetry(at: number) {
 /** Collects one article's finished chunks, then builds its audio file. */
 export async function collectArticle(a: Article, isCancelled: () => boolean): Promise<void> {
   const chunks = a.chunks ?? [];
+  const saved = await db.renderedChunks.where('articleId').equals(a.id).count();
+  if (saved >= chunks.length && chunks.length) {
+    await finalize(a);
+    return;
+  }
   if (!a.serverJob) {
     if (a.busyUntil && a.busyUntil > Date.now()) throw new ServerWaitError('Voices are busy');
     await submitPending([a]);

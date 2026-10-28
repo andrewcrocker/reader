@@ -83,6 +83,12 @@ export function NowPlaying({ embedded }: { embedded?: boolean }) {
             speed={p.speed}
             center={p.streaming && p.waiting && p.playing ? 'Preparing the next part…' : renderingNow ? `Preparing audio · ${pct}%` : undefined}
           />
+          {renderingNow && (
+            <button className="btn ghost np-read-now" onClick={() => void updateSettings({ lyricsOn: true })}>
+              <Icon name="read-along" size={18} stroke={2} />
+              Read while it prepares
+            </button>
+          )}
 
         </div>
         <div className="transport">

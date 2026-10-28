@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import app, { type Env } from './index';
-import { applyReservation, parseRenderRequest, quotaDay, stripHeaderFrames, type Reservation } from './render';
+import { applyReservation, combineStatus, parseRenderRequest, quotaDay, splitParts, stripHeaderFrames, type Reservation } from './render';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -70,8 +70,22 @@ describe('stripHeaderFrames', () => {
   });
 });
 
+describe('splitParts and combineStatus', () => {
+  it('keeps each Workflow run under the free plan request limit', () => {
+    expect(splitParts(Array.from({ length: 89 }, (_, i) => i)).map((p) => p.length)).toEqual([30, 30, 29]);
+  });
+  it('combines part statuses', () => {
+    expect(combineStatus(['complete', 'complete'])).toBe('complete');
+    expect(combineStatus(['complete', 'running'])).toBe('running');
+    expect(combineStatus(['complete', 'errored', 'running'])).toBe('errored');
+    expect(combineStatus(['unknown', 'unknown'])).toBe('unknown');
+    expect(combineStatus(['complete', 'unknown'])).toBe('running');
+  });
+});
+
 function fakeEnv(reservation: Partial<Reservation> = {}) {
   const objects = new Map<string, { body: Uint8Array; sec: string }>();
+  const manifests = new Map<string, string>();
   const created: unknown[] = [];
   const env = {
     APP_SECRET: 's3cret',
@@ -86,15 +100,21 @@ function fakeEnv(reservation: Partial<Reservation> = {}) {
       get: async () => ({ status: async () => ({ status: 'running' }), terminate: async () => {} }),
     },
     AUDIO: {
+      put: async (key: string, value: string) => void manifests.set(key, value),
       list: async ({ prefix }: { prefix: string }) => ({
         objects: [...objects.keys()].filter((k) => k.startsWith(prefix)).map((key) => ({ key, customMetadata: { sec: objects.get(key)!.sec } })),
         truncated: false,
       }),
-      get: async (key: string) => (objects.has(key) ? { body: objects.get(key)!.body, customMetadata: { sec: objects.get(key)!.sec } } : null),
+      get: async (key: string) =>
+        manifests.has(key)
+          ? { json: async () => JSON.parse(manifests.get(key)!) }
+          : objects.has(key)
+            ? { body: objects.get(key)!.body, customMetadata: { sec: objects.get(key)!.sec } }
+            : null,
       delete: async (keys: string[]) => keys.forEach((k) => objects.delete(k)),
     },
   } as unknown as Env;
-  return { env, objects, created };
+  return { env, objects, created, manifests };
 }
 const ctx = { waitUntil: () => {}, passThroughOnException: () => {}, props: {} } as unknown as ExecutionContext;
 const call = (env: Env, path: string, init: RequestInit = {}) =>
@@ -108,7 +128,19 @@ describe('/render', () => {
     const res = await call(env, '/render', { method: 'POST', body });
     expect(res.status).toBe(202);
     const { job } = (await res.json()) as { job: string };
-    expect(created).toEqual([{ id: job, params: { voice: 'af_bella', chunks: [{ i: 0, text: 'Hello there.' }] } }]);
+    expect(created).toEqual([{ id: `${job}-p0`, params: { job, voice: 'af_bella', chunks: [{ i: 0, text: 'Hello there.' }] } }]);
+  });
+
+  it('splits a long article into parts', async () => {
+    const { env, created } = fakeEnv();
+    const chunks = Array.from({ length: 65 }, (_, i) => ({ i, text: `Sentence ${i}.` }));
+    const res = await call(env, '/render', { method: 'POST', body: JSON.stringify({ voice: 'af_heart', chunks }) });
+    const { job } = (await res.json()) as { job: string };
+    expect((created as { id: string; params: { chunks: unknown[] } }[]).map((c) => [c.id, c.params.chunks.length])).toEqual([
+      [`${job}-p0`, 30],
+      [`${job}-p1`, 30],
+      [`${job}-p2`, 5],
+    ]);
   });
 
   it('answers busy with the reset time when the budget is spent', async () => {
@@ -120,8 +152,9 @@ describe('/render', () => {
   });
 
   it('lists ready chunks, serves them, and deletes them', async () => {
-    const { env, objects } = fakeEnv();
+    const { env, objects, manifests } = fakeEnv();
     const job = '0f8fad5b-d9cb-469f-a165-70867728950e';
+    manifests.set(`jobs/${job}/job.json`, JSON.stringify({ parts: 1 }));
     objects.set(`jobs/${job}/1.mp3`, { body: new Uint8Array([2]), sec: '2.5' });
     objects.set(`jobs/${job}/0.mp3`, { body: new Uint8Array([1]), sec: '1.25' });
     const status = await (await call(env, `/render/${job}`)).json();

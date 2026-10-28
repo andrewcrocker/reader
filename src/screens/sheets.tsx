@@ -227,7 +227,13 @@ export function ExplainSheet({ id }: { id: string }) {
   if (!a) return null;
   const failed = a.status === 'failed';
   // A service failure never reached the page, so don't say the page couldn't load.
-  const heading = !failed ? 'Only part of this article loaded' : a.errorKind === 'service' ? 'Couldn’t connect' : 'Couldn’t load this page';
+  const heading = !failed
+    ? 'Only part of this article loaded'
+    : a.errorKind === 'audio'
+      ? 'Couldn’t make the audio'
+      : a.errorKind === 'service'
+        ? 'Couldn’t connect'
+        : 'Couldn’t load this page';
   const urlish = !hasRealTitle(a) && a.source === 'url';
   const site = siteLabel(a);
   // Same speed-adjusted length the row shows ("6 m found").
