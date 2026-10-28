@@ -3,11 +3,12 @@ import { deleteAudio } from '../audio/storage';
 import { fetchArtwork, purgeArt } from '../art/art';
 import { getSharedEngine } from '../tts/engine';
 import { buildScript, htmlToBlocks, introBlock, plainTextToBlocks, type Block } from './textprep';
-import { fetchHtml, parseArticle } from './extract';
+import { ExtractError, fetchHtml, parseArticle } from './extract';
 import { renderArticle } from './render';
 
-// Single sequential worker loop: fetch/extract, then render, in queue order.
-// Called on launch, after adding, and when the network comes back (SPEC §4, §11a).
+// Two loops, each working through the queue in order: one fetches and extracts pages, one renders
+// audio (one article at a time). They run side by side so a long render never holds up a fetch.
+// Kicked on launch, after adding, and when the network comes back (SPEC §4, §11a).
 
 export type EngineState =
   | { phase: 'idle' }
@@ -29,8 +30,11 @@ function setEngineState(s: EngineState) {
 
 class EngineError extends Error {}
 
-let running = false;
-let again = false;
+type LoopName = 'fetch' | 'render';
+const loops: Record<LoopName, { running: boolean; again: boolean }> = {
+  fetch: { running: false, again: false },
+  render: { running: false, again: false },
+};
 const cancelled = new Set<string>();
 
 const isOnline = () => navigator.onLine;
@@ -147,7 +151,7 @@ export async function retryArticle(id: string): Promise<void> {
   const a = await db.articles.get(id);
   if (!a) return;
   const status = a.chunks?.length ? 'extracted' : isOnline() ? 'fetching' : 'waiting';
-  await db.articles.update(id, { status, error: undefined });
+  await db.articles.update(id, { status, error: undefined, errorKind: undefined });
   void kick();
 }
 
@@ -171,54 +175,74 @@ export async function rerenderArticle(id: string): Promise<void> {
 }
 
 export async function kick(): Promise<void> {
-  if (running) {
-    again = true;
+  await Promise.all([run('fetch'), run('render')]);
+}
+
+async function run(name: LoopName): Promise<void> {
+  const loop = loops[name];
+  if (loop.running) {
+    loop.again = true;
     return;
   }
-  running = true;
-  const wakeLock = await requestWakeLock();
+  loop.running = true;
+  // Rendering stops if the page is backgrounded, so keep the screen on while it runs.
+  const wakeLock = name === 'render' ? await requestWakeLock() : null;
   try {
     do {
-      again = false;
-      while (await step()) {
+      loop.again = false;
+      while (await (name === 'fetch' ? fetchStep() : renderStep())) {
         /* keep going */
       }
-    } while (again);
+    } while (loop.again);
   } finally {
-    running = false;
+    loop.running = false;
     await wakeLock?.release().catch(() => {});
   }
 }
 
-/** Does one unit of work. Returns false when there is nothing left to do. */
-async function step(): Promise<boolean> {
-  const online = isOnline();
-  if (online) {
-    // Saved while offline: start fetching now (SPEC §11).
-    await db.articles.where('status').equals('waiting').modify({ status: 'fetching' });
-  }
-  const all = (await db.articles.orderBy('queueOrder').toArray()).filter((a) => !a.deletedAt);
-  // Fetch first (cheap, and it gives titles), then render one at a time in queue order.
-  const next =
-    all.find((a) => a.status === 'fetching' && online) ??
-    all.find((a) => a.status === 'rendering' && !a.archivedAt) ??
-    all.find((a) => a.status === 'extracted' && !a.archivedAt);
+const live = async () => (await db.articles.orderBy('queueOrder').toArray()).filter((a) => !a.deletedAt);
+
+/** Fetches and extracts the next page. Returns false when there's nothing to fetch. */
+async function fetchStep(): Promise<boolean> {
+  if (!isOnline()) return false;
+  // Saved while offline: start fetching now (SPEC §11).
+  await db.articles.where('status').equals('waiting').modify({ status: 'fetching' });
+  const next = (await live()).find((a) => a.status === 'fetching');
   if (!next) return false;
   cancelled.delete(next.id);
-
   try {
-    if (next.status === 'fetching') await extract(next);
-    else await render(next);
+    await extract(next);
+    // It has text now; the render loop picks it up when it gets to it.
+    void run('render');
+  } catch (err) {
+    if (!(await db.articles.get(next.id))) return true;
+    // Offline mid-fetch: wait for the connection rather than failing.
+    if (!isOnline()) await db.articles.update(next.id, { status: 'waiting' });
+    else await db.articles.update(next.id, failure(err));
+  }
+  return true;
+}
+
+/** Renders the next article (one at a time, in queue order). Returns false when there's nothing to do. */
+async function renderStep(): Promise<boolean> {
+  const all = await live();
+  const next = all.find((a) => a.status === 'rendering' && !a.archivedAt) ?? all.find((a) => a.status === 'extracted' && !a.archivedAt);
+  if (!next) return false;
+  cancelled.delete(next.id);
+  try {
+    await render(next);
   } catch (err) {
     // Engine trouble isn't this article's fault: leave it queued and stop until the next kick.
     if (err instanceof EngineError) return false;
-    const message = err instanceof Error ? err.message : String(err);
-    if (!(await db.articles.get(next.id))) return true;
-    // Offline mid-fetch: wait for the connection rather than failing.
-    if (next.status === 'fetching' && !isOnline()) await db.articles.update(next.id, { status: 'waiting' });
-    else await db.articles.update(next.id, { status: 'failed', error: message });
+    if (await db.articles.get(next.id)) await db.articles.update(next.id, failure(err));
   }
   return true;
+}
+
+/** Failed state with a one-line, user-facing reason (DESIGN §9). */
+function failure(err: unknown): Partial<Article> {
+  if (err instanceof ExtractError) return { status: 'failed', error: err.message, errorKind: err.kind };
+  return { status: 'failed', error: err instanceof Error ? err.message : String(err), errorKind: undefined };
 }
 
 async function extract(a: Article) {
@@ -226,7 +250,7 @@ async function extract(a: Article) {
   const { html, finalUrl } = await fetchHtml(a.url, settings);
   const x = parseArticle(html, finalUrl);
   const script = buildScript(withIntro(htmlToBlocks(x.contentHtml), x));
-  if (!script.chunks.length) throw new Error('Extracted article has no readable text.');
+  if (!script.chunks.length) throw new ExtractError('We couldn’t find any article text on this page.', 'page');
   const patch: Partial<Article> = {
     status: 'extracted',
     title: x.title,
@@ -308,8 +332,8 @@ function escapeHtml(s: string): string {
 }
 
 async function requestWakeLock(): Promise<WakeLockSentinel | null> {
-  // Rendering stops if the page is backgrounded, so keep the screen on while it runs.
   try {
+
     if (document.visibilityState === 'visible' && 'wakeLock' in navigator) return await navigator.wakeLock.request('screen');
   } catch {
     /* not granted; render anyway */

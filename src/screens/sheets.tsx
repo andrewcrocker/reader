@@ -3,7 +3,7 @@ import { useAppData } from '../app/data';
 import { back, openSheet, showSnack, type Sheet as SheetState } from '../app/ui';
 import { addText, addUrl, replaceWithText, retryArticle } from '../pipeline/runner';
 import { MAX_SPEED, MIN_SPEED, usePlayer } from '../player/PlayerProvider';
-import { fmtDuration, fmtSpeed, lengthSec, siteLabel } from '../queue/display';
+import { fmtDuration, fmtSpeed, hasRealTitle, lengthSec, siteLabel, urlTitle } from '../queue/display';
 import { Art } from '../ui/Art';
 import { Icon, StatusGlyph } from '../ui/Icon';
 import { Sheet } from '../ui/Sheet';
@@ -226,11 +226,15 @@ export function ExplainSheet({ id }: { id: string }) {
   }, [a]);
   if (!a) return null;
   const failed = a.status === 'failed';
+  // A service failure never reached the page, so don't say the page couldn't load.
+  const heading = !failed ? 'Only part of this article loaded' : a.errorKind === 'service' ? 'Couldn’t connect' : 'Couldn’t load this page';
+  const urlish = !hasRealTitle(a) && a.source === 'url';
   const site = siteLabel(a);
   // Same speed-adjusted length the row shows ("6 m found").
   const foundSec = lengthSec(a);
   const foundMin = foundSec === undefined ? undefined : Math.max(1, Math.round(foundSec / player.speed / 60));
-  const pasteText = () => openSheet({ kind: 'add', tab: 'text', title: a.title !== a.url ? a.title : undefined, replaceId: a.id });
+  const pasteText = () => openSheet({ kind: 'add', tab: 'text', title: hasRealTitle(a) ? a.title : undefined, replaceId: a.id });
+
   const original = a.url ? (
     <a className="btn outline block" href={a.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
       Open original
@@ -238,11 +242,11 @@ export function ExplainSheet({ id }: { id: string }) {
   ) : null;
 
   return (
-    <Sheet label={failed ? 'Couldn’t load this page' : 'Only part of this article loaded'} head={false}>
+    <Sheet label={heading} head={false}>
       <div className="explain-head">
-        <Art article={a} size={48} placeholder={failed && a.title === a.url} />
+        <Art article={a} size={48} placeholder={urlish} />
         <div style={{ minWidth: 0 }}>
-          <p className="t">{a.title}</p>
+          <p className={`t${urlish ? ' url' : ''}`}>{urlish ? urlTitle(a.url) : a.title}</p>
           {site && <p className="hint">{site}</p>}
         </div>
       </div>
@@ -251,10 +255,10 @@ export function ExplainSheet({ id }: { id: string }) {
           <StatusGlyph kind={failed ? 'failed' : 'partial'} />
         </span>
         <div>
-          <h2 style={{ color: 'var(--fg)' }}>{failed ? 'Couldn’t load this page' : 'Only part of this article loaded'}</h2>
+          <h2 style={{ color: 'var(--fg)' }}>{heading}</h2>
           <p>
             {failed
-              ? a.error || 'The page didn’t send back any article text.'
+              ? a.error || 'Something went wrong preparing this article.'
               : `We found about ${foundMin ? `${foundMin} minute${foundMin === 1 ? '' : 's'}` : 'a few minutes'} of it. The rest is probably behind a sign-in or paywall.`}
 
           </p>

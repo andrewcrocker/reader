@@ -500,3 +500,4 @@ textarea.input { height: auto; padding: 12px 14px; font: 400 15px/1.5 var(--seri
   white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity 120ms, transform 120ms var(--ease); z-index: 5;
 }
 .seg button.seg-soon:hover::after, .seg button.seg-soon:focus-visible::after, .seg button.seg-soon.tip-on::after { opacity: 1; transform: translate(-50%, 0); }
+.explain-head .t.url { font-family: var(--sans); font-size: 14.5px; line-height: 1.35; color: var(--muted); word-break: break-all; }

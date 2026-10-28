@@ -44,6 +44,9 @@ export interface Article {
   extractionQuality?: 'full' | 'partial';
   /** One-line, user-facing reason when failed. */
   error?: string;
+  /** Whose fault a failed fetch was: the page/site, or our fetch service (proxy) not answering. */
+  errorKind?: 'page' | 'service';
+
   extractionMethod?: string;
   contentHtml?: string;
   /** Raw text for paste-text articles; skips extraction. */

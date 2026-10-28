@@ -16,7 +16,50 @@ export interface Extracted {
   method: string;
 }
 
-export class ExtractError extends Error {}
+/**
+ * A fetch/extract failure with a one-line reason a person can act on. `kind` says whose problem it
+ * is: the page or site (`page`), or our fetch service not answering or not set up (`service`).
+ */
+export class ExtractError extends Error {
+  constructor(
+    message: string,
+    readonly kind: 'page' | 'service',
+  ) {
+    super(message);
+  }
+}
+
+const SERVICE_DOWN = 'Couldn’t reach the service that fetches pages. Check your connection and try again.';
+const NOT_SET_UP = 'This app isn’t set up to fetch pages yet. Open your invite link again.';
+
+/** Reason for a proxy error response. The Worker sends JSON `{ error }`; anything else means it never answered. */
+export function proxyFailure(status: number, body: { error?: string } | null, contentType = ''): ExtractError {
+  const page = (m: string) => new ExtractError(m, 'page');
+  if (!body?.error) return new ExtractError(SERVICE_DOWN, 'service');
+  if (status === 401 || status === 403 || status === 500) return new ExtractError(NOT_SET_UP, 'service');
+  if (status === 400) return page('That doesn’t look like a web address.');
+  if (status === 413) return page('This page is too large to load.');
+  if (status === 415) return page(/pdf/i.test(body.error + contentType) ? 'This link is a PDF, which can’t be read yet.' : 'This link isn’t a web page.');
+  if (/timed out/.test(body.error)) return page('The site took too long to respond.');
+  if (status === 502) return page('The site couldn’t be reached.');
+  return new ExtractError(SERVICE_DOWN, 'service');
+}
+
+/** Reason for an error status the site itself returned (the Worker passes it in X-Upstream-Status). */
+export function siteFailure(status: number): ExtractError | null {
+  if (status < 400) return null;
+  const m =
+    status === 404 || status === 410
+      ? `The page wasn’t found (${status}).`
+      : status === 401 || status === 403
+        ? `The site blocked the request (${status}).`
+        : status === 429
+          ? 'The site is limiting requests. Try again later.'
+          : status >= 500
+            ? `The site had a problem (${status}). Try again later.`
+            : `The site returned an error (${status}).`;
+  return new ExtractError(m, 'page');
+}
 
 export async function fetchHtml(url: string, settings: Settings): Promise<{ html: string; finalUrl: string; status: number }> {
   const endpoint = `${settings.proxyUrl.replace(/\/$/, '')}/fetch?url=${encodeURIComponent(url)}`;
@@ -24,19 +67,18 @@ export async function fetchHtml(url: string, settings: Settings): Promise<{ html
   try {
     res = await fetch(endpoint, { headers: { 'X-App-Secret': settings.proxySecret } });
   } catch {
-    throw new ExtractError('Could not reach the fetch proxy. Is it running, and is the proxy URL right?');
+    throw new ExtractError(SERVICE_DOWN, 'service');
   }
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}) as { error?: string });
-    if (res.status === 401) throw new ExtractError('Proxy rejected the secret (check Settings).');
-    throw new ExtractError(`Proxy error ${res.status}: ${body.error ?? res.statusText}`);
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw proxyFailure(res.status, body, res.headers.get('Content-Type') ?? '');
   }
-  return {
-    html: await res.text(),
-    finalUrl: res.headers.get('X-Final-Url') ?? url,
-    status: Number(res.headers.get('X-Upstream-Status') ?? 200),
-  };
+  const status = Number(res.headers.get('X-Upstream-Status') ?? 200);
+  const bad = siteFailure(status);
+  if (bad) throw bad;
+  return { html: await res.text(), finalUrl: res.headers.get('X-Final-Url') ?? url, status };
 }
+
 
 export function parseArticle(html: string, finalUrl: string): Extracted {
   const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -56,7 +98,8 @@ export function parseArticle(html: string, finalUrl: string): Extracted {
 
   const parsed = new Readability(doc).parse();
   if (!parsed?.content || (parsed.textContent ?? '').trim().length < 200) {
-    throw new ExtractError('Could not find article text on this page. Try pasting the text instead.');
+    throw new ExtractError('We couldn’t find any article text on this page.', 'page');
+
   }
   return {
     finalUrl,
