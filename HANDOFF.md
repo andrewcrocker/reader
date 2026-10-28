@@ -25,6 +25,6 @@ All seven steps from the previous handoff are built. `npm run typecheck`, `npm t
 
 - Progressive playback works in browsers with MediaSource MP3 support (Chrome, including Android). Elsewhere (iPhone Safari) play still waits for the full render. On-device rendering stops when the app is backgrounded or the screen is off; server rendering doesn't, but collecting chunks does.
 
-- Server voices (default since 2026-10-28) are built and tested locally end to end: send, render with the app closed, collect on reopen, busy banner. Not yet deployed, and not yet tried on the Pixel. Per-invite allowances aren't possible until invites get their own secrets; only the global daily cap exists.
+- Server voices (default since 2026-10-28) are built and tested locally end to end: send, render with the app closed, collect on reopen, busy banner. Deployed 2026-10-28 (README "Deploy") and smoke-tested against production; not yet tried on the Pixel. Per-invite allowances aren't possible until invites get their own secrets; only the global daily cap exists.
 - Extraction ladder steps 2–5 (SPEC Phase 3). "Clear archive" is undesigned and not built.
 - Shared-text status row says "another app": Web Share Target doesn't tell us which app.

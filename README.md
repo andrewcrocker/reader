@@ -81,9 +81,17 @@ Open the printed `https://….trycloudflare.com/spike` on the phone.
 
 Keep the screen on while it renders (the page requests a wake lock). Android throttles background tabs.
 
-## Deploy later (nothing has been deployed)
+## Deploy
 
-Everything below is for when you're ready. No Cloudflare account or project has been created.
+Deployed 2026-10-28:
+
+- App (Pages project `read-aloud`): https://read-aloud-c1w.pages.dev
+- Worker `reader-proxy`: https://reader-proxy.andrew-crocker-c26.workers.dev
+- Production secret: `worker/.prod.vars` (git-ignored). The invite link is `https://read-aloud-c1w.pages.dev/#invite=<APP_SECRET>`.
+
+To ship changes: `npm run deploy:worker` and `npm run deploy:app`. Secrets: `./scripts/put-secrets.sh`.
+
+How it was set up the first time:
 
 1. Log in to Cloudflare:
 

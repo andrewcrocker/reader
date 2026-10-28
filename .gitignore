@@ -14,3 +14,6 @@ _backup-before-design/
 *.tsbuildinfo
 public/ort/
 .DS_Store
+
+# Production secrets kept locally (invite link)
+worker/.prod.vars

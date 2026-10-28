@@ -11,7 +11,7 @@
     "typecheck": "tsc -b && tsc -p worker/tsconfig.json",
     "test": "vitest run",
     "deploy:worker": "wrangler deploy --config worker/wrangler.toml",
-    "deploy:app": "npm run build && wrangler pages deploy dist --project-name reader",
+    "deploy:app": "npm run build && wrangler pages deploy dist --project-name read-aloud --branch main",
     "predev": "node scripts/copy-ort.mjs",
     "prebuild": "node scripts/copy-ort.mjs"
   },
