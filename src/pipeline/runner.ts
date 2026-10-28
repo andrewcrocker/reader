@@ -1,7 +1,7 @@
 import { db, domainOf, getSettings, nextQueueOrder, updateSettings, type Article, type VoiceQuality } from '../db';
 import { deleteAudio } from '../audio/storage';
 import { fetchArtwork, purgeArt } from '../art/art';
-import { getSharedEngine } from '../tts/engine';
+import { EngineLostError, getSharedEngine } from '../tts/engine';
 import { buildScript, htmlToBlocks, introBlock, plainTextToBlocks, type Block } from './textprep';
 import { ExtractError, fetchHtml, parseArticle } from './extract';
 import { renderArticle } from './render';
@@ -186,7 +186,7 @@ async function run(name: LoopName): Promise<void> {
   }
   loop.running = true;
   // Rendering stops if the page is backgrounded, so keep the screen on while it runs.
-  const wakeLock = name === 'render' ? await requestWakeLock() : null;
+  if (name === 'render') await holdScreen();
   try {
     do {
       loop.again = false;
@@ -196,7 +196,7 @@ async function run(name: LoopName): Promise<void> {
     } while (loop.again);
   } finally {
     loop.running = false;
-    await wakeLock?.release().catch(() => {});
+    if (name === 'render') await releaseScreen();
   }
 }
 
@@ -305,7 +305,7 @@ export async function ensureVoiceModel(quality?: VoiceQuality) {
   }
 }
 
-async function render(a: Article) {
+async function render(a: Article, attempt = 0) {
   const s = await getSettings();
   // Until First run picks a voice quality, don't start a 330 MB download on our own.
   if (!s.onboarded && s.voiceModel.status === 'none') throw new EngineError('Voice quality not chosen yet');
@@ -319,7 +319,15 @@ async function render(a: Article) {
     await db.articles.update(a.id, { status: 'extracted' });
     throw new EngineError(err instanceof Error ? err.message : String(err));
   }
-  await renderArticle(a, engine, () => cancelled.has(a.id));
+  try {
+    await renderArticle(a, engine, () => cancelled.has(a.id));
+  } catch (err) {
+    if (!(err instanceof EngineLostError)) throw err;
+    // Saved chunks survive, so a fresh engine picks up where this one stopped. Once in a row only:
+    // if it keeps dying (e.g. backgrounded), wait for the next kick rather than spin.
+    if (attempt > 0) throw new EngineError(err.message);
+    return render({ ...a, renderProgress: (await db.articles.get(a.id))?.renderProgress }, attempt + 1);
+  }
 }
 
 function withIntro(blocks: Block[], meta: { title?: string; byline?: string; siteName?: string }): Block[] {
@@ -331,14 +339,20 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 }
 
-async function requestWakeLock(): Promise<WakeLockSentinel | null> {
-  try {
+let wakeLock: WakeLockSentinel | null = null;
 
-    if (document.visibilityState === 'visible' && 'wakeLock' in navigator) return await navigator.wakeLock.request('screen');
+async function holdScreen(): Promise<void> {
+  if (wakeLock && !wakeLock.released) return;
+  try {
+    if (document.visibilityState === 'visible' && 'wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
   } catch {
     /* not granted; render anyway */
   }
-  return null;
+}
+
+async function releaseScreen(): Promise<void> {
+  await wakeLock?.release().catch(() => {});
+  wakeLock = null;
 }
 
 let started = false;
@@ -346,5 +360,12 @@ export function startRunner(): void {
   if (started) return;
   started = true;
   window.addEventListener('online', () => void kick());
+  // Back in front: resume anything stalled while hidden, and take the screen-on lock again
+  // (the browser drops it when the page is hidden).
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (loops.render.running) void holdScreen();
+    void kick();
+  });
   void kick();
 }

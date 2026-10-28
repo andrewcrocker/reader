@@ -23,6 +23,12 @@ export interface LoadCallbacks {
   onProgress?: (file: string, loaded: number, total: number) => void;
 }
 
+/** The worker crashed, hung or lost its GPU. Not the text's fault: rebuild the engine and try again. */
+export class EngineLostError extends Error {}
+
+/** Longest one chunk (≤300 characters, ~20 s of speech) may take before we assume the worker hung. */
+const CHUNK_TIMEOUT_MS = 90_000;
+
 /** On-device Kokoro, running in a dedicated worker. */
 export class KokoroEngine {
   readonly id = 'kokoro';
@@ -34,10 +40,12 @@ export class KokoroEngine {
   private pending = new Map<number, { resolve: (r: SynthResult) => void; reject: (e: Error) => void }>();
   private loadWaiter: { resolve: (i: LoadInfo) => void; reject: (e: Error) => void; cb: LoadCallbacks } | null = null;
   info: LoadInfo | null = null;
+  /** Set once the worker is unusable; getSharedEngine then makes a new one. */
+  broken = false;
 
   constructor() {
     this.worker.onmessage = (e: MessageEvent<KokoroOut>) => this.handle(e.data);
-    this.worker.onerror = (e) => this.failAll(new Error(e.message || 'TTS worker crashed'));
+    this.worker.onerror = (e) => this.lose(e.message || 'TTS worker crashed');
   }
 
   load(pref: EnginePref, opts: { gpuDtype?: Dtype; wasmDtype?: Dtype } = {}, cb: LoadCallbacks = {}): Promise<LoadInfo> {
@@ -49,15 +57,29 @@ export class KokoroEngine {
 
   synthesize(text: string, voice: string): Promise<SynthResult> {
     const id = this.nextId++;
+    if (this.broken) return Promise.reject(new EngineLostError('engine lost'));
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      const timer = setTimeout(() => this.lose('Voice engine stopped responding'), CHUNK_TIMEOUT_MS);
+      this.pending.set(id, {
+        resolve: (r) => (clearTimeout(timer), resolve(r)),
+        reject: (e) => (clearTimeout(timer), reject(e)),
+      });
       this.post({ type: 'generate', id, text, voice });
     });
   }
 
   dispose() {
+    this.broken = true;
     this.worker.terminate();
     this.failAll(new Error('engine disposed'));
+  }
+
+  private lose(message: string) {
+    if (this.broken) return;
+    console.warn('Voice engine lost:', message);
+    this.broken = true;
+    this.worker.terminate();
+    this.failAll(new EngineLostError(message));
   }
 
   private post(m: KokoroIn) {
@@ -92,6 +114,9 @@ export class KokoroEngine {
           this.loadWaiter = null;
         }
         break;
+      case 'lost':
+        this.lose(m.message);
+        break;
     }
   }
 
@@ -117,7 +142,7 @@ function loadPlan(pref: EnginePref, quality: VoiceQuality): { pref: EnginePref; 
 
 /** The pipeline's long-lived engine. Re-created if the backend preference or quality changes. */
 export function getSharedEngine(pref: EnginePref, quality: VoiceQuality, cb?: LoadCallbacks): { engine: KokoroEngine; ready: Promise<LoadInfo> } {
-  if (shared && shared.pref === pref && shared.quality === quality) return shared;
+  if (shared && !shared.engine.broken && shared.pref === pref && shared.quality === quality) return shared;
   shared?.engine.dispose();
   const engine = new KokoroEngine();
   const plan = loadPlan(pref, quality);
