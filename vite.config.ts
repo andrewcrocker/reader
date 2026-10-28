@@ -44,7 +44,9 @@ export default defineConfig({
 
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // src/app/update.ts registers the worker and applies updates once nothing is playing.
+      registerType: 'prompt',
+      injectRegister: false,
       includeAssets: ['icons/*.png'],
       manifest: {
         // "Reader" is the app's name (DESIGN "Still open": wordmark and icon).
