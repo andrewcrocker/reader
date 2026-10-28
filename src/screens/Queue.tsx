@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent as RPointerEvent } from 'react';
 import type { Article } from '../db';
 import { useAppData } from '../app/data';
-import { openNowPlaying, openSettings, openSheet, showSnack, useUi } from '../app/ui';
+import { openNowPlaying, openSettings, openSheet, showSnack, useUi, useWide } from '../app/ui';
 import { isPlayable, usePlayer } from '../player/PlayerProvider';
 import { displayState, queueSummary, rowMeta, voiceReady, type Ctx } from '../queue/display';
 import { isRenderable, markPlayed, moveToTop, purgeDeleted, rerenderMany, retryMany, reorder, softDelete } from '../queue/actions';
@@ -33,6 +33,7 @@ export function Queue() {
   const { upNext, archive, settings, online } = useAppData();
   const player = usePlayer();
   const { newId } = useUi();
+  const wide = useWide();
   const [selected, setSelected] = useState<Set<string> | null>(null);
   const [preview, setPreview] = useState<string[] | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -142,6 +143,15 @@ export function Queue() {
         onStatus={() => openSheet({ kind: 'explain', id: a.id })}
         onRetry={state === 'failed' ? () => void retryArticle(a.id) : undefined}
         onHandleDown={inArchive ? undefined : handleDown(a.id)}
+        menu={
+          wide
+            ? [
+                ...(inArchive ? [] : [{ label: 'Mark played', icon: 'mark-played' as const, run: () => markPlayedWithUndo([a.id]) }]),
+                { label: 'Delete', icon: 'trash' as const, danger: true, run: () => deleteWithUndo([a.id]) },
+              ]
+            : undefined
+        }
+
         rowRef={(el) => (el ? rowEls.current.set(a.id, el) : rowEls.current.delete(a.id))}
       />
     );

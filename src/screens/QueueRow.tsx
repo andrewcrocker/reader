@@ -3,6 +3,7 @@ import type { Article } from '../db';
 import { hasRealTitle, urlTitle, type RowMeta } from '../queue/display';
 import { Art } from '../ui/Art';
 import { Icon, StatusGlyph } from '../ui/Icon';
+import { MenuButton, type MenuItem } from '../ui/Menu';
 
 const LONG_PRESS_MS = 500;
 const SLOP = 10;
@@ -24,6 +25,8 @@ export interface RowProps {
   onRetry?: () => void;
   onHandleDown?: (e: RPointerEvent) => void;
   rowRef?: (el: HTMLElement | null) => void;
+  /** "More actions" menu, for pointers that can't swipe (the wide layout). */
+  menu?: MenuItem[];
 }
 
 /** One queue row (DESIGN "Article states"). Swipe left deletes, right marks played; long-press selects. */
@@ -83,7 +86,7 @@ export function QueueRow(p: RowProps) {
     s.down = false;
   };
 
-  const cls = ['row', p.playing && 'playing', p.played && 'played', (p.selected || p.isNew) && (p.selected ? 'selected' : 'is-new'), p.selecting && 'selecting', (failed || p.onRetry) && !p.selecting && 'has-action', p.dragging && 'dragging']
+  const cls = ['row', p.playing && 'playing', p.played && 'played', (p.selected || p.isNew) && (p.selected ? 'selected' : 'is-new'), p.selecting && 'selecting', (failed || p.onRetry || p.menu) && !p.selecting && 'has-action', p.dragging && 'dragging']
     .filter(Boolean)
     .join(' ');
 
@@ -181,7 +184,9 @@ export function QueueRow(p: RowProps) {
             {!p.online && <Icon name="cloud-off" size={18} />}Retry
           </button>
         )}
+        {!p.selecting && p.menu && <MenuButton label={`More actions for ${hasRealTitle(a) ? a.title : urlTitle(a.url)}`} items={p.menu} />}
         {p.selecting && p.onHandleDown && (
+
           <button className="drag-handle" aria-label={`Reorder ${a.title}`} onPointerDown={p.onHandleDown}>
             <Icon name="drag" />
           </button>

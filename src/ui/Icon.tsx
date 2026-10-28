@@ -2,11 +2,14 @@ import type { CSSProperties, ReactNode } from 'react';
 
 // Outline set, 1.8 stroke, round caps (DESIGN "Icons"). Paths taken from the design canvas.
 
+export type IconName = Name;
+
 type Name =
+
   | 'add' | 'settings' | 'pause' | 'play' | 'chevron-down' | 'chevron-right' | 'back' | 'close' | 'external'
   | 'prev-sentence' | 'next-sentence' | 'auto-advance' | 'read-along' | 'link' | 'clipboard' | 'share'
   | 'cloud-off' | 'check' | 'arrow-up' | 'trash' | 'move-top' | 'mark-played' | 're-render' | 'retry' | 'drag'
-  | 'minus' | 'plus' | 'shield' | 'warn' | 'download' | 'upload' | 'speaker';
+  | 'minus' | 'plus' | 'shield' | 'warn' | 'download' | 'upload' | 'speaker' | 'more';
 
 const P: Record<Name, ReactNode> = {
   add: <path d="M12 5v14M5 12h14" />,
@@ -106,7 +109,15 @@ const P: Record<Name, ReactNode> = {
       <circle cx="15" cy="18" r="1.6" />
     </g>
   ),
+  more: (
+    <g fill="currentColor" stroke="none">
+      <circle cx="12" cy="5.5" r="1.8" />
+      <circle cx="12" cy="12" r="1.8" />
+      <circle cx="12" cy="18.5" r="1.8" />
+    </g>
+  ),
   minus: <path d="M6 12h12" />,
+
   plus: <path d="M6 12h12M12 6v12" />,
   shield: (
     <>
