@@ -1,0 +1,10 @@
+name = "reader-proxy"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+
+[vars]
+# Comma-separated list of origins allowed to call the proxy from a browser.
+ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:4173"
+
+# APP_SECRET is a secret: locally it comes from worker/.dev.vars,
+# in production from `wrangler secret put APP_SECRET`.

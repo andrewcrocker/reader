@@ -1,0 +1,16 @@
+node_modules
+dist
+dev-dist
+public/ort
+.wrangler
+worker/.dev.vars
+.env.local
+.DS_Store
+
+.wrangler/
+worker/.dev.vars
+.env*.local
+_backup-before-design/
+*.tsbuildinfo
+public/ort/
+.DS_Store
