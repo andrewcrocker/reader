@@ -124,8 +124,9 @@ a { color: var(--accent); }
 .btn.block { width: 100%; }
 
 /* ---------- Queue header ---------- */
-.q-header { padding: 4px 8px 12px 20px; flex: none; }
-.q-header-row { display: flex; align-items: center; justify-content: space-between; }
+.q-header { padding: 10px 8px 12px 20px; flex: none; }
+.q-header-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
 .screen-title { margin: 0; font-family: var(--serif); font-weight: 500; font-size: 30px; line-height: 1.2; letter-spacing: -0.01em; }
 .q-sub { margin: 2px 0 0; font-size: 13.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .q-actions { display: flex; align-items: center; gap: 4px; }

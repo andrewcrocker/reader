@@ -176,8 +176,12 @@ export function Queue() {
         </div>
       ) : (
         <header className="q-header">
+          {/* Buttons sit centered against the title and its summary line together. */}
           <div className="q-header-row">
-            <h1 className="screen-title">Up next</h1>
+            <div style={{ minWidth: 0 }}>
+              <h1 className="screen-title">Up next</h1>
+              {!empty && <p className="q-sub">{queueSummary(upNext, ctx)}</p>}
+            </div>
             <div className="q-actions">
               <button className="icon-btn" aria-label="Settings" onClick={openSettings}>
                 <Icon name="settings" />
@@ -187,8 +191,8 @@ export function Queue() {
               </button>
             </div>
           </div>
-          {!empty && <p className="q-sub">{queueSummary(upNext, ctx)}</p>}
         </header>
+
       )}
 
       {!online && (
