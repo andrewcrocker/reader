@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { openNowPlaying } from '../app/ui';
+import { openNowPlaying, useWide } from '../app/ui';
 import { usePlayer } from '../player/PlayerProvider';
 import { fmtDuration, siteLabel } from '../queue/display';
 import { Art } from '../ui/Art';
@@ -9,8 +9,11 @@ import { Icon } from '../ui/Icon';
 export function MiniPlayer() {
   const p = usePlayer();
   const startY = useRef<number | null>(null);
+  const wide = useWide();
   const a = p.current;
-  if (!a) return null;
+  // In the wide layout Now Playing is always on screen, so there's no mini player.
+  if (!a || wide) return null;
+
   const rendering = a.status === 'rendering' || a.status === 'extracted';
   const left = Math.max(0, p.duration - p.time) / p.speed;
   const sub = rendering ? `Preparing ${Math.round((a.renderProgress ?? 0) * 100)}%` : `${fmtDuration(left)} left`;
@@ -25,6 +28,8 @@ export function MiniPlayer() {
         }
       }}
       onPointerUp={() => (startY.current = null)}
+      onPointerLeave={() => (startY.current = null)}
+
     >
       <div className="mini-progress" aria-hidden="true">
         <div style={{ width: `${p.duration ? (p.time / p.duration) * 100 : 0}%` }} />

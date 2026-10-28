@@ -1,9 +1,11 @@
 import { useRef } from 'react';
 import { useAppData } from '../app/data';
 import { back, getUi } from '../app/ui';
-import { updateSettings } from '../db';
+import { updateSettings, type Article } from '../db';
+
 import { usePlayer } from '../player/PlayerProvider';
-import { displayState, rowMeta, siteLabel, voiceReady } from '../queue/display';
+import { displayState, hasRealTitle, rowMeta, siteLabel, urlTitle, voiceReady } from '../queue/display';
+
 import { Art, Cover } from '../ui/Art';
 import { Icon } from '../ui/Icon';
 import { Scrubber, Times } from '../ui/Scrubber';
@@ -11,15 +13,18 @@ import { Snackbar } from '../ui/Snackbar';
 import { Lyrics } from './Lyrics';
 import { PlayButton, ReadAlongPill, SkipButton, SpeedPill } from './Transport';
 
-/** DESIGN §3 (and §4 when Read along is on). */
-export function NowPlaying() {
+/**
+ * DESIGN §3 (and §4 when Read along is on). `embedded` is the right pane of the wide layout: always
+ * open, so no collapse control, swipe-down, or snackbar of its own (the queue pane shows it).
+ */
+export function NowPlaying({ embedded }: { embedded?: boolean }) {
   const p = usePlayer();
   const { settings, online, upNext } = useAppData();
   const drag = useRef<{ y: number; at: number } | null>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   const a = p.current;
   if (!a) return null;
-  if (settings.lyricsOn) return <Lyrics />;
+  if (settings.lyricsOn) return <Lyrics embedded={embedded} />;
 
   const byline = [a.byline, siteLabel(a)].filter(Boolean).join(' · ');
   const renderingNow = !p.loaded && (a.status === 'rendering' || a.status === 'extracted');
@@ -31,6 +36,7 @@ export function NowPlaying() {
 
   // Swipe down from the top of the page collapses.
   const onDown = (e: React.PointerEvent) => {
+    if (embedded) return;
     if ((sheetRef.current?.scrollTop ?? 0) <= 0 && !(e.target as HTMLElement).closest('.scrubber, button, a')) drag.current = { y: e.clientY, at: Date.now() };
   };
   const onMove = (e: React.PointerEvent) => {
@@ -41,12 +47,16 @@ export function NowPlaying() {
   };
 
   return (
-    <div className="np" ref={sheetRef} role="dialog" aria-label="Now playing" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={() => (drag.current = null)}>
+    <div className={`np${embedded ? ' embedded' : ''}`} ref={sheetRef} role={embedded ? 'region' : 'dialog'} aria-label="Now playing" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={() => (drag.current = null)}>
       <div className="np-inner">
         <div className="np-top">
-          <button className="icon-btn" aria-label="Collapse player" onClick={back}>
-            <Icon name="chevron-down" size={26} />
-          </button>
+          {embedded ? (
+            <span className="icon-btn" aria-hidden="true" />
+          ) : (
+            <button className="icon-btn" aria-label="Collapse player" onClick={back}>
+              <Icon name="chevron-down" size={26} />
+            </button>
+          )}
           <p className="caps" style={{ letterSpacing: '0.1em', margin: 0 }}>From your queue</p>
           {a.url ? (
             <a className="icon-btn" href={a.url} target="_blank" rel="noreferrer" aria-label="Open original article">
@@ -91,20 +101,34 @@ export function NowPlaying() {
           <ReadAlongPill>Read along</ReadAlongPill>
         </div>
         <div className="np-spacer" />
-        <Snackbar />
+        {!embedded && <Snackbar />}
         {next && nextMeta && (
           <div className="np-peek">
             <p className="caps" style={{ margin: '0 0 8px' }}>Up next</p>
-            <button onClick={back} aria-label={`Up next: ${nextMeta.spoken}. Open the queue`}>
-              <Art article={next} size={40} />
-              <span style={{ flex: 1, minWidth: 0 }}>
-                <p className="peek-title">{next.title}</p>
-                <p className="peek-sub">{nextMeta.segs.map((s) => s.text).join(' · ')}</p>
-              </span>
-            </button>
+            {/* Tap opens the queue; in the wide layout the queue is already beside it. */}
+            {embedded ? (
+              <div className="peek-row">{peekBody(next, nextMeta.segs)}</div>
+            ) : (
+              <button onClick={back} aria-label={`Up next: ${nextMeta.spoken}. Open the queue`}>
+                {peekBody(next, nextMeta.segs)}
+              </button>
+            )}
           </div>
         )}
+
       </div>
     </div>
+  );
+}
+
+function peekBody(next: Article, segs: { text: string }[]) {
+  return (
+    <>
+      <Art article={next} size={40} />
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <p className="peek-title">{hasRealTitle(next) ? next.title : urlTitle(next.url)}</p>
+        <p className="peek-sub">{segs.map((s) => s.text).join(' · ')}</p>
+      </span>
+    </>
   );
 }

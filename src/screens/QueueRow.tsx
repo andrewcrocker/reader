@@ -30,7 +30,8 @@ export interface RowProps {
 export function QueueRow(p: RowProps) {
   const a = p.article;
   const [dx, setDx] = useState(0);
-  const g = useRef<{ x: number; y: number; mode: 'idle' | 'swipe' | 'scroll'; timer?: ReturnType<typeof setTimeout>; suppress: boolean }>({ x: 0, y: 0, mode: 'idle', suppress: false });
+  // `down` is set only between pointerdown and pointerup, so a mouse hovering over the row never swipes.
+  const g = useRef<{ x: number; y: number; down: boolean; mode: 'idle' | 'swipe' | 'scroll'; timer?: ReturnType<typeof setTimeout>; suppress: boolean }>({ x: 0, y: 0, down: false, mode: 'idle', suppress: false });
   const urlish = !hasRealTitle(a) && a.source === 'url';
   const failed = p.meta.glyph === 'failed';
   const partial = p.meta.glyph === 'partial';
@@ -41,6 +42,7 @@ export function QueueRow(p: RowProps) {
     s.x = e.clientX;
     s.y = e.clientY;
     s.mode = 'idle';
+    s.down = true;
     s.suppress = false;
     clearTimeout(s.timer);
     s.timer = setTimeout(() => {
@@ -53,6 +55,7 @@ export function QueueRow(p: RowProps) {
   };
   const move = (e: RPointerEvent) => {
     const s = g.current;
+    if (!s.down) return;
     const mx = e.clientX - s.x;
     const my = e.clientY - s.y;
     if (s.mode === 'idle' && (Math.abs(mx) > SLOP || Math.abs(my) > SLOP)) {
@@ -77,6 +80,7 @@ export function QueueRow(p: RowProps) {
       } else setDx(0);
     }
     s.mode = 'idle';
+    s.down = false;
   };
 
   const cls = ['row', p.playing && 'playing', p.played && 'played', (p.selected || p.isNew) && (p.selected ? 'selected' : 'is-new'), p.selecting && 'selecting', (failed || p.onRetry) && !p.selecting && 'has-action', p.dragging && 'dragging']
@@ -118,8 +122,18 @@ export function QueueRow(p: RowProps) {
         onPointerDown={down}
         onPointerMove={move}
         onPointerUp={up}
-        onPointerCancel={() => {
+        onPointerLeave={() => {
+          // Released outside the row without swiping (a captured swipe keeps its events).
+          if (g.current.mode === 'swipe') return;
+          g.current.down = false;
           clearTimeout(g.current.timer);
+        }}
+        onPointerCancel={() => {
+
+          g.current.down = false;
+          g.current.mode = 'idle';
+          clearTimeout(g.current.timer);
+
           setDx(0);
         }}
         onContextMenu={(e) => e.preventDefault()}

@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { getSettings, updateSettings } from './db';
 import { AppDataProvider, useAppData } from './app/data';
 import { classifyShare, readHash, type Shared } from './app/share';
-import { openNowPlaying, openSheet, setNewId, showSnack, useUi } from './app/ui';
+import { openNowPlaying, openSheet, setNewId, showSnack, useUi, useWide } from './app/ui';
 import { addUrl, startRunner } from './pipeline/runner';
 import { moveToTop, purgeDeleted } from './queue/actions';
 import { PlayerProvider, usePlayer } from './player/PlayerProvider';
@@ -63,6 +63,7 @@ let arrivalShown = false;
 function Shell() {
   const { loaded, settings } = useAppData();
   const ui = useUi();
+  const wide = useWide();
   const player = usePlayer();
 
   useEffect(() => {
@@ -97,13 +98,38 @@ function Shell() {
     );
   }
   const sheet = ui.sheet;
+  const sheets = (
+    <>
+      {sheet?.kind === 'add' && <AddSheet key={`${sheet.tab}${sheet.replaceId ?? ''}${sheet.text?.length ?? 0}`} sheet={sheet} />}
+      {sheet?.kind === 'speed' && <SpeedSheet />}
+      {sheet?.kind === 'explain' && <ExplainSheet id={sheet.id} />}
+    </>
+  );
+  if (wide) {
+    // Wide screens: the queue (or Settings) on the left, Now Playing always open on the right.
+    return (
+      <div className="app wide">
+        <div className="pane-left">{ui.settings ? <Settings /> : <Queue />}</div>
+        <div className="pane-right">{player.current ? <NowPlaying embedded /> : <NothingPlaying />}</div>
+        {sheets}
+      </div>
+    );
+  }
   return (
     <div className="app">
       {ui.settings ? <Settings /> : <Queue />}
       {ui.nowPlaying && <NowPlaying />}
-      {sheet?.kind === 'add' && <AddSheet key={`${sheet.tab}${sheet.replaceId ?? ''}${sheet.text?.length ?? 0}`} sheet={sheet} />}
-      {sheet?.kind === 'speed' && <SpeedSheet />}
-      {sheet?.kind === 'explain' && <ExplainSheet id={sheet.id} />}
+      {sheets}
     </div>
   );
 }
+
+function NothingPlaying() {
+  return (
+    <div className="np-empty">
+      <h2>Nothing playing</h2>
+      <p>Tap an article in your queue to play it.</p>
+    </div>
+  );
+}
+

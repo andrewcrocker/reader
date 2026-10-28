@@ -472,3 +472,17 @@ textarea.input { height: auto; padding: 12px 14px; font: 400 15px/1.5 var(--seri
 .s-row:disabled { color: var(--muted); cursor: default; }
 .icon-btn:disabled { opacity: 0.45; }
 .chip-btn:disabled { color: var(--input-border); }
+
+/* ---------- Wide layout (≥ 900 px): queue left, Now Playing right ---------- */
+.app.wide { max-width: none; display: grid; grid-template-columns: minmax(360px, 440px) minmax(0, 1fr); align-items: start; }
+.pane-left { min-width: 0; border-right: 1px solid var(--line); }
+.pane-right { position: sticky; top: 0; height: 100dvh; min-width: 0; overflow: hidden; }
+.np.embedded { position: relative; inset: auto; z-index: auto; height: 100%; animation: none; }
+.np.embedded .np-inner { min-height: 100%; }
+/* Keep the whole player on screen on laptop heights: the cover gives way first. */
+.np.embedded .np-cover { width: min(calc(100% - 64px), 42dvh); margin: 4px auto 0; }
+.np.embedded .np-peek { padding-bottom: 22px; }
+.peek-row { display: flex; align-items: center; gap: 12px; }
+.np-empty { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 40px; }
+.np-empty h2 { margin: 0; font-family: var(--serif); font-weight: 500; font-size: 26px; }
+.np-empty p { margin: 10px 0 0; color: var(--muted); font-size: 15.5px; }

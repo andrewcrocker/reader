@@ -50,13 +50,30 @@ export function useUi(): UiState {
 
 export const getUi = () => state;
 
+// ---- Wide layout: Queue on the left, Now Playing always open on the right ----
+
+const WIDE = '(min-width: 900px)';
+const wideQuery = matchMedia(WIDE);
+
+export function useWide(): boolean {
+  return useSyncExternalStore(
+    (fn) => {
+      wideQuery.addEventListener('change', fn);
+      return () => wideQuery.removeEventListener('change', fn);
+    },
+    () => wideQuery.matches,
+  );
+}
+
 function push(patch: Partial<UiState>) {
   history.pushState({ overlay: true }, '');
   set(patch);
 }
 
 export const openSettings = () => !state.settings && push({ settings: true });
-export const openNowPlaying = () => !state.nowPlaying && push({ nowPlaying: true });
+/** Opens the Now Playing overlay. In the wide layout it's already on screen, so this does nothing. */
+export const openNowPlaying = () => !state.nowPlaying && !wideQuery.matches && push({ nowPlaying: true });
+
 
 export function openSheet(sheet: Sheet) {
   // Sheet to sheet (explainer -> Add) swaps in place rather than stacking.

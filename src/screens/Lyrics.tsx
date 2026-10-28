@@ -18,7 +18,7 @@ function blocksOf(a: Article) {
 }
 
 /** DESIGN §4: the article text, following the audio by sentence. */
-export function Lyrics() {
+export function Lyrics({ embedded }: { embedded?: boolean }) {
   const p = usePlayer();
   const a = p.current!;
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -102,12 +102,15 @@ export function Lyrics() {
   };
 
   return (
-    <div className="np" role="dialog" aria-label="Now playing, read along">
-      <div className="np-inner" style={{ height: '100dvh', minHeight: 0 }}>
+    <div className={`np${embedded ? ' embedded' : ''}`} role={embedded ? 'region' : 'dialog'} aria-label="Now playing, read along">
+      <div className="np-inner" style={{ height: '100%', minHeight: 0 }}>
         <div className="lyrics-head">
-          <button className="icon-btn" aria-label="Collapse player" onClick={back}>
-            <Icon name="chevron-down" size={26} />
-          </button>
+          {!embedded && (
+            <button className="icon-btn" aria-label="Collapse player" onClick={back}>
+              <Icon name="chevron-down" size={26} />
+            </button>
+          )}
+
           <Art article={a} size={36} />
           <div className="who">
             <p className="t">{a.title}</p>

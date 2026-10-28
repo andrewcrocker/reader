@@ -59,6 +59,9 @@ The Queue is the hub. Now Playing opens from the mini player on any screen. Lyri
 
 Ways in: app icon → Queue; share sheet → Queue (URL) or Add sheet on Text (text); invite link → First run → empty Queue.
 
+**Wide screens (900 px and up):** two panes. The Queue (or Settings) is a column on the left, at most 440 wide; Now Playing (or Lyrics view) stays open on the right. There's no mini player, collapse control, or swipe-down, and the Up next peek isn't a link because the queue is already beside it. The cover shrinks to fit the screen height. Sheets stay bottom sheets.
+
+
 ## Design tokens
 
 ### Color
