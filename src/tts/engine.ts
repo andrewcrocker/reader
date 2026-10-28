@@ -1,5 +1,5 @@
 import type { Device, Dtype, KokoroIn, KokoroOut } from './kokoro.worker';
-import type { EnginePref } from '../db';
+import type { EnginePref, VoiceQuality } from '../db';
 
 export type { Device, Dtype };
 
@@ -103,17 +103,28 @@ export class KokoroEngine {
   }
 }
 
-let shared: { engine: KokoroEngine; pref: EnginePref; ready: Promise<LoadInfo> } | null = null;
+let shared: { engine: KokoroEngine; pref: EnginePref; quality: VoiceQuality; ready: Promise<LoadInfo> } | null = null;
 
-/** The pipeline's long-lived engine. Re-created if the engine preference changes. */
-export function getSharedEngine(pref: EnginePref, cb?: LoadCallbacks): { engine: KokoroEngine; ready: Promise<LoadInfo> } {
-  if (shared && shared.pref === pref) return shared;
+/**
+ * Voice quality (DESIGN "Settings") is the model's quantization:
+ * - high: fp32 on WebGPU (~310 MB); phones without WebGPU fall back to q8 on WASM, the path the spike measured.
+ * - standard: q8 (~90 MB) on WASM. kokoro-js's quantized builds aren't reliable on WebGPU, so this skips it.
+ */
+function loadPlan(pref: EnginePref, quality: VoiceQuality): { pref: EnginePref; gpuDtype: Dtype; wasmDtype: Dtype } {
+  if (quality === 'standard') return { pref: 'wasm', gpuDtype: 'q8', wasmDtype: 'q8' };
+  return { pref, gpuDtype: 'fp32', wasmDtype: 'q8' };
+}
+
+/** The pipeline's long-lived engine. Re-created if the backend preference or quality changes. */
+export function getSharedEngine(pref: EnginePref, quality: VoiceQuality, cb?: LoadCallbacks): { engine: KokoroEngine; ready: Promise<LoadInfo> } {
+  if (shared && shared.pref === pref && shared.quality === quality) return shared;
   shared?.engine.dispose();
   const engine = new KokoroEngine();
-  const ready = engine.load(pref, {}, cb);
+  const plan = loadPlan(pref, quality);
+  const ready = engine.load(plan.pref, { gpuDtype: plan.gpuDtype, wasmDtype: plan.wasmDtype }, cb);
   ready.catch(() => {
     if (shared?.engine === engine) shared = null;
   });
-  shared = { engine, pref, ready };
+  shared = { engine, pref, quality, ready };
   return shared;
 }

@@ -53,3 +53,20 @@ describe('/fetch', () => {
     expect((await req('/fetch?url=https://example.com/a.pdf')).status).toBe(415);
   });
 });
+
+describe('/asset', () => {
+  it('passes images through with CORP so the isolated app can load them', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(new Uint8Array([1, 2, 3]), { headers: { 'Content-Type': 'image/png' } })));
+    const res = await req('/asset?url=https://example.com/icon.png');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toBe('image/png');
+    expect(res.headers.get('Cross-Origin-Resource-Policy')).toBe('cross-origin');
+    expect(new Uint8Array(await res.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]));
+  });
+
+  it('refuses non-images and private hosts', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('<html>', { headers: { 'Content-Type': 'text/html' } })));
+    expect((await req('/asset?url=https://example.com/page')).status).toBe(415);
+    expect((await req('/asset?url=http://127.0.0.1/x.png')).status).toBe(400);
+  });
+});

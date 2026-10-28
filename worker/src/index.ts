@@ -97,6 +97,45 @@ app.get('/fetch', async (c) => {
   });
 });
 
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+
+/**
+ * GET /asset?url=…
+ *
+ * Image bytes for artwork (SPEC §4a, §13). The app stores what it gets locally, so this
+ * is only hit once per image. image/* only, size-capped, streamed through.
+ */
+app.get('/asset', async (c) => {
+  const target = parseTarget(c.req.query('url'));
+  if (typeof target === 'string') return c.json({ error: target }, 400);
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(target.toString(), {
+      headers: { 'User-Agent': BROWSER_HEADERS['User-Agent'], Accept: 'image/avif,image/webp,image/png,image/*;q=0.8' },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch {
+    return c.json({ error: 'upstream fetch failed' }, 502);
+  }
+  if (!upstream.ok) return c.json({ error: `upstream status ${upstream.status}` }, 502);
+  const contentType = upstream.headers.get('Content-Type') ?? '';
+  if (!/^image\//i.test(contentType)) return c.json({ error: `not an image: ${contentType}` }, 415);
+  if (Number(upstream.headers.get('Content-Length') ?? 0) > MAX_IMAGE_BYTES) return c.json({ error: 'image too large' }, 413);
+  if (!upstream.body) return c.json({ error: 'empty upstream body' }, 502);
+
+  return new Response(upstream.body.pipeThrough(byteLimit(MAX_IMAGE_BYTES)), {
+    status: 200,
+    headers: {
+      'Content-Type': contentType,
+      // The app is cross-origin isolated (COEP require-corp); allow it to load this response.
+      'Cross-Origin-Resource-Policy': 'cross-origin',
+      'Cache-Control': 'no-store',
+    },
+  });
+});
+
 app.notFound((c) => c.json({ error: 'not found' }, 404));
 
 /** Returns a URL, or an error message string. */

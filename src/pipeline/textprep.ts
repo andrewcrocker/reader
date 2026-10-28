@@ -1,4 +1,4 @@
-import type { Chunk, Sentence } from '../db';
+import type { Chunk, LyricBlock, Sentence } from '../db';
 
 // Readability HTML (or pasted text) -> listening script: sentences for display/timing,
 // chunks of normalized text for the TTS engine.
@@ -12,6 +12,8 @@ export interface Block {
 export interface Script {
   sentences: Sentence[];
   chunks: Chunk[];
+  /** Heading/paragraph structure over `sentences`, for the lyrics view. */
+  blocks: LyricBlock[];
 }
 
 export interface ChunkOptions {
@@ -214,8 +216,10 @@ export function splitLong(s: string, maxChars: number): string[] {
 export function buildScript(blocks: Block[], opts: ChunkOptions = DEFAULT_CHUNKING): Script {
   const sentences: Sentence[] = [];
   const chunks: Chunk[] = [];
+  const lyricBlocks: LyricBlock[] = [];
 
   for (const block of blocks) {
+    const first = sentences.length;
     const pieces = (block.kind === 'para' ? splitSentences(block.text) : [block.text])
       .flatMap((s) => splitLong(s, opts.maxChars));
 
@@ -243,8 +247,9 @@ export function buildScript(blocks: Block[], opts: ChunkOptions = DEFAULT_CHUNKI
       group.push(piece);
     }
     emit(true);
+    if (sentences.length > first) lyricBlocks.push({ kind: block.kind, first, count: sentences.length - first });
   }
-  return { sentences, chunks };
+  return { sentences, chunks, blocks: lyricBlocks };
 }
 
 export function wordCount(blocks: Block[]): number {
