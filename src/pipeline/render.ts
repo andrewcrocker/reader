@@ -9,7 +9,8 @@ import { placeChunk } from './timeline';
  * Renders any chunks not yet saved, then concatenates everything into one audio file
  * and writes sentence timings. Safe to call again after an interruption.
  */
-export async function renderArticle(article: Article, engine: KokoroEngine, isCancelled: () => boolean): Promise<void> {
+/** `getEngine` is asked before every chunk, so the engine can be swapped mid-article (e.g. back onto the GPU). */
+export async function renderArticle(article: Article, getEngine: () => Promise<KokoroEngine>, isCancelled: () => boolean): Promise<void> {
   const chunks = article.chunks ?? [];
   if (!chunks.length) throw new Error('nothing to render');
   const voice = article.voice!;
@@ -21,7 +22,11 @@ export async function renderArticle(article: Article, engine: KokoroEngine, isCa
   for (const chunk of chunks) {
     if (done.has(chunk.i)) continue;
     if (isCancelled()) return;
-    const { pcm, sampleRate } = await engine.synthesize(chunk.text, voice);
+    const engine = await getEngine();
+    if (isCancelled()) return;
+    const { pcm, sampleRate, ms } = await engine.synthesize(chunk.text, voice);
+    const sec = pcm.length / sampleRate;
+    console.debug(`chunk ${chunk.i + 1}/${chunks.length}: ${sec.toFixed(1)} s of audio in ${(ms / 1000).toFixed(1)} s (${(sec / (ms / 1000)).toFixed(2)}× real time)`);
     if (!(await db.articles.get(article.id))) return; // deleted mid-render
     const int16 = floatToInt16(pcm);
     await db.renderedChunks.put({ articleId: article.id, i: chunk.i, pcm: int16.buffer as ArrayBuffer, sampleRate });

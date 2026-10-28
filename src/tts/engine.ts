@@ -71,7 +71,7 @@ export class KokoroEngine {
   dispose() {
     this.broken = true;
     this.worker.terminate();
-    this.failAll(new Error('engine disposed'));
+    this.failAll(new EngineLostError('engine disposed'));
   }
 
   private lose(message: string) {
@@ -128,7 +128,26 @@ export class KokoroEngine {
   }
 }
 
-let shared: { engine: KokoroEngine; pref: EnginePref; quality: VoiceQuality; ready: Promise<LoadInfo> } | null = null;
+let shared: { engine: KokoroEngine; pref: EnginePref; quality: VoiceQuality; ready: Promise<LoadInfo>; loadedAt?: number } | null = null;
+
+/** How long to stay on the slow WASM fallback before trying the GPU again. */
+const GPU_RETRY_MS = 60_000;
+
+/**
+ * Fell back to WASM on a phone that has WebGPU. Usually the GPU was briefly unavailable (Android
+ * takes it away while the app is in the background), so try it again once the app is in front.
+ * WASM is several times slower on phones, so this is worth the ~10 s reload.
+ */
+function shouldRetryGpu(s: NonNullable<typeof shared>): boolean {
+  return (
+    s.pref === 'auto' &&
+    s.quality === 'high' &&
+    s.engine.info?.device === 'wasm' &&
+    'gpu' in navigator &&
+    document.visibilityState === 'visible' &&
+    Date.now() - (s.loadedAt ?? Infinity) > GPU_RETRY_MS
+  );
+}
 
 /**
  * Voice quality (DESIGN "Settings") is the model's quantization:
@@ -140,16 +159,33 @@ function loadPlan(pref: EnginePref, quality: VoiceQuality): { pref: EnginePref; 
   return { pref, gpuDtype: 'fp32', wasmDtype: 'q8' };
 }
 
+/** Frees the model (~100–330 MB) when nothing needs it; the next request loads it again. */
+export function disposeSharedEngine(): void {
+  shared?.engine.dispose();
+  shared = null;
+}
+
+/** The current shared engine if it can still be used for these settings, without creating one. */
+export function reusableEngine(pref: EnginePref, quality: VoiceQuality): KokoroEngine | null {
+  if (shared && !shared.engine.broken && shared.pref === pref && shared.quality === quality && !shouldRetryGpu(shared)) return shared.engine;
+  return null;
+}
+
 /** The pipeline's long-lived engine. Re-created if the backend preference or quality changes. */
 export function getSharedEngine(pref: EnginePref, quality: VoiceQuality, cb?: LoadCallbacks): { engine: KokoroEngine; ready: Promise<LoadInfo> } {
-  if (shared && !shared.engine.broken && shared.pref === pref && shared.quality === quality) return shared;
+  if (shared && reusableEngine(pref, quality) === shared.engine) return shared;
   shared?.engine.dispose();
   const engine = new KokoroEngine();
   const plan = loadPlan(pref, quality);
   const ready = engine.load(plan.pref, { gpuDtype: plan.gpuDtype, wasmDtype: plan.wasmDtype }, cb);
-  ready.catch(() => {
-    if (shared?.engine === engine) shared = null;
-  });
+  ready.then(
+    () => {
+      if (shared?.engine === engine) shared.loadedAt = Date.now();
+    },
+    () => {
+      if (shared?.engine === engine) shared = null;
+    },
+  );
   shared = { engine, pref, quality, ready };
   return shared;
 }

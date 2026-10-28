@@ -1,7 +1,7 @@
 import { db, domainOf, getSettings, nextQueueOrder, updateSettings, type Article, type VoiceQuality } from '../db';
 import { deleteAudio } from '../audio/storage';
 import { fetchArtwork, purgeArt } from '../art/art';
-import { EngineLostError, getSharedEngine } from '../tts/engine';
+import { disposeSharedEngine, EngineLostError, getSharedEngine, reusableEngine, type KokoroEngine } from '../tts/engine';
 import { buildScript, htmlToBlocks, introBlock, plainTextToBlocks, type Block } from './textprep';
 import { ExtractError, fetchHtml, parseArticle } from './extract';
 import { renderArticle } from './render';
@@ -185,19 +185,49 @@ async function run(name: LoopName): Promise<void> {
     return;
   }
   loop.running = true;
-  // Rendering stops if the page is backgrounded, so keep the screen on while it runs.
-  if (name === 'render') await holdScreen();
-  try {
+  const work = async () => {
     do {
       loop.again = false;
       while (await (name === 'fetch' ? fetchStep() : renderStep())) {
         /* keep going */
       }
     } while (loop.again);
+  };
+  try {
+    if (name === 'fetch') await work();
+    else await renderExclusively(work);
   } finally {
     loop.running = false;
-    if (name === 'render') await releaseScreen();
   }
+}
+
+const IDLE_UNLOAD_MS = 60_000;
+let idleUnload: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * Only one copy of the app (installed app, a leftover browser tab) renders at a time, so only one
+ * holds the voice model in memory; on phones several copies crash the page. The others wait here
+ * and take over if that one closes. The model is freed once rendering has been idle a minute.
+ */
+async function renderExclusively(work: () => Promise<void>): Promise<void> {
+  const body = async () => {
+    clearTimeout(idleUnload);
+    // Rendering stops if the page is backgrounded, so keep the screen on while it runs.
+    await holdScreen();
+    try {
+      await work();
+    } finally {
+      await releaseScreen();
+      idleUnload = setTimeout(() => {
+        if (!loops.render.running) {
+          disposeSharedEngine();
+          readyEngine = null;
+        }
+      }, IDLE_UNLOAD_MS);
+    }
+  };
+  if ('locks' in navigator) await navigator.locks.request('read-aloud-render', body);
+  else await body();
 }
 
 const live = async () => (await db.articles.orderBy('queueOrder').toArray()).filter((a) => !a.deletedAt);
@@ -271,10 +301,15 @@ async function extract(a: Article) {
   await fetchArtwork({ ...a, ...patch });
 }
 
+let readyEngine: KokoroEngine | null = null;
+
 /** Load (downloading if needed) the on-device voice model, tracking progress in Settings.voiceModel. */
 export async function ensureVoiceModel(quality?: VoiceQuality) {
   const settings = await getSettings();
   const q = quality ?? settings.voiceQuality;
+  // Already loaded: called before every chunk, so skip the status writes.
+  const current = reusableEngine(settings.engine, q);
+  if (current && current === readyEngine) return current;
   const prev = settings.voiceModel;
   if (prev.status !== 'ready' || prev.quality !== q) {
     await updateSettings({ voiceModel: { status: 'downloading', quality: q, bytes: prev.quality === q ? prev.bytes : 0, totalBytes: prev.totalBytes } });
@@ -294,6 +329,8 @@ export async function ensureVoiceModel(quality?: VoiceQuality) {
   if (engineState.phase !== 'ready') setEngineState({ phase: 'loading', message: 'Loading voice model…' });
   try {
     const info = await ready;
+    console.info(`Voice engine ready: ${info.device} ${info.dtype}${info.fallbackReason ? ` (${info.fallbackReason})` : ''}, ${Math.round(info.loadMs)} ms`);
+    readyEngine = engine;
     setEngineState({ phase: 'ready', device: info.device, dtype: info.dtype, fallbackReason: info.fallbackReason });
     const s = await getSettings();
     await updateSettings({ voiceModel: { status: 'ready', quality: q, bytes: s.voiceModel.totalBytes, totalBytes: s.voiceModel.totalBytes } });
@@ -311,16 +348,20 @@ async function render(a: Article, attempt = 0) {
   if (!s.onboarded && s.voiceModel.status === 'none') throw new EngineError('Voice quality not chosen yet');
   await db.articles.update(a.id, { status: 'rendering', renderProgress: a.renderProgress ?? 0 });
 
-  let engine;
   try {
-    engine = await ensureVoiceModel();
+    await ensureVoiceModel();
   } catch (err) {
     // Keep the article queued; the problem is the engine, not this article.
     await db.articles.update(a.id, { status: 'extracted' });
     throw new EngineError(err instanceof Error ? err.message : String(err));
   }
   try {
-    await renderArticle(a, engine, () => cancelled.has(a.id));
+    // A load failure mid-article is the engine's problem too, not the article's.
+    const getEngine = () =>
+      ensureVoiceModel().catch((err: unknown) => {
+        throw new EngineLostError(err instanceof Error ? err.message : String(err));
+      });
+    await renderArticle(a, getEngine, () => cancelled.has(a.id));
   } catch (err) {
     if (!(err instanceof EngineLostError)) throw err;
     // Saved chunks survive, so a fresh engine picks up where this one stopped. Once in a row only:
