@@ -24,7 +24,8 @@ npm run dev
 
 - App: http://localhost:5173
 - TTS spike: http://localhost:5173/spike
-- The fetch proxy runs at http://localhost:8787. The Vite dev server forwards `/api/*` to it, so the browser only talks to port 5173.
+- The Worker (fetch proxy and server voices) runs at http://localhost:8787. The Vite dev server forwards `/api/*` to it, so the browser only talks to port 5173. Locally, its R2 bucket, Workflow and Durable Object are simulated by `wrangler dev`.
+- Server voices need `DEEPINFRA_API_KEY` in `worker/.dev.vars`; budget alert emails need `RESEND_API_KEY` and `ALERT_EMAIL` (the Resend account's own address). Without the voice key, set Settings → Voice → Engine to "On this device".
 - The dev secret is `dev-secret`, in `worker/.dev.vars` (git-ignored, copied from `worker/.dev.vars.example`). Locally you never enter it: the `/api` proxy in both `npm run dev` and `npm run preview` reads it from that file and attaches it, so the Settings secret field can stay blank.
 
 Tests and type checks:
@@ -100,6 +101,22 @@ Everything below is for when you're ready. No Cloudflare account or project has 
    npx wrangler secret put APP_SECRET --config worker/wrangler.toml
    ```
 
+   Then the voice and alert secrets, one at a time (`DEEPINFRA_API_KEY`, `RESEND_API_KEY`, `ALERT_EMAIL`):
+
+   ```bash
+   npx wrangler secret put DEEPINFRA_API_KEY --config worker/wrangler.toml
+   ```
+
+   Create the audio bucket and its 7-day expiry for jobs nobody collected:
+
+   ```bash
+   npx wrangler r2 bucket create reader-audio
+   ```
+
+   ```bash
+   npx wrangler r2 bucket lifecycle add reader-audio expire-jobs jobs/ --expire-days 7
+   ```
+
 3. Edit `ALLOWED_ORIGINS` in [worker/wrangler.toml](worker/wrangler.toml) to your app's origin (for example `https://reader.pages.dev`). Then deploy the Worker:
 
    ```bash
@@ -133,6 +150,9 @@ Everything below is for when you're ready. No Cloudflare account or project has 
 | Piece | Where |
 |---|---|
 | Fetch proxy (Hono on Workers): auth, origin check, SSRF guard, 5 MB cap, 15 s timeout | [worker/src/index.ts](worker/src/index.ts) |
+| Server voices: `/render` routes, voice allowlist, daily budget, alert email, MP3 header stripping | [worker/src/render.ts](worker/src/render.ts) |
+| Render Workflow (one step per chunk) and the budget counter (Durable Object) | [worker/src/jobs.ts](worker/src/jobs.ts) |
+| App side of server voices: send once, collect chunks, build the file | [src/tts/server.ts](src/tts/server.ts), [src/pipeline/serverRender.ts](src/pipeline/serverRender.ts) |
 | Dexie schema, settings | [src/db.ts](src/db.ts) |
 | Readability extraction via the proxy | [src/pipeline/extract.ts](src/pipeline/extract.ts) |
 | Text prep (§6.1): cleanup, intro, normalization, sentence split, chunking | [src/pipeline/textprep.ts](src/pipeline/textprep.ts) |

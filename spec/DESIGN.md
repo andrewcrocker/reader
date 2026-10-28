@@ -22,7 +22,8 @@ Read these first if you've seen the brief.
 | Up-next peek | Peek or swipe | **Peek** of the next article at the bottom of Now Playing |
 | Reorder handles | Always, or edit mode | **Only in multi-select mode** |
 | Lyrics dimming | All dimmed text at 4.5:1 | Already-read text drops to about 2.6:1 (see Accessibility) |
-| Voice choice | Global or per-article | **One global voice**, picked from the on-device model's voices in Settings. First run only picks **voice quality** (the model download size). No picker in the player |
+| Voice choice | Global or per-article | **One global voice** from three (Heart, Bella, Michael), picked in Settings. No picker in the player or First run |
+| Voice engine | On-device, with optional cloud | **Online (server Kokoro) by default** on every device; on-device stays as a Settings choice. First run asks about voice quality only for on-device |
 | Speed | Default speed plus a player picker | **One global speed.** The player picker and Settings edit the same value, and it persists |
 | Neutrals | Warm cream and brown (as drawn on the canvas) | **Toned down:** every neutral token keeps its lightness and hue at a quarter of the canvas chroma (OKLCH), so it reads as a barely warm gray. Contrast is unchanged. The canvas still shows the older, warmer values |
 
@@ -181,7 +182,8 @@ Every row shows a 16 dp status glyph at the start of its meta line, then text. E
 | --- | --- | --- | --- | --- |
 | Fetching | Dotted circle | "Fetching page…" | `muted` | No |
 | Rendering | Ring with progress arc | "**Preparing 42%** · ~22 m · Site" | text `fg` | Yes, to rendered point |
-| Queued for audio | Clock | "Queued for audio · ~11 m · Site" | `muted` | No |
+| Queued for audio | Clock | "Queued for audio · ~11 m · Site" (online voices: "Preparing… · ~11 m · Site" once sent) | `muted` | No |
+| Waiting for voices | Clock | "Waiting for voices · ~11 m · Site" (the server's daily voice budget is spent) | `muted` | No |
 | Ready | Circle with down-arrow | "18 m · Offline · Site" | `muted` | Yes, offline too |
 | In progress / Playing | Equalizer bars | "**Playing** · 14 m left · Site" + 3 dp progress bar | `accent` label | Yes |
 | Partial | Half-filled circle | "**Partial** · 6 m found · Site" | `warn` | Yes, what was found |
@@ -212,6 +214,7 @@ Every row shows a 16 dp status glyph at the start of its meta line, then text. E
   - A 36 dp banner under the header on `fill`: cloud-slash glyph and "Offline · ready articles still play."
   - Retry buttons are disabled (`input-border` color, cloud-slash glyph) and described by the row note.
   - Nothing else changes.
+- **Voices busy** (online voices, daily budget spent): the same banner with a clock glyph and "Voices are busy right now. Your articles will finish later." Affected rows read "Waiting for voices"; they start again on their own after the reset (midnight UTC). Offline wins if both apply.
 
 ### 2. Mini player
 
@@ -338,13 +341,12 @@ Tapping a Partial row's status (or a Failed row) opens a sheet:
 
 ### 10. Settings · artboard "Settings …"
 
-Pushed screen: back arrow and "Settings." The top level is a menu: **Voice**, **Playback**, and **Storage** rows (each with a one-line summary and a chevron), then an outline "Invite a friend" button, and the version at the foot. Each row pushes its own page with a back arrow; back returns to the menu. Pages use caps section labels and `line` dividers. The voice list shows all voices (no "More voices"). Quality rows show the one-time download size and its status.
-
+Pushed screen: back arrow and "Settings." The top level is a menu: **Voice**, **Playback**, and **Storage** rows (each with a one-line summary and a chevron), then an outline "Invite a friend" button, and the version at the foot. Each row pushes its own page with a back arrow; back returns to the menu. Pages use caps section labels and `line` dividers. The voice list shows all three voices. Quality rows (on-device only) show the one-time download size and its status.
 
 - **Voice:**
-  - A radio list of the model's voices: name, a short descriptor ("Warm · US English"), and a 48 play-sample button. The first two show inline; "More voices" opens the full list. Voices share one model, so switching voice downloads nothing. Samples are short bundled clips, so they work before the model finishes.
-  - Voice quality: "High · Downloaded · 330 MB." Opens a choice of High (330 MB) or Standard (92 MB). Switching downloads the other model and offers to re-render queued articles.
-  - Engine: segmented "On this phone | Cloud." **Cloud is deferred:** the tab stays visible but unavailable (not-allowed cursor, "Coming soon" tooltip on hover, focus, or tap). When it's built it needs a provider picker before the key field, key validation states, cost per article in place of download size, and its own saved voice.
+  - Engine: segmented "Online | On this device," **Online by default** everywhere. One line under it says what the choice means: online voices finish even after the app closes; on-device voices need no connection but the app has to stay open, and they're slow on many phones.
+  - A radio list of three voices: **Heart** (default), **Bella**, **Michael**: name, a short descriptor ("Warm · US English"), and a 48 play-sample button. Samples are short bundled clips, so they work offline and before any download.
+  - Voice quality (**on-device only**; hidden for Online): High (330 MB) or Standard (92 MB). Switching downloads the other model and offers to re-render queued articles.
 
 - **Playback:**
   - Speed (opens the speed picker; same value as the player).
@@ -362,12 +364,12 @@ Pushed screen: back arrow and "Settings." The top level is a menu: **Voice**, **
 
 ### 11. First run · artboard "First run …"
 
-Three steps with a progress-dot indicator: the active dot is 20 wide, done/active dots are `accent`, and pending dots are `fill`.
+Two steps with Online voices (the default): Welcome, then Save from anywhere. The voice download step appears only for on-device voices, making three. Progress dots: the active dot is 20 wide, done/active dots are `accent`, and pending dots are `fill`.
 
 1. **Welcome:**
    - A small stack of generated covers, then "Articles, read aloud." and one sentence of value.
    - **Install the app** (primary; triggers the PWA install prompt) and "Continue in the browser."
-2. **Download the voice:**
+2. **Download the voice** (on-device voices only):
    - A short line on privacy and Wi-Fi, then a radio list of quality cards with size and a sample button: High quality (330 MB) and Standard (92 MB).
    - High quality is marked Recommended and preselected. The default voice is used; picking a different voice happens in Settings.
    - Choosing a quality starts its download, shown inside the card: "Downloading · 148 of 330 MB" and a time estimate.
@@ -379,7 +381,7 @@ Three steps with a progress-dot indicator: the active dot is 20 wide, done/activ
    - **Go to my queue** lands on the empty Queue.
    - A "Voice 71%" status chip in the top right shows while the download continues.
 
-Until the voice is ready, saved articles stay in "Queued for audio," with a meta note: "Waiting for voice download."
+With on-device voices, saved articles stay in "Queued for audio" until the voice is ready, with a meta note: "Waiting for voice download."
 
 ## Interactions and motion
 

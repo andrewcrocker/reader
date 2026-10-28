@@ -31,11 +31,12 @@ Status: reconciled with DESIGN.md (Oct 28, 2026). DESIGN.md owns screens, states
 6. Full offline playback (airplane mode) for anything already saved.
 7. Basic CRUD: multi-select, delete with undo, archive, clear, reorder.
 8. Extraction handles most sites well, escalates through fallbacks when it doesn't, and gets past soft paywalls where possible.
-9. **Shareable with friends.** Send someone a URL and they can use it, with no account and without spending the owner's TTS budget. This is what makes on-device TTS the default (§6.3).
+9. **Shareable with friends.** Send someone a URL and they can use it, with no account. Voices run on a server the owner pays for (about 1¢ an article), capped per day so the cost can't run away (§6.3).
+10. **Pocket-style saving.** Share an article and close the app; the audio is waiting the next time it opens.
 
 **Non-goals (for now)**
 
-- Accounts, logins, sync, or server-side storage. Everything lives on the device.
+- Accounts, logins, or sync. Everything lives on the device. The one exception: rendered audio waits on the server (R2) until the app downloads it, then it's deleted (7 days at most).
 - Multi-device support. One phone (Pixel 8 / Chrome).
 - Highlights, notes, tags, search. These might come later.
 - A reading mode without audio.
@@ -58,8 +59,8 @@ Status: reconciled with DESIGN.md (Oct 28, 2026). DESIGN.md owns screens, states
 │  TTS prep: clean text → sentences → chunks                            │
 │        │                                                              │
 │        ▼                                                              │
-│  TTS engine: on-device model (default, free)                          │
-│              or cloud provider with the user's own key (optional)     │
+│  TTS engine: Kokoro on the server (default; renders in the background)│
+│              or Kokoro on-device (Settings choice; free, offline)     │
 │        │                                                              │
 │        ▼                                                              │
 │  Render: per-chunk audio → concatenated file + timing map             │
@@ -74,17 +75,19 @@ Status: reconciled with DESIGN.md (Oct 28, 2026). DESIGN.md owns screens, states
 └───────────────────────────────┬───────────────────────────────────────┘
                                 │ HTTPS, shared-secret header
                                 ▼
-            ┌────────── Cloudflare Worker (stateless) ──────────┐
-            │  GET  /fetch?url=…   → raw HTML (+ fallback modes) │
-            │  GET  /asset?url=…   → image bytes (artwork)       │
-            │  POST /tts (optional) → passes through the user's  │
-            │                        own key. Stores nothing.     │
-            └───────────────────────────────────────────────────┘
+            ┌──────────────────── Cloudflare Worker ────────────────────┐
+            │  GET  /fetch?url=…   → raw HTML (+ fallback modes)         │
+            │  GET  /asset?url=…   → image bytes (artwork)               │
+            │  POST /render        → starts a background render job     │
+            │                        (Workflow → voice host → R2)        │
+            │  GET  /render/:job[/:i], DELETE /render/:job               │
+            └───────────────────────────────────────────────────────────┘
 ```
 
 **Why this shape**
 
-- **A PWA can't fetch other sites directly** because of CORS, so a thin proxy is required. Fetching is effectively free at friends-and-family scale (Workers free tier is 100k requests/day), so sharing the proxy costs nothing. TTS is the only real cost, which is why it runs on-device by default.
+- **A PWA can't fetch other sites directly** because of CORS, so a thin proxy is required. Fetching is effectively free at friends-and-family scale (Workers free tier is 100k requests/day), so sharing the proxy costs nothing. TTS is the only real cost: about 1¢ per article on the server, capped per day.
+- **Voices render on the server by default** because on-device rendering failed on a Pixel 8 (2026-10-28): loading the model peaked at 1.35 GB and Android killed the page, the GPU is taken away in the background, and it ran barely faster than real time while heating the phone.
 - **CPU-heavy work runs on the phone, not the Worker.** The Workers free plan allows about 10ms of CPU per request, and network wait time doesn't count toward that. Fetching and proxying TTS are I/O; Readability parsing is CPU. The browser has a native `DOMParser`, so jsdom isn't needed.
 - **Audio is pre-rendered to files at save time**, not synthesized live. The Web Speech API on Android Chrome is unreliable once the screen is off and doesn't fire the word-boundary events highlighting needs. Pre-rendered files fix both problems and make offline playback trivial.
 - **No accounts.** A shared secret keeps the fetch proxy from being an open proxy for strangers. Friends get it through an invite link (§10a), so they never type it.
@@ -224,22 +227,24 @@ After all chunks render, they're **concatenated into one audio file per article*
 
 ### 6.3 Engines
 
-Because friends need to use the app without spending the owner's money, TTS is tiered:
+Both engines run the same model (**Kokoro-82M**) and the same three voices, **Heart** (default), **Bella**, and **Michael**, so they sound alike and samples are shared.
 
-**Default: on-device neural TTS (free for everyone).**
+**Default: Kokoro on the server ("Online").** Plan and spike results: the "Server Kokoro plan" doc.
+- The app sends an article's chunks once (`POST /render`); a Cloudflare **Workflow** sends each chunk to a hosted Kokoro API (DeepInfra, $0.99 per million characters) four at a time, strips each MP3's header frame, and stores it in **R2** with its length. Each chunk is a Workflow step, so the job survives crashes and keeps going with the app closed.
+- The app collects finished chunks whenever it's open (polling every 2 s while visible), decodes them to 24 kHz PCM into `renderedChunks` like on-device chunks, then builds the file as usual and deletes the server's copy. Streaming playback works the same.
+- Spike: a 7.9-minute article rendered in 78 s for 0.73¢; requests take 3–12 s each, mostly queueing at the host.
+- **Budget:** one global counter (a Durable Object) allows 330,000 characters a day (about 33 articles, $0.33), which keeps a month under $10. Refused requests get `429 {error:"busy", retryAt}`; the app shows "Voices are busy" and retries after the reset (midnight UTC). The owner gets an email (Resend) at 80% and when the budget runs out, once each per day. DeepInfra's own spending limit is the backstop.
+- Article text goes to the voice host; DeepInfra lists zero retention.
+
+**Alternative: on-device neural TTS (Settings → Voice → On this device; free, offline).**
 - **Kokoro-82M** via `kokoro-js` (transformers.js), running in the browser on WebGPU, falling back to WASM. Open weights (Apache 2.0). Piper is a lighter fallback with lower quality.
-- **Voice quality vs. voice.** The download size depends on the model's quantization (roughly 90 MB for a quantized build to about 330 MB for full precision; verify exact sizes and which builds run on WebGPU in the spike). The design calls these **Standard** and **High quality**, chosen in First run. **Voices** (the speaker style) all come from the same model, so switching voice downloads nothing; it's chosen in Settings.
+- **Voice quality vs. voice.** The download size depends on the model's quantization (about 92 MB quantized, 330 MB full precision). The design calls these **Standard** and **High quality**, chosen in First run when on-device is the engine. **Voices** all come from the same model, so switching voice downloads nothing; it's chosen in Settings.
 - One-time model download, cached by the service worker. After that, rendering needs no network at all. Track download progress in `Settings.voiceModel` so First run and Settings can show it, and hold articles in `"extracted"` ("Waiting for voice download") until it completes.
 - Play-sample buttons use short pre-rendered clips bundled with the app, so they work before the model is downloaded.
-- **Biggest unknown in the whole project:** render speed on real phones. If it runs at real-time or faster, rendering a 10-minute article takes under 10 minutes, and progressive playback (§6.2) hides most of that wait. If it's much slower than real-time, the PWA's lack of background execution becomes a problem, because the app has to stay open while it renders. See §12 for the fallback.
+- **Measured on a Pixel 8:** 1.17× real time on WebGPU, about 0.15× on the WASM fallback, and the page was killed for memory while loading the High model. Fine on desktop (2.5× real time on a Mac). The app has to stay open while it renders.
 - iPhone friends: needs testing on Safari. WebGPU support there is recent; WASM is the safe floor but slower.
 
-**Optional: cloud TTS with your own key ("BYO key").**
-- Settings → Engine → Cloud → choose a provider and paste an API key. The key is stored only on that device and passed through the Worker (or called directly where the provider allows browser calls). Nobody spends anyone else's money.
-- Candidates: **OpenAI** (`gpt-4o-mini-tts`), **Google Cloud TTS** (SSML timepoints), **Azure** (word-boundary timestamps), **ElevenLabs** (best quality, priciest).
-- The provider/key screen isn't designed yet; DESIGN.md describes a plain form.
-
-**Voice bake-off (Phase 0):** render the same ~1,000-word article with Kokoro (2–3 voices, both quality levels) plus 1–2 cloud voices, and listen on the phone at 1.0× and 1.5×.
+Bring-your-own-key cloud voices were dropped (2026-10-28) once the server path existed.
 
 Implement behind an interface so engines can be swapped or mixed:
 
@@ -253,7 +258,7 @@ interface TtsProvider {
 }
 ```
 
-**Cost ballpark (BYO-key path only):** a typical article is roughly 5–15k characters. Cloud TTS generally lands somewhere around a few cents to roughly twenty cents per article. **Verify current pricing during the spike.** The on-device default costs nothing to anyone.
+**Cost:** a typical article is roughly 5–15k characters, so about 0.5–1.5¢ on the server. On-device costs nothing.
 
 Always render at 1.0× and handle speed at playback (`playbackRate`), so one render serves every speed. Changing voice or quality doesn't re-render existing audio automatically; Settings offers "Re-render queued articles," and multi-select has Re-render.
 
@@ -333,6 +338,8 @@ interface Article {
   durationSec?: number;       // at 1.0×
   renderProgress?: number;    // 0..1
   renderedUntilSec?: number;
+  serverJob?: string;         // server render job, until its chunks are collected
+  busyUntil?: number;         // server voice budget spent; retry after this
   ttsProvider?: string;
   voice?: string;
   positionSec: number;        // resume point
@@ -345,10 +352,8 @@ interface Article {
 interface Settings {
   proxyUrl: string;
   proxySecret: string;
-  engine: "device" | "cloud";
-  cloudProvider?: string;
-  cloudKey?: string;          // this device only
-  voice: string;
+  engineKind: "server" | "device";   // default "server"
+  voice: string;              // "af_heart" | "af_bella" | "am_michael"
   voiceQuality: "high" | "standard";
   voiceModel: { status: "none" | "downloading" | "ready" | "error"; bytes?: number; totalBytes?: number };
   speed: number;              // global
@@ -373,7 +378,8 @@ The queue row state in DESIGN.md comes from these fields. First match wins.
 | Waiting for connection | `status = "waiting"`, or `"fetching"` while offline |
 | Fetching | `status = "fetching"` |
 | Failed | `status = "failed"` |
-| Queued for audio | `status = "extracted"` (note "Waiting for voice download" if `voiceModel.status !== "ready"`) |
+| Queued for audio | `status = "extracted"` (note "Waiting for voice download" if on-device and `voiceModel.status !== "ready"`; "Preparing…" once `serverJob` is set) |
+| Waiting for voices | `status = "extracted"` and `busyUntil > now` (server budget spent) |
 | Rendering | `status = "rendering"` |
 | Playing / In progress | `status = "ready"` and (`id = lastPlayingArticleId` or `positionSec > 0`) |
 | Ready | `status = "ready"` |
@@ -397,9 +403,9 @@ The queue row state in DESIGN.md comes from these fields. First match wins.
 
 Sharing means sharing **the app**, not content. Each person's queue, articles, audio, and settings live only on their own device.
 
-- **Distribution:** an invite link like `https://app.example/#invite=<secret>`. Opening it stores the proxy secret locally and starts First run (welcome and install, voice download, how to save). The secret is in the URL fragment, so it's never sent to the server or logged.
+- **Distribution:** an invite link like `https://app.example/#invite=<secret>`. Opening it stores the proxy secret locally and starts First run (welcome and install, how to save; plus the voice download for on-device voices). The secret is in the URL fragment, so it's never sent to the server or logged.
 - **Invite a friend:** Settings → About → Share sends the same link through the system share sheet.
-- **Cost to the owner:** the fetch proxy only, which stays within the free tier at this scale. No TTS cost unless a friend chooses BYO-key.
+- **Cost to the owner:** voices, about 1¢ an article, capped at about $10 a month by the daily budget (§6.3). Fetching, the render jobs and their storage stay within Cloudflare's free tiers.
 - **Revocation:** rotating the Worker secret cuts off all old links. Per-friend secrets are a possible later feature.
 - **Platform notes:**
   - Android: full experience, including the share target.
@@ -412,9 +418,9 @@ Sharing means sharing **the app**, not content. Each person's queue, articles, a
 
 - Service worker precaches the app shell and fonts. The app launches in airplane mode.
 - Articles in `ready` state are fully offline (text, audio, timings, art).
-- Rendering continues offline once the voice model is downloaded.
+- Online voices need a connection to send and collect a job; saved articles wait ("Queued for audio") and continue when it's back. On-device rendering continues offline once the model is downloaded.
 - URLs shared while offline are saved as `waiting`, and the pipeline runs when connectivity returns (`online` event + on app open).
-- UI: one slim banner ("Offline · ready articles still play"), no layout shift. Disable only network actions: Retry, cloud voices, voice download, Invite. Detect with `navigator.onLine` plus failed proxy requests.
+- UI: one slim banner ("Offline · ready articles still play"), no layout shift. Disable only network actions: Retry, voice download, Invite. Detect with `navigator.onLine` plus failed proxy requests.
 
 ---
 
@@ -459,12 +465,16 @@ GET  /asset?url=<encoded>
 GET  /archive?url=<encoded>
   → 200 { wayback?: string, archiveToday?: string }   // snapshot URLs, if any
 
-POST /tts   { provider, voice, text, format: "mp3" }   // BYO-key path only
-  header: X-Provider-Key: <user's own API key>  (passed through, never stored or logged)
-  → 200 audio/mpeg (body) + headers: X-Duration (if known), X-Word-Timings (if provided)
+POST /render   { voice, chunks: [{ i, text }] }       // voice: af_heart | af_bella | am_michael
+  → 202 { job, chunks }
+  → 429 { error: "busy", retryAt }                  // day's voice budget spent
+  → 400 { error }                                   // bad voice, empty/too long chunk, >400 chunks
+GET    /render/:job      → 200 { status, ready: [{ i, sec }] }   // status from the Workflow
+GET    /render/:job/:i   → 200 audio/mpeg (one chunk, header frame stripped) + X-Chunk-Seconds
+DELETE /render/:job      → 204 (deletes the chunks; an R2 lifecycle rule expires leftovers after 7 days)
 ```
 
-Keep it stateless. No logging of URLs or content beyond Cloudflare's defaults.
+Only rendered audio is stored, and only until the app downloads it. No logging of URLs or content beyond Cloudflare's defaults.
 
 ---
 

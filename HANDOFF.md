@@ -23,10 +23,8 @@ All seven steps from the previous handoff are built. `npm run typecheck`, `npm t
 
 ## Gaps (spec says yes, not built)
 
-- Progressive playback works in browsers with MediaSource MP3 support (Chrome, including Android). Elsewhere (iPhone Safari) play still waits for the full render. Rendering stops when the app is backgrounded or the screen is off, so a stream stops at the last rendered sentence.
+- Progressive playback works in browsers with MediaSource MP3 support (Chrome, including Android). Elsewhere (iPhone Safari) play still waits for the full render. On-device rendering stops when the app is backgrounded or the screen is off; server rendering doesn't, but collecting chunks does.
 
-- Cloud TTS (BYO key): the Engine control shows Cloud as disabled ("Not available yet"); no form, no Worker `/tts`.
-- Voice samples synthesize on the device, so they need the model. DESIGN wants short bundled clips that work before the download.
-- Voice-quality sizes (330 / 92 MB) are the design's labels; confirm against the spike.
+- Server voices (default since 2026-10-28) are built and tested locally end to end: send, render with the app closed, collect on reopen, busy banner. Not yet deployed, and not yet tried on the Pixel. Per-invite allowances aren't possible until invites get their own secrets; only the global daily cap exists.
 - Extraction ladder steps 2–5 (SPEC Phase 3). "Clear archive" is undesigned and not built.
 - Shared-text status row says "another app": Web Share Target doesn't tell us which app.
