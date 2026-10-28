@@ -515,3 +515,6 @@ textarea.input { height: auto; padding: 12px 14px; font: 400 15px/1.5 var(--seri
 .menu button:hover, .menu button:focus-visible { background: var(--fill); outline: none; }
 .menu button.danger { color: var(--error); }
 .row .icon-btn.row-action { color: var(--muted); }
+
+/* Invite needed (SPEC §10a): the empty-state layout, full height, no header above it. */
+.invite-needed { border-top: none; padding-bottom: 60px; }

@@ -1,5 +1,6 @@
 import { Readability } from '@mozilla/readability';
 import type { Settings } from '../db';
+import { noteInviteRejected } from '../app/invite';
 
 export interface Extracted {
   finalUrl: string;
@@ -71,6 +72,7 @@ export async function fetchHtml(url: string, settings: Settings): Promise<{ html
   }
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    if (res.status === 401 && body?.error) noteInviteRejected();
     throw proxyFailure(res.status, body, res.headers.get('Content-Type') ?? '');
   }
   const status = Number(res.headers.get('X-Upstream-Status') ?? 200);

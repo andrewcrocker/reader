@@ -1,5 +1,6 @@
 import type { Chunk, Settings } from '../db';
 import { SAMPLE_RATE } from '../audio/pcm';
+import { noteInviteRejected } from '../app/invite';
 
 // Server voices: the Worker renders an article's chunks in the background (plan "Server Kokoro";
 // worker/src/render.ts). The app sends the text once, then collects finished chunks whenever it's open.
@@ -20,11 +21,17 @@ const base = (s: Settings) => `${s.proxyUrl.replace(/\/$/, '')}/render`;
 const auth = (s: Settings) => ({ 'X-App-Secret': s.proxySecret });
 
 async function call(input: string, init: RequestInit): Promise<Response> {
+  let res: Response;
   try {
-    return await fetch(input, init);
+    res = await fetch(input, init);
   } catch {
     throw new ServerUnavailableError('Couldn’t reach the voice server');
   }
+  if (res.status === 401) {
+    noteInviteRejected();
+    throw new ServerUnavailableError('The voice server rejected this invite');
+  }
+  return res;
 }
 
 /** Starts a server render; returns the job id. */

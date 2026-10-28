@@ -70,3 +70,10 @@ describe('/asset', () => {
     expect((await req('/asset?url=http://127.0.0.1/x.png')).status).toBe(400);
   });
 });
+
+describe('/ping', () => {
+  it('says whether the secret is good', async () => {
+    expect((await req('/ping')).status).toBe(204);
+    expect((await req('/ping', { 'X-App-Secret': 'old' })).status).toBe(401);
+  });
+});

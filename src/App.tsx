@@ -3,7 +3,9 @@ import { getSettings, updateSettings } from './db';
 import { AppDataProvider, useAppData } from './app/data';
 import { classifyShare, readHash, type Shared } from './app/share';
 import { openNowPlaying, openSheet, setNewId, showSnack, useUi, useWide } from './app/ui';
-import { addUrl, startRunner } from './pipeline/runner';
+import { addUrl, kick, startRunner } from './pipeline/runner';
+import { acceptInvite, checkInvite } from './app/invite';
+import { InviteNeeded } from './screens/InviteNeeded';
 import { moveToTop, purgeDeleted } from './queue/actions';
 import { PlayerProvider, usePlayer } from './player/PlayerProvider';
 import { FirstRun } from './screens/FirstRun';
@@ -28,7 +30,8 @@ export function App() {
 /** What arrived with this launch: a share (SPEC §4), `#add=<url>`, or `#invite=<secret>` (§10a). */
 function incoming(): Shared | null {
   const { invite, add } = readHash(location.hash);
-  if (invite) void updateSettings({ proxySecret: invite });
+  if (invite) void acceptInvite(invite).then(() => (void checkInvite(), kick()));
+  else void checkInvite();
   let shared: Shared | null = null;
   if (location.pathname === '/share') {
     const q = new URLSearchParams(location.search);
@@ -38,6 +41,9 @@ function incoming(): Shared | null {
   if (invite || add || location.pathname === '/share') history.replaceState(null, '', '/');
   return shared;
 }
+
+/** Read before the first render, so opening an invite link doesn't flash the invite screen. */
+const launchInvite = readHash(location.hash).invite;
 
 let booting: Promise<string | undefined> | null = null;
 function boot(): Promise<string | undefined> {
@@ -90,6 +96,9 @@ function Shell() {
   }, [player.play]);
 
   if (!loaded) return <div className="app" />;
+  // A just-opened invite counts until it's saved; after that, a 401 from the Worker shows the screen again.
+  const fresh = !!launchInvite && launchInvite !== settings.proxySecret;
+  if (!fresh && (!settings.proxySecret || settings.inviteRejected)) return <InviteNeeded rejected={!!settings.proxySecret} />;
   if (!settings.onboarded) {
     return (
       <div className="app">

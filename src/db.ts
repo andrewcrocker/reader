@@ -117,6 +117,8 @@ export interface Settings {
   id: 'app';
   proxyUrl: string;
   proxySecret: string;
+  /** The Worker rejected `proxySecret` (401); the app shows the invite screen until a new invite arrives. */
+  inviteRejected?: boolean;
   /** "server" = Kokoro on our Worker's voice host (default); "device" = on-device Kokoro. */
   engineKind: EngineKind;
   /** Backend preference for the on-device engine (spike/debug). */

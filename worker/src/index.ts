@@ -137,6 +137,9 @@ app.get('/asset', async (c) => {
   });
 });
 
+/** GET /ping → 204 when the secret is good (the auth middleware above answers 401 otherwise). The app checks its invite with it. */
+app.get('/ping', (c) => c.body(null, 204));
+
 registerRenderRoutes(app);
 
 app.notFound((c) => c.json({ error: 'not found' }, 404));
