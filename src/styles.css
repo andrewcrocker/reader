@@ -468,3 +468,6 @@ textarea.input { height: auto; padding: 12px 14px; font: 400 15px/1.5 var(--seri
   transition: --tint-l 250ms, --tint-d 250ms, --on-tint-l 250ms, --on-tint-d 250ms, --tint-ink-l 250ms, --tint-ink-d 250ms,
     --tint-wash-l 250ms, --tint-wash-d 250ms, --tint-rendered-l 250ms, --tint-rendered-d 250ms;
 }
+.s-row:disabled { color: var(--muted); cursor: default; }
+.icon-btn:disabled { opacity: 0.45; }
+.chip-btn:disabled { color: var(--input-border); }
