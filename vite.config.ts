@@ -36,20 +36,31 @@ const proxy: Record<string, ProxyOptions> = {
   },
 };
 
+const { version } = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string };
+
 export default defineConfig({
+  define: { __APP_VERSION__: JSON.stringify(version) },
   plugins: [
+
     react(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icons/*.png'],
       manifest: {
-        name: 'Reader',
-        short_name: 'Reader',
+        // "Read-Aloud" is a working name (DESIGN "Still open").
+        name: 'Read-Aloud',
+        short_name: 'Read-Aloud',
         description: 'Save articles, listen later.',
         start_url: '/',
         display: 'standalone',
-        background_color: '#14161a',
-        theme_color: '#14161a',
+        // Dark is primary; index.html sets the status bar per scheme from the `bg` token.
+        background_color: '#16140F',
+        theme_color: '#16140F',
+        share_target: {
+          action: '/share',
+          method: 'GET',
+          params: { title: 'title', text: 'text', url: 'url' },
+        },
         icons: [
           { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
@@ -57,7 +68,9 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest}'],
+        // woff2: the self-hosted fonts, so type works offline.
+        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest,woff2}'],
+
         // The transformers.js chunk is large; the app shell must still precache.
         maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
         navigateFallback: '/index.html',

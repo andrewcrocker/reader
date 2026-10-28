@@ -282,7 +282,11 @@ export async function ensureVoiceModel(quality?: VoiceQuality) {
 }
 
 async function render(a: Article) {
+  const s = await getSettings();
+  // Until First run picks a voice quality, don't start a 330 MB download on our own.
+  if (!s.onboarded && s.voiceModel.status === 'none') throw new EngineError('Voice quality not chosen yet');
   await db.articles.update(a.id, { status: 'rendering', renderProgress: a.renderProgress ?? 0 });
+
   let engine;
   try {
     engine = await ensureVoiceModel();
