@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { updateSettings, type VoiceQuality } from '../db';
 import { useAppData } from '../app/data';
-import { promptInstall, useCanInstall } from '../app/install';
+import { isStandalone, promptInstall, useCanInstall } from '../app/install';
 import { ensureVoiceModel, kick } from '../pipeline/runner';
 import { domainColor, coverInk } from '../theme/color';
 import { QUALITY } from '../tts/voices';
@@ -181,45 +181,84 @@ export function FirstRun() {
         </>
       )}
 
-      {step === 2 && (
-        <>
-          <h1>Save from anywhere</h1>
-          <p className="lead">When you find something to read later, send it here.</p>
-          <ol className="steps">
-            <li>
-              <span className="step-n">1</span>
-              <div>
-                <p>In any app, tap Share</p>
-                <span className="chip-btn" aria-hidden="true" style={{ display: 'inline-flex' }}>
-                  <Icon name="share" size={18} /> Share
-                </span>
-              </div>
-            </li>
-            <li>
-              <span className="step-n">2</span>
-              <div>
-                <p>Choose Read-Aloud</p>
-                <span aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-                  <img src="/icons/icon-192.png" alt="" width={40} height={40} style={{ borderRadius: 12, boxShadow: '0 0 0 3px var(--bg), 0 0 0 5px var(--accent)' }} />
-                  <span className="hint">Read-Aloud</span>
-                </span>
-              </div>
-            </li>
-            <li>
-              <span className="step-n">3</span>
-              <div>
-                <p>It’s in your queue. Audio is ready in a few minutes.</p>
-              </div>
-            </li>
-          </ol>
-          <p className="hint" style={{ marginTop: 24 }}>You can also paste a link or text with the + button.</p>
-          <div className="fr-foot">
-            <button className="btn primary large block" onClick={finish}>
-              Go to my queue
-            </button>
-          </div>
-        </>
-      )}
+      {step === 2 && <SaveStep canInstall={canInstall} onDone={finish} />}
     </div>
+  );
+}
+
+const appIcon = (
+  <span aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+    <img src="/icons/icon-192.png" alt="" width={40} height={40} style={{ borderRadius: 12, boxShadow: '0 0 0 3px var(--bg), 0 0 0 5px var(--accent)' }} />
+    <span className="hint">Read-Aloud</span>
+  </span>
+);
+
+const shareChip = (
+  <span className="chip-btn" aria-hidden="true" style={{ display: 'inline-flex' }}>
+    <Icon name="share" size={18} /> Share
+  </span>
+);
+
+/**
+ * Step 3, "Save from anywhere". Android only lists web apps in the share sheet once they're
+ * installed, and iPhone never does, so the steps depend on where the app is running.
+ */
+function SaveStep({ canInstall, onDone }: { canInstall: boolean; onDone: () => void }) {
+  const [installed, setInstalled] = useState(isStandalone);
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  const steps: { text: string; extra?: ReactNode }[] = ios
+    ? [
+        { text: 'In any app, copy the article’s link' },
+        { text: 'Open Read-Aloud and tap +', extra: appIcon },
+        { text: 'Tap Paste link. It’s in your queue.' },
+      ]
+    : installed
+      ? [
+          { text: 'In any app, tap Share', extra: shareChip },
+          { text: 'Choose Read-Aloud', extra: appIcon },
+          { text: 'It’s in your queue. Audio is ready in a few minutes.' },
+        ]
+      : [
+          {
+            text: 'Install the app',
+            extra: canInstall ? (
+              <button className="chip-btn" onClick={() => void promptInstall().then((ok) => ok && setInstalled(true))}>
+                <Icon name="download" size={18} /> Install
+              </button>
+            ) : (
+              <span className="hint">In Chrome’s ⋮ menu, tap Install app.</span>
+            ),
+          },
+          { text: 'Then, in any app, tap Share and choose Read-Aloud', extra: appIcon },
+          { text: 'It’s in your queue. Audio is ready in a few minutes.' },
+        ];
+  return (
+    <>
+      <h1>Save from anywhere</h1>
+      <p className="lead">
+        {ios
+          ? 'iPhone doesn’t let web apps into the share sheet, so saving is a copy and a paste.'
+          : installed
+            ? 'When you find something to read later, send it here.'
+            : 'Read-Aloud shows up in your share sheet once it’s installed.'}
+      </p>
+      <ol className="steps">
+        {steps.map((st, i) => (
+          <li key={i}>
+            <span className="step-n">{i + 1}</span>
+            <div>
+              <p>{st.text}</p>
+              {st.extra}
+            </div>
+          </li>
+        ))}
+      </ol>
+      {!ios && <p className="hint" style={{ marginTop: 24 }}>You can also paste a link or text with the + button.</p>}
+      <div className="fr-foot">
+        <button className="btn primary large block" onClick={onDone}>
+          Go to my queue
+        </button>
+      </div>
+    </>
   );
 }
