@@ -21,8 +21,11 @@ export interface Snack {
   onDone?: () => void;
 }
 
+/** Settings is a menu with one level of pages under it. */
+export type SettingsPage = 'menu' | 'voice' | 'playback' | 'storage';
+
 interface UiState {
-  settings: boolean;
+  settings: SettingsPage | null;
   nowPlaying: boolean;
   sheet: Sheet | null;
   snack: Snack | null;
@@ -30,7 +33,7 @@ interface UiState {
   newId?: string;
 }
 
-let state: UiState = { settings: false, nowPlaying: false, sheet: null, snack: null };
+let state: UiState = { settings: null, nowPlaying: false, sheet: null, snack: null };
 const listeners = new Set<() => void>();
 
 function set(patch: Partial<UiState>) {
@@ -70,7 +73,8 @@ function push(patch: Partial<UiState>) {
   set(patch);
 }
 
-export const openSettings = () => !state.settings && push({ settings: true });
+export const openSettings = () => !state.settings && push({ settings: 'menu' });
+export const openSettingsPage = (page: Exclude<SettingsPage, 'menu'>) => push({ settings: page });
 /** Opens the Now Playing overlay. In the wide layout it's already on screen, so this does nothing. */
 export const openNowPlaying = () => !state.nowPlaying && !wideQuery.matches && push({ nowPlaying: true });
 
@@ -89,7 +93,9 @@ export function back() {
 window.addEventListener('popstate', () => {
   if (state.sheet) set({ sheet: null });
   else if (state.nowPlaying) set({ nowPlaying: false });
-  else if (state.settings) set({ settings: false });
+  // A settings page goes back to the menu; the menu goes back to the queue.
+  else if (state.settings) set({ settings: state.settings === 'menu' ? null : 'menu' });
+
 });
 
 // ---- Snackbar: one at a time, 6 s, a newer one replaces the older (DESIGN "Interactions") ----

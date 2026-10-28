@@ -335,7 +335,8 @@ Tapping a Partial row's status (or a Failed row) opens a sheet:
 
 ### 10. Settings · artboard "Settings …"
 
-Pushed screen: back arrow and "Settings." A grouped list with caps section labels and `line` dividers.
+Pushed screen: back arrow and "Settings." The top level is a menu: **Voice**, **Playback**, and **Storage** rows (each with a one-line summary and a chevron), then an outline "Invite a friend" button, and the version at the foot. Each row pushes its own page with a back arrow; back returns to the menu. Pages use caps section labels and `line` dividers. The voice list shows all voices (no "More voices"). Quality rows show the one-time download size and its status.
+
 
 - **Voice:**
   - A radio list of the model's voices: name, a short descriptor ("Warm · US English"), and a 48 play-sample button. The first two show inline; "More voices" opens the full list. Voices share one model, so switching voice downloads nothing. Samples are short bundled clips, so they work before the model finishes.
