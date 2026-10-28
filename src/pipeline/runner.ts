@@ -5,6 +5,8 @@ import { disposeSharedEngine, EngineLostError, getSharedEngine, reusableEngine, 
 import { buildScript, htmlToBlocks, introBlock, plainTextToBlocks, type Block } from './textprep';
 import { ExtractError, fetchHtml, parseArticle } from './extract';
 import { renderArticle } from './render';
+import { collectArticle, ServerJobFailedError, ServerWaitError, setRetryHandler, submitPending } from './serverRender';
+import { deleteJob } from '../tts/server';
 
 // Two loops, each working through the queue in order: one fetches and extracts pages, one renders
 // audio (one article at a time). They run side by side so a long render never holds up a fetch.
@@ -144,6 +146,7 @@ export async function purgeArticle(id: string): Promise<void> {
     await db.renderedChunks.where('articleId').equals(id).delete();
   });
   if (a.audioKey) await deleteAudio(a.audioKey);
+  if (a.serverJob) void deleteJob(await getSettings(), a.serverJob);
   await purgeArt(a);
 }
 
@@ -151,7 +154,7 @@ export async function retryArticle(id: string): Promise<void> {
   const a = await db.articles.get(id);
   if (!a) return;
   const status = a.chunks?.length ? 'extracted' : isOnline() ? 'fetching' : 'waiting';
-  await db.articles.update(id, { status, error: undefined, errorKind: undefined });
+  await db.articles.update(id, { status, error: undefined, errorKind: undefined, serverJob: undefined, busyUntil: undefined });
   void kick();
 }
 
@@ -162,11 +165,14 @@ export async function rerenderArticle(id: string): Promise<void> {
   cancelled.add(id);
   const settings = await getSettings();
   await clearRender(a);
+  if (a.serverJob) void deleteJob(settings, a.serverJob);
   await db.articles.update(id, {
     status: 'extracted',
     renderProgress: 0,
     audioKey: undefined,
     audioBytes: undefined,
+    serverJob: undefined,
+    busyUntil: undefined,
     voice: settings.voice,
     ttsProvider: settings.provider,
     error: undefined,
@@ -256,22 +262,33 @@ async function fetchStep(): Promise<boolean> {
 /** Renders the next article (one at a time, in queue order). Returns false when there's nothing to do. */
 async function renderStep(): Promise<boolean> {
   const all = await live();
-  const next = all.find((a) => a.status === 'rendering' && !a.archivedAt) ?? all.find((a) => a.status === 'extracted' && !a.archivedAt);
+  const server = (await getSettings()).engineKind === 'server';
+  if (server && isOnline()) await submitPending(all);
+  const next = server ? nextForServer(await live()) : all.find((a) => a.status === 'rendering' && !a.archivedAt) ?? all.find((a) => a.status === 'extracted' && !a.archivedAt);
   if (!next) return false;
   cancelled.delete(next.id);
   try {
-    await render(next);
+    if (server) await collectArticle(next, () => cancelled.has(next.id));
+    else await render(next);
   } catch (err) {
-    // Engine trouble isn't this article's fault: leave it queued and stop until the next kick.
-    if (err instanceof EngineError) return false;
+    // Engine or server trouble isn't this article's fault: leave it queued and stop until the next kick.
+    if (err instanceof EngineError || err instanceof ServerWaitError) return false;
     if (await db.articles.get(next.id)) await db.articles.update(next.id, failure(err));
   }
   return true;
 }
 
+/** Server mode: collect articles whose jobs are already running first; skip any waiting out the budget. */
+function nextForServer(all: Article[]): Article | undefined {
+  const now = Date.now();
+  const open = all.filter((a) => !a.archivedAt && (a.status === 'rendering' || a.status === 'extracted'));
+  return open.find((a) => a.serverJob) ?? open.find((a) => !(a.busyUntil && a.busyUntil > now));
+}
+
 /** Failed state with a one-line, user-facing reason (DESIGN §9). */
 function failure(err: unknown): Partial<Article> {
   if (err instanceof ExtractError) return { status: 'failed', error: err.message, errorKind: err.kind };
+  if (err instanceof ServerJobFailedError) return { status: 'failed', error: err.message, errorKind: undefined, serverJob: undefined };
   return { status: 'failed', error: err instanceof Error ? err.message : String(err), errorKind: undefined };
 }
 
@@ -401,6 +418,7 @@ export function startRunner(): void {
   if (started) return;
   started = true;
   window.addEventListener('online', () => void kick());
+  setRetryHandler(() => void kick());
   // Back in front: resume anything stalled while hidden, and take the screen-on lock again
   // (the browser drops it when the page is hidden).
   document.addEventListener('visibilitychange', () => {

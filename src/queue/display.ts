@@ -141,10 +141,19 @@ export function rowMeta(a: Article, state: DisplayState, ctx: Ctx & { isNew?: bo
         break;
       case 'queued':
         glyph = 'queued';
-        push(ctx.voiceReady ? 'Queued for audio' : 'Waiting for voice download');
+        if (isBusy(a)) {
+          push('Waiting for voices');
+          spokenState = 'waiting for voices';
+        } else if (a.serverJob) {
+          glyph = 'rendering';
+          push('Preparing…');
+          spokenState = 'preparing audio';
+        } else {
+          push(ctx.voiceReady ? 'Queued for audio' : 'Waiting for voice download');
+          spokenState = 'queued for audio';
+        }
         push(dur(len !== undefined ? len / ctx.speed : undefined, true));
         push(site);
-        spokenState = 'queued for audio';
         break;
       case 'rendering':
         glyph = 'rendering';
@@ -201,6 +210,10 @@ export function queueSummary(upNext: Article[], ctx: Ctx): string {
   return line;
 }
 
+/** Voices can be made now: always for online voices, once downloaded for on-device ones. */
 export function voiceReady(s: Settings): boolean {
-  return s.voiceModel.status === 'ready';
+  return s.engineKind === 'server' || s.voiceModel.status === 'ready';
 }
+
+/** Waiting out the server's daily voice budget (plan "Server Kokoro": Overall cap). */
+export const isBusy = (a: Article, now = Date.now()) => !a.audioKey && !!a.busyUntil && a.busyUntil > now;

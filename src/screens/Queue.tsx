@@ -3,7 +3,7 @@ import type { Article } from '../db';
 import { useAppData } from '../app/data';
 import { openNowPlaying, openSettings, openSheet, showSnack, useUi, useWide } from '../app/ui';
 import { isPlayable, usePlayer } from '../player/PlayerProvider';
-import { displayState, queueSummary, rowMeta, voiceReady, type Ctx } from '../queue/display';
+import { displayState, isBusy, queueSummary, rowMeta, voiceReady, type Ctx } from '../queue/display';
 import { isRenderable, markPlayed, moveToTop, purgeDeleted, rerenderMany, retryMany, reorder, softDelete } from '../queue/actions';
 import { retryArticle } from '../pipeline/runner';
 import { Icon } from '../ui/Icon';
@@ -195,11 +195,15 @@ export function Queue() {
 
       )}
 
-      {!online && (
+      {!online ? (
         <div className="offline-banner" role="status">
           <Icon name="cloud-off" size={18} /> Offline · ready articles still play
         </div>
-      )}
+      ) : upNext.some((a) => isBusy(a)) ? (
+        <div className="offline-banner" role="status">
+          <Icon name="clock" size={18} /> Voices are busy right now. Your articles will finish later.
+        </div>
+      ) : null}
 
       {empty ? (
         <div className="empty">

@@ -96,13 +96,17 @@ export function FirstRun() {
   };
 
   const finish = () => void updateSettings({ onboarded: true });
+  // Online voices need no download, so that step only exists for on-device voices.
+  const order = settings.engineKind === 'server' ? [0, 2] : [0, 1, 2];
+  const at = order.indexOf(step);
+  const next = () => setStep(order[at + 1]);
 
   return (
     <div className="fr">
       <div className="fr-top">
-        <div className="dots" role="img" aria-label={`Step ${step + 1} of 3`}>
-          {[0, 1, 2].map((i) => (
-            <span key={i} className={i === step ? 'active' : i < step ? 'done' : undefined} />
+        <div className="dots" role="img" aria-label={`Step ${at + 1} of ${order.length}`}>
+          {order.map((_, i) => (
+            <span key={i} className={i === at ? 'active' : i < at ? 'done' : undefined} />
           ))}
         </div>
         <VoiceChip />
@@ -112,14 +116,14 @@ export function FirstRun() {
         <>
           <CoverStack />
           <h1 className="big">Articles, read aloud.</h1>
-          <p className="lead">Save anything you mean to read. Your phone turns it into audio, so it plays later on a walk, a commute, or with the dishes, even offline.</p>
+          <p className="lead">Save anything you mean to read. It’s turned into audio and kept on your phone, so it plays later on a walk, a commute, or with the dishes, even offline.</p>
           <div className="fr-foot">
             {canInstall && (
-              <button className="btn primary large block" onClick={() => void promptInstall().then(() => setStep(1))}>
+              <button className="btn primary large block" onClick={() => void promptInstall().then(next)}>
                 Install the app
               </button>
             )}
-            <button className={canInstall ? 'btn ghost block' : 'btn primary large block'} onClick={() => setStep(1)}>
+            <button className={canInstall ? 'btn ghost block' : 'btn primary large block'} onClick={next}>
               {canInstall ? 'Continue in the browser' : 'Continue'}
             </button>
           </div>
@@ -171,7 +175,7 @@ export function FirstRun() {
               className="btn primary large block"
               onClick={() => {
                 if (online && dl.m.status !== 'downloading' && dl.m.status !== 'ready') start(choice);
-                setStep(2);
+                next();
               }}
             >
               Continue

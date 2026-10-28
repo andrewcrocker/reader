@@ -9,7 +9,7 @@ type Name =
   | 'add' | 'settings' | 'pause' | 'play' | 'chevron-down' | 'chevron-right' | 'back' | 'close' | 'external'
   | 'prev-sentence' | 'next-sentence' | 'auto-advance' | 'read-along' | 'link' | 'clipboard' | 'share'
   | 'cloud-off' | 'check' | 'arrow-up' | 'trash' | 'move-top' | 'mark-played' | 're-render' | 'retry' | 'drag'
-  | 'minus' | 'plus' | 'shield' | 'warn' | 'download' | 'upload' | 'speaker' | 'more';
+  | 'minus' | 'plus' | 'shield' | 'warn' | 'download' | 'upload' | 'speaker' | 'more' | 'clock';
 
 const P: Record<Name, ReactNode> = {
   add: <path d="M12 5v14M5 12h14" />,
@@ -132,6 +132,12 @@ const P: Record<Name, ReactNode> = {
     </>
   ),
   download: <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />,
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7.5V12l3 2" />
+    </>
+  ),
   upload: <path d="M12 16V5M7 10l5-5 5 5M5 20h14" />,
   speaker: (
     <>

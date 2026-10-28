@@ -138,7 +138,7 @@ function Menu() {
   const player = usePlayer();
   const { total } = useStorage();
   const voice = VOICES.find((v) => v.id === s.voice)?.name ?? s.voice;
-  const engine = s.engineKind === 'cloud' ? 'Cloud' : 'On this phone';
+  const engine = s.engineKind === 'server' ? 'Online' : `On this device · ${QUALITY[s.voiceQuality].short}`;
 
   const invite = async () => {
     const url = `${location.origin}/#invite=${encodeURIComponent(s.proxySecret)}`;
@@ -156,7 +156,7 @@ function Menu() {
   return (
     <div className="s-menu">
       <nav aria-label="Settings sections" style={{ marginTop: 8 }}>
-        <MenuRow label="Voice" summary={`${voice} · ${engine} · ${QUALITY[s.voiceQuality].short}`} onClick={() => openSettingsPage('voice')} />
+        <MenuRow label="Voice" summary={`${voice} · ${engine}`} onClick={() => openSettingsPage('voice')} />
         <MenuRow label="Playback" summary={`${fmtSpeed(player.speed)} · skip ${s.skipSeconds}s · auto-advance ${s.autoAdvance ? 'on' : 'off'}`} onClick={() => openSettingsPage('playback')} />
         <MenuRow label="Storage" summary={`${fmtBytes(total)} used`} onClick={() => openSettingsPage('storage')} />
       </nav>
@@ -186,7 +186,7 @@ function Section({ label, children }: { label: string; children: ReactNode }) {
 function VoicePage() {
   const { settings: s, online, upNext } = useAppData();
   const [sampling, setSampling] = useState<string | null>(null);
-  const voiceReady = s.voiceModel.status === 'ready';
+  const onDevice = s.engineKind === 'device';
 
   const chooseQuality = (q: VoiceQuality) => {
     if (q === s.voiceQuality && s.voiceModel.status === 'ready') return;
@@ -215,8 +215,12 @@ function VoicePage() {
     <>
       <Section label="Engine">
         <div className="s-row pad">
-          <Seg full label="Engine" value={s.engineKind} options={[{ v: 'device', label: 'On this phone' }, { v: 'cloud', label: 'Cloud', disabled: true, tip: 'Coming soon' }]} onChange={(v) => set({ engineKind: v })} />
-          <span className="d" style={{ marginTop: 10 }}>Voices run on your phone, so they’re free and work offline.</span>
+          <Seg full label="Engine" value={s.engineKind} options={[{ v: 'server', label: 'Online' }, { v: 'device', label: 'On this device' }]} onChange={(v) => { set({ engineKind: v }); void kick(); }} />
+          <span className="d" style={{ marginTop: 10 }}>
+            {onDevice
+              ? 'Voices are made on this device: no connection needed, but the app has to stay open while it works, and it’s slow on many phones.'
+              : 'Voices are made online, so articles finish even after you close the app.'}
+          </span>
 
         </div>
       </Section>
@@ -232,16 +236,16 @@ function VoicePage() {
                   <span className="d">{v.desc}</span>
                 </span>
               </label>
-              <button className="icon-btn filled" disabled={!voiceReady || sampling !== null} aria-label={voiceReady ? `Play a sample of ${v.name}` : `Sample of ${v.name}, available after the voice downloads`} onClick={() => void sample(v.id)}>
+              <button className="icon-btn filled" disabled={sampling !== null} aria-label={`Play a sample of ${v.name}`} onClick={() => void sample(v.id)}>
                 <Icon name={sampling === v.id ? 'pause' : 'speaker'} size={20} />
               </button>
             </div>
           ))}
         </div>
-        <p className="hint" style={{ marginTop: 10 }}>All voices share one download, so switching is instant. New articles use the voice you pick.</p>
+        <p className="hint" style={{ marginTop: 10 }}>{onDevice ? 'All voices share one download, so switching is instant. ' : ''}New articles use the voice you pick.</p>
       </Section>
 
-      <Section label="Quality">
+      {onDevice && <Section label="Quality">
         <div role="radiogroup" aria-label="Voice quality">
           {(['high', 'standard'] as const).map((q) => {
             const offlineBlocked = !online && !(s.voiceModel.quality === q && s.voiceModel.status === 'ready');
@@ -261,7 +265,7 @@ function VoicePage() {
             );
           })}
         </div>
-      </Section>
+      </Section>}
     </>
   );
 }

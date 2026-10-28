@@ -67,6 +67,10 @@ export interface Article {
   /** At 1.0×. */
   durationSec?: number;
   renderProgress?: number;
+  /** Server render job id, once the article's text has been sent to the Worker. */
+  serverJob?: string;
+  /** Rendering is paused until this time because the server's daily voice budget ran out. */
+  busyUntil?: number;
   ttsProvider?: string;
   voice?: string;
   positionSec: number;
@@ -100,6 +104,7 @@ export interface ArtRow {
 
 export type EnginePref = 'auto' | 'webgpu' | 'wasm';
 export type VoiceQuality = 'high' | 'standard';
+export type EngineKind = 'server' | 'device';
 
 export interface VoiceModelState {
   status: 'none' | 'downloading' | 'ready' | 'error';
@@ -112,8 +117,8 @@ export interface Settings {
   id: 'app';
   proxyUrl: string;
   proxySecret: string;
-  /** "device" = on-device Kokoro; "cloud" = BYO key (not wired yet). */
-  engineKind: 'device' | 'cloud';
+  /** "server" = Kokoro on our Worker's voice host (default); "device" = on-device Kokoro. */
+  engineKind: EngineKind;
   /** Backend preference for the on-device engine (spike/debug). */
   engine: EnginePref;
   provider: string;
@@ -135,7 +140,7 @@ export const DEFAULT_SETTINGS: Settings = {
   id: 'app',
   proxyUrl: import.meta.env.VITE_PROXY_URL ?? '/api',
   proxySecret: import.meta.env.VITE_PROXY_SECRET ?? '',
-  engineKind: 'device',
+  engineKind: 'server',
   engine: 'auto',
   provider: 'kokoro',
   voice: 'af_heart',
@@ -194,6 +199,16 @@ class ReaderDb extends Dexie {
           s.onboarded = true;
         });
       });
+    this.version(3).upgrade(async (tx) => {
+      // Server voices became the default everywhere, and the voice list shrank to three.
+      await tx.table('settings').toCollection().modify((s: Record<string, unknown>) => {
+        s.engineKind = 'server';
+        if (!['af_heart', 'af_bella', 'am_michael'].includes(s.voice as string)) s.voice = 'af_heart';
+      });
+      await tx.table('articles').toCollection().modify((a: Record<string, unknown>) => {
+        if (!a.audioKey && a.voice && !['af_heart', 'af_bella', 'am_michael'].includes(a.voice as string)) a.voice = 'af_heart';
+      });
+    });
   }
 }
 

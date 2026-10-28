@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Article } from '../db';
-import { displayState, fmtDuration, fmtSpeed, queueSummary, rowMeta, urlTitle, type Ctx } from './display';
+import { DEFAULT_SETTINGS } from '../db';
+import { displayState, fmtDuration, fmtSpeed, queueSummary, rowMeta, urlTitle, voiceReady, type Ctx } from './display';
 
 const base: Article = {
   id: 'a',
@@ -43,6 +44,9 @@ describe('rowMeta', () => {
     expect(text(art({ status: 'rendering', renderProgress: 0.42, durationSec: undefined }))).toMatch(/^Preparing 42% · ~\d+ m · Example$/);
     expect(text(art({ status: 'extracted', durationSec: undefined }))).toMatch(/^Queued for audio · ~\d+ m · Example$/);
     expect(text(art({ status: 'extracted' }), { ...ctx, voiceReady: false })).toMatch(/^Waiting for voice download/);
+    expect(text(art({ status: 'extracted', serverJob: 'j' }))).toMatch(/^Preparing… · /);
+    expect(text(art({ status: 'extracted', busyUntil: Date.now() + 60_000 }))).toMatch(/^Waiting for voices · /);
+    expect(text(art({ status: 'extracted', busyUntil: Date.now() - 1 }))).toMatch(/^Queued for audio · /);
     expect(text(art({ status: 'fetching', sentences: [] }))).toBe('Fetching page…');
     expect(text(art({ status: 'failed' }))).toBe('Couldn’t load the page');
     expect(text(art({ archivedAt: 1 }))).toBe('Played · Example');
@@ -79,5 +83,13 @@ describe('formatting', () => {
     expect(queueSummary([art({}), art({ id: 'd', status: 'failed', sentences: [] })], ctx)).toBe('1 article · 14 m at 1.0×');
 
     expect(queueSummary([], ctx)).toBe('Your queue is empty');
+  });
+});
+
+describe('voiceReady', () => {
+  it('is always true for online voices, and waits for the download on-device', () => {
+    expect(voiceReady({ ...DEFAULT_SETTINGS, engineKind: 'server' })).toBe(true);
+    expect(voiceReady({ ...DEFAULT_SETTINGS, engineKind: 'device' })).toBe(false);
+    expect(voiceReady({ ...DEFAULT_SETTINGS, engineKind: 'device', voiceModel: { status: 'ready' } })).toBe(true);
   });
 });

@@ -68,8 +68,8 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // woff2: the self-hosted fonts, so type works offline.
-        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest,woff2}'],
+        // woff2: the self-hosted fonts, so type works offline; mp3: the voice samples in Settings.
+        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest,woff2,mp3}'],
 
         // The transformers.js chunk is large; the app shell must still precache.
         maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,

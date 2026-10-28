@@ -37,7 +37,8 @@ export async function renderArticle(article: Article, getEngine: () => Promise<K
   await finalize(article);
 }
 
-async function finalize(article: Article): Promise<void> {
+/** Joins every saved chunk into one audio file with sentence timings. Used by on-device and server renders. */
+export async function finalize(article: Article): Promise<void> {
   const chunks = article.chunks!;
   const rows = await db.renderedChunks.where('articleId').equals(article.id).sortBy('i');
   if (rows.length !== chunks.length) throw new Error(`expected ${chunks.length} chunks, found ${rows.length}`);
