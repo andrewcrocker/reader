@@ -84,8 +84,8 @@ export function withAlpha(hex: string, alpha: number): string {
 
 // ---- Theme tokens the tint is checked against (DESIGN "Color") ----
 export const THEME = {
-  light: { bg: '#F4F2EE', accent: '#1F5C55', onAccent: '#F4F2EE' },
-  dark: { bg: '#151412', accent: '#8FD0C3', onAccent: '#0F2420' },
+  light: { bg: '#F3F2F0', accent: '#1F5C55', onAccent: '#F3F2F0' },
+  dark: { bg: '#151413', accent: '#8FD0C3', onAccent: '#0F2420' },
 } as const;
 
 export interface TintSet {

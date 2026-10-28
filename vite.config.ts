@@ -54,8 +54,8 @@ export default defineConfig({
         start_url: '/',
         display: 'standalone',
         // Dark is primary; index.html sets the status bar per scheme from the `bg` token.
-        background_color: '#151412',
-        theme_color: '#151412',
+        background_color: '#151413',
+        theme_color: '#151413',
         share_target: {
           action: '/share',
           method: 'GET',
