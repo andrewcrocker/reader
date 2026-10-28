@@ -16,14 +16,40 @@ import { MiniPlayer } from './MiniPlayer';
 
 const set = (patch: Partial<S>) => void updateSettings(patch);
 
-function Seg<T extends string | number>({ label, value, options, onChange, full }: { label: string; value: T; options: { v: T; label: string; disabled?: boolean }[]; onChange: (v: T) => void; full?: boolean }) {
+type SegOption<T> = { v: T; label: string; disabled?: boolean; /** Tooltip on a disabled option, e.g. "Coming soon". */ tip?: string };
+
+function Seg<T extends string | number>({ label, value, options, onChange, full }: { label: string; value: T; options: SegOption<T>[]; onChange: (v: T) => void; full?: boolean }) {
+  // Touch has no hover, so tapping a disabled option shows its tip for a moment.
+  const [tapped, setTapped] = useState<T | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
   return (
     <div className={full ? 'seg' : 'seg compact'} role="radiogroup" aria-label={label}>
-      {options.map((o) => (
-        <button key={o.v} role="radio" aria-checked={value === o.v} disabled={o.disabled} onClick={() => onChange(o.v)} style={o.disabled ? { opacity: 0.5 } : undefined}>
-          {o.label}
-        </button>
-      ))}
+      {options.map((o) =>
+        o.disabled ? (
+          // aria-disabled rather than disabled: a disabled button gets no hover, so no tooltip.
+          <button
+            key={o.v}
+            role="radio"
+            aria-checked={false}
+            aria-disabled="true"
+            aria-description={o.tip}
+            className={`seg-soon${tapped === o.v ? ' tip-on' : ''}`}
+            data-tip={o.tip}
+            onClick={() => {
+              setTapped(o.v);
+              clearTimeout(timer.current);
+              timer.current = setTimeout(() => setTapped(null), 1800);
+            }}
+          >
+            {o.label}
+          </button>
+        ) : (
+          <button key={o.v} role="radio" aria-checked={value === o.v} onClick={() => onChange(o.v)}>
+            {o.label}
+          </button>
+        ),
+      )}
     </div>
   );
 }
@@ -189,8 +215,9 @@ function VoicePage() {
     <>
       <Section label="Engine">
         <div className="s-row pad">
-          <Seg full label="Engine" value={s.engineKind} options={[{ v: 'device', label: 'On this phone' }, { v: 'cloud', label: 'Cloud', disabled: true }]} onChange={(v) => set({ engineKind: v })} />
-          <span className="d" style={{ marginTop: 10 }}>Voices run on your phone, so they’re free and work offline. Cloud voices, using your own API key, aren’t available yet.</span>
+          <Seg full label="Engine" value={s.engineKind} options={[{ v: 'device', label: 'On this phone' }, { v: 'cloud', label: 'Cloud', disabled: true, tip: 'Coming soon' }]} onChange={(v) => set({ engineKind: v })} />
+          <span className="d" style={{ marginTop: 10 }}>Voices run on your phone, so they’re free and work offline.</span>
+
         </div>
       </Section>
 

@@ -341,7 +341,8 @@ Pushed screen: back arrow and "Settings." The top level is a menu: **Voice**, **
 - **Voice:**
   - A radio list of the model's voices: name, a short descriptor ("Warm · US English"), and a 48 play-sample button. The first two show inline; "More voices" opens the full list. Voices share one model, so switching voice downloads nothing. Samples are short bundled clips, so they work before the model finishes.
   - Voice quality: "High · Downloaded · 330 MB." Opens a choice of High (330 MB) or Standard (92 MB). Switching downloads the other model and offers to re-render queued articles.
-  - Engine: segmented "On this phone | Cloud," with helper text "Cloud voices use your own API key and need a connection." Choosing Cloud opens a provider and API key screen. **Not yet designed:** use a plain form (provider picker, key field, "Test voice" button, voice list from the provider).
+  - Engine: segmented "On this phone | Cloud." **Cloud is deferred:** the tab stays visible but unavailable (not-allowed cursor, "Coming soon" tooltip on hover, focus, or tap). When it's built it needs a provider picker before the key field, key validation states, cost per article in place of download size, and its own saved voice.
+
 - **Playback:**
   - Speed (opens the speed picker; same value as the player).
   - Skip interval (segmented 10s / 15s / 30s).

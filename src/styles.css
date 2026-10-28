@@ -491,3 +491,12 @@ textarea.input { height: auto; padding: 12px 14px; font: 400 15px/1.5 var(--seri
 .s-menu { display: flex; flex-direction: column; min-height: calc(100dvh - 60px - 140px); }
 .s-version { margin-top: auto; padding-top: 32px; text-align: center; }
 .s-header h1:focus { outline: none; }
+
+/* A segment that isn't available yet: not-allowed cursor and a tooltip (hover, focus, or tap). */
+.seg button.seg-soon { position: relative; color: var(--muted); cursor: not-allowed; }
+.seg button.seg-soon::after {
+  content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translate(-50%, 4px);
+  padding: 6px 10px; border-radius: 8px; background: var(--toast-bg); color: var(--toast-fg); font-size: 12.5px; font-weight: 500;
+  white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity 120ms, transform 120ms var(--ease); z-index: 5;
+}
+.seg button.seg-soon:hover::after, .seg button.seg-soon:focus-visible::after, .seg button.seg-soon.tip-on::after { opacity: 1; transform: translate(-50%, 0); }
