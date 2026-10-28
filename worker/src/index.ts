@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { registerRenderRoutes, type RenderEnv } from './render';
 
-export type Env = {
+export type Env = RenderEnv & {
   APP_SECRET: string;
   ALLOWED_ORIGINS: string;
 };
@@ -27,9 +28,9 @@ function allowedOrigins(env: Env): string[] {
 app.use('*', (c, next) =>
   cors({
     origin: (origin) => (allowedOrigins(c.env).includes(origin) ? origin : null),
-    allowHeaders: ['X-App-Secret'],
-    allowMethods: ['GET', 'OPTIONS'],
-    exposeHeaders: ['X-Final-Url', 'X-Upstream-Status', 'X-Upstream-Content-Type'],
+    allowHeaders: ['X-App-Secret', 'Content-Type'],
+    allowMethods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+    exposeHeaders: ['X-Final-Url', 'X-Upstream-Status', 'X-Upstream-Content-Type', 'X-Chunk-Seconds'],
     maxAge: 86400,
   })(c, next),
 );
@@ -135,6 +136,8 @@ app.get('/asset', async (c) => {
     },
   });
 });
+
+registerRenderRoutes(app);
 
 app.notFound((c) => c.json({ error: 'not found' }, 404));
 

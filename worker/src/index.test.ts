@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import app, { parseTarget, type Env } from './index';
 
-const env: Env = { APP_SECRET: 's3cret', ALLOWED_ORIGINS: 'http://localhost:5173' };
+const env = { APP_SECRET: 's3cret', ALLOWED_ORIGINS: 'http://localhost:5173' } as Env;
 const req = (path: string, headers: Record<string, string> = {}) =>
   app.request(path, { headers: { 'X-App-Secret': 's3cret', ...headers } }, env);
 
