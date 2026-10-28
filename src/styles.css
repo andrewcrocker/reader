@@ -462,3 +462,9 @@ textarea.input { height: auto; padding: 12px 14px; font: 400 15px/1.5 var(--seri
 .page .topbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .page h1 { font-size: 1.3rem; margin: 0; } .page h2 { font-size: 1.05rem; margin: 0 0 8px; }
 .page .grow { flex: 1; min-width: 0; } .page .full { width: 100%; }
+
+/* Tint crossfade when the playing article changes (vars registered as <color> in player/tint.ts). */
+:root {
+  transition: --tint-l 250ms, --tint-d 250ms, --on-tint-l 250ms, --on-tint-d 250ms, --tint-ink-l 250ms, --tint-ink-d 250ms,
+    --tint-wash-l 250ms, --tint-wash-d 250ms, --tint-rendered-l 250ms, --tint-rendered-d 250ms;
+}
