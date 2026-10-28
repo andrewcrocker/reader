@@ -24,6 +24,8 @@ Read these first if you've seen the brief.
 | Lyrics dimming | All dimmed text at 4.5:1 | Already-read text drops to about 2.6:1 (see Accessibility) |
 | Voice choice | Global or per-article | **One global voice**, picked from the on-device model's voices in Settings. First run only picks **voice quality** (the model download size). No picker in the player |
 | Speed | Default speed plus a player picker | **One global speed.** The player picker and Settings edit the same value, and it persists |
+| Neutrals | Warm cream and brown (as drawn on the canvas) | **Toned down:** every neutral token keeps its lightness and hue at half the chroma (OKLCH), so it reads warm-gray. Contrast is unchanged. The canvas still shows the older, warmer values |
+
 
 ## Product and principles
 
@@ -70,25 +72,25 @@ The theme follows `prefers-color-scheme`. All text pairs below meet 4.5:1 unless
 
 | Token | Light | Dark | Use |
 | --- | --- | --- | --- |
-| `bg` | `#F6F2E9` | `#16140F` | Screen background, status bar |
-| `surface-sheet` | `#FBF8F1` | `#1F1C16` | Bottom sheets |
-| `fg` | `#1D1A15` | `#EDE6D8` | Primary text and icons |
-| `muted` | `#5C5548` | `#A99F8D` | Secondary text, upcoming lyrics |
-| `past` | `#A39A8A` | `#625A4D` | Already-read lyrics only (about 2.6:1, see Accessibility) |
-| `line` | `#DED6C6` | `#2C2820` | Dividers, phone/sheet borders |
-| `fill` | `#E7E0D2` | `#2B2720` | Placeholder art, chips, segmented tracks, sheet grabber |
-| `track` | `#DCD3C2` | `#38332A` | Scrubber and progress tracks |
-| `row-playing` | `#ECE5D5` | `#221E17` | Currently playing queue row |
+| `bg` | `#F4F2EE` | `#151412` | Screen background, status bar |
+| `surface-sheet` | `#FAF8F5` | `#1E1C19` | Bottom sheets |
+| `fg` | `#1C1A18` | `#EAE6DF` | Primary text and icons |
+| `muted` | `#59554F` | `#A5A097` | Secondary text, upcoming lyrics |
+| `past` | `#9F9B93` | `#5F5B54` | Already-read lyrics only (about 2.6:1, see Accessibility) |
+| `line` | `#DAD6CE` | `#2A2824` | Dividers, phone/sheet borders |
+| `fill` | `#E4E0D9` | `#292724` | Placeholder art, chips, segmented tracks, sheet grabber |
+| `track` | `#D8D3CB` | `#36332F` | Scrubber and progress tracks |
+| `row-playing` | `#E9E5DD` | `#201E1B` | Currently playing queue row |
 | `row-selected` | `accent` at 10% | `accent` at 10% | Selected rows; newly shared row |
 | `accent` | `#1F5C55` | `#8FD0C3` | App actions: add, save, select, toggles, links |
-| `on-accent` | `#F6F2E9` | `#0F2420` | Text/icons on `accent` |
+| `on-accent` | `#F4F2EE` | `#0F2420` | Text/icons on `accent` |
 | `warn` | `#8A5300` | `#E5B456` | Partial state |
 | `error` | `#A3261A` | `#F2907F` | Failed state, delete, "Clear all" |
-| `input-border` | `#8F8676` | `#6E6657` | Text fields (3:1 against `bg`) |
-| `mini-bg` | `#1D1A15` | `#2A261E` | Mini player (always dark) |
-| `mini-fg` / `mini-muted` | `#F6F2E9` / `#C2B9A8` | `#EDE6D8` / `#B3AA98` | Mini player text |
-| `mini-track` | `#3A352C` | `#3E382D` | Mini player progress track |
-| `toast-bg` / `toast-fg` | `#2A261E` / `#F6F2E9` | `#EDE6D8` / `#1D1A15` | Snackbars (inverse of theme) |
+| `input-border` | `#8B877F` | `#6A665F` | Text fields (3:1 against `bg`) |
+| `mini-bg` | `#1C1A18` | `#282622` | Mini player (always dark) |
+| `mini-fg` / `mini-muted` | `#F4F2EE` / `#BEB9B1` | `#EAE6DF` / `#AFAAA2` | Mini player text |
+| `mini-track` | `#383531` | `#3B3833` | Mini player progress track |
+| `toast-bg` / `toast-fg` | `#282622` / `#F4F2EE` | `#EAE6DF` / `#1C1A18` | Snackbars (inverse of theme) |
 | `toast-action` | `#8FD0C3` | `#1F5C55` | Snackbar action text |
 | `scrim` | `rgba(10,8,5,0.48)` | same | Behind bottom sheets |
 
