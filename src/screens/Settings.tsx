@@ -3,9 +3,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, updateSettings, type Settings as S, type VoiceQuality } from '../db';
 import { useAppData } from '../app/data';
 import { back, openSettingsPage, openSheet, showSnack, useUi, type SettingsPage } from '../app/ui';
-import { ensureVoiceModel, kick } from '../pipeline/runner';
 import { usePlayer } from '../player/PlayerProvider';
-import { archivedAudioBytes, clearAll, deleteArchivedAudio, exportQueue, importQueue, isRenderable, rerenderMany } from '../queue/actions';
+import { archivedAudioBytes, clearAll, deleteArchivedAudio, exportQueue, importQueue } from '../queue/actions';
 import { fmtSpeed } from '../queue/display';
 import { fmtBytes } from '../format';
 import { QUALITY, VOICES } from '../tts/voices';
@@ -138,7 +137,6 @@ function Menu() {
   const player = usePlayer();
   const { total } = useStorage();
   const voice = VOICES.find((v) => v.id === s.voice)?.name ?? s.voice;
-  const engine = s.engineKind === 'server' ? 'Online' : `On this device · ${QUALITY[s.voiceQuality].short}`;
 
   const invite = async () => {
     const url = `${location.origin}/#invite=${encodeURIComponent(s.proxySecret)}`;
@@ -156,7 +154,7 @@ function Menu() {
   return (
     <div className="s-menu">
       <nav aria-label="Settings sections" style={{ marginTop: 8 }}>
-        <MenuRow label="Voice" summary={`${voice} · ${engine}`} onClick={() => openSettingsPage('voice')} />
+        <MenuRow label="Voice" summary={voice} onClick={() => openSettingsPage('voice')} />
         <MenuRow label="Playback" summary={`${fmtSpeed(player.speed)} · skip ${s.skipSeconds}s · auto-advance ${s.autoAdvance ? 'on' : 'off'}`} onClick={() => openSettingsPage('playback')} />
         <MenuRow label="Storage" summary={`${fmtBytes(total)} used`} onClick={() => openSettingsPage('storage')} />
       </nav>
@@ -184,21 +182,8 @@ function Section({ label, children }: { label: string; children: ReactNode }) {
 // ---------- Voice ----------
 
 function VoicePage() {
-  const { settings: s, online, upNext } = useAppData();
+  const { settings: s } = useAppData();
   const [sampling, setSampling] = useState<string | null>(null);
-  const onDevice = s.engineKind === 'device';
-
-  const chooseQuality = (q: VoiceQuality) => {
-    if (q === s.voiceQuality && s.voiceModel.status === 'ready') return;
-    set({ voiceQuality: q });
-    void ensureVoiceModel(q)
-      .then(() => {
-        void kick();
-        const queued = upNext.filter((a) => isRenderable(a) && a.status === 'ready');
-        if (queued.length) showSnack({ text: `Re-render ${queued.length} queued article${queued.length === 1 ? '' : 's'} with ${QUALITY[q].short}?`, actions: [{ label: 'Re-render', run: () => rerenderMany(queued.map((a) => a.id)) }] });
-      })
-      .catch(() => showSnack({ text: 'The voice download failed. Try again on Wi-Fi.' }));
-  };
 
   const sample = async (id: string) => {
     setSampling(id);
@@ -212,61 +197,25 @@ function VoicePage() {
   };
 
   return (
-    <>
-      <Section label="Engine">
-        <div className="s-row pad">
-          <Seg full label="Engine" value={s.engineKind} options={[{ v: 'server', label: 'Online' }, { v: 'device', label: 'On this device' }]} onChange={(v) => { set({ engineKind: v }); void kick(); }} />
-          <span className="d" style={{ marginTop: 10 }}>
-            {onDevice
-              ? 'Voices are made on this device: no connection needed, but the app has to stay open while it works, and it’s slow on many phones.'
-              : 'Voices are made online, so articles finish even after you close the app.'}
-          </span>
-
-        </div>
-      </Section>
-
-      <Section label="Voice">
-        <div role="radiogroup" aria-label="Voice">
-          {VOICES.map((v) => (
-            <div key={v.id} className="s-row">
-              <label style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1, minHeight: 64, cursor: 'pointer' }}>
-                <input type="radio" name="voice" checked={s.voice === v.id} onChange={() => set({ voice: v.id })} />
-                <span>
-                  <span className="k">{v.name}</span>
-                  <span className="d">{v.desc}</span>
-                </span>
-              </label>
-              <button className="icon-btn filled" disabled={sampling !== null} aria-label={`Play a sample of ${v.name}`} onClick={() => void sample(v.id)}>
-                <Icon name={sampling === v.id ? 'pause' : 'speaker'} size={20} />
-              </button>
-            </div>
-          ))}
-        </div>
-        <p className="hint" style={{ marginTop: 10 }}>{onDevice ? 'All voices share one download, so switching is instant. ' : ''}New articles use the voice you pick.</p>
-      </Section>
-
-      {onDevice && <Section label="Quality">
-        <div role="radiogroup" aria-label="Voice quality">
-          {(['high', 'standard'] as const).map((q) => {
-            const offlineBlocked = !online && !(s.voiceModel.quality === q && s.voiceModel.status === 'ready');
-            return (
-              <label key={q} className="s-row" style={{ justifyContent: 'flex-start', gap: 14, padding: '12px 0', cursor: offlineBlocked ? 'default' : 'pointer' }}>
-
-                <input type="radio" name="quality" checked={s.voiceQuality === q} disabled={offlineBlocked} onChange={() => chooseQuality(q)} />
-                <span>
-                  <span className="k">{QUALITY[q].label}</span>
-                  <span className="d">
-                    {QUALITY[q].mb} MB download · {QUALITY[q].desc}
-                    <br />
-                    {s.voiceQuality === q ? qualityStatus(s, q) : offlineBlocked ? 'Needs a connection to download' : 'Not downloaded'}
-                  </span>
-                </span>
-              </label>
-            );
-          })}
-        </div>
-      </Section>}
-    </>
+    <Section label="Voice">
+      <div role="radiogroup" aria-label="Voice">
+        {VOICES.map((v) => (
+          <div key={v.id} className="s-row">
+            <label style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1, minHeight: 64, cursor: 'pointer' }}>
+              <input type="radio" name="voice" checked={s.voice === v.id} onChange={() => set({ voice: v.id })} />
+              <span>
+                <span className="k">{v.name}</span>
+                <span className="d">{v.desc}</span>
+              </span>
+            </label>
+            <button className="icon-btn filled" disabled={sampling !== null} aria-label={`Play a sample of ${v.name}`} onClick={() => void sample(v.id)}>
+              <Icon name={sampling === v.id ? 'pause' : 'speaker'} size={20} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <p className="hint" style={{ marginTop: 10 }}>New articles use the voice you pick.</p>
+    </Section>
   );
 }
 

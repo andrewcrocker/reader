@@ -8,7 +8,7 @@ A "listen later" app. Share an article from your phone (or paste a link or text)
 - **Specs:** engineering in [spec/SPEC.md](spec/SPEC.md), design in [spec/DESIGN.md](spec/DESIGN.md)
 - **Stack:** React + Vite PWA, Dexie (IndexedDB), a Cloudflare Worker for fetching pages and making voices, Cloudflare Pages for the app
 
-**How voices work.** By default the Worker renders them: the app sends an article's text once, a Cloudflare Workflow sends it to a hosted Kokoro API (DeepInfra) in parts, and the audio waits in R2 until the app collects it, so articles finish even with the app closed. It costs about 1¢ per article, capped at about $10 a month. On-device Kokoro (WebGPU/WASM) is still a Settings choice; it works well on desktop but struggled on a Pixel 8 (memory, background limits, heat), which is why the server is the default.
+**How voices work.** The Worker renders them: the app sends an article's text once, a Cloudflare Workflow sends it to a hosted Kokoro API (DeepInfra) in parts, and the audio waits in R2 until the app collects it, so articles finish even with the app closed. It costs about 1¢ per article, capped at about $10 a month. On-device Kokoro (WebGPU/WASM) was the original plan and its engine is still in the code (the `/spike` page uses it), but it struggled on a Pixel 8 (memory, background limits, heat), so the app no longer offers it.
 
 **Built:** the full design (queue, Now Playing, read-along, sheets, Settings, First run, wide layout), server voices with a daily budget and email alerts, share target, invite links, offline playback, progressive playback while audio renders, link previews.
 
@@ -33,7 +33,7 @@ npm run dev
 - App: http://localhost:5173
 - On-device TTS benchmark (dev tool): http://localhost:5173/spike
 - The Worker (fetch proxy and server voices) runs at http://localhost:8787. The Vite dev server forwards `/api/*` to it, so the browser only talks to port 5173. Locally, its R2 bucket, Workflow and Durable Object are simulated by `wrangler dev`.
-- Server voices need `DEEPINFRA_API_KEY` in `worker/.dev.vars`; budget alert emails need `RESEND_API_KEY` and `ALERT_EMAIL` (the Resend account's own address). Without the voice key, set Settings → Voice → Engine to "On this device".
+- Server voices need `DEEPINFRA_API_KEY` in `worker/.dev.vars`; budget alert emails need `RESEND_API_KEY` and `ALERT_EMAIL` (the Resend account's own address). Without the voice key, articles stay at "Queued for audio".
 - The dev secret is `dev-secret`, in `worker/.dev.vars` (git-ignored, copied from `worker/.dev.vars.example`). Locally you never enter it: the `/api` proxy in both `npm run dev` and `npm run preview` reads it from that file and attaches it, so the Settings secret field can stay blank.
 
 Tests and type checks:

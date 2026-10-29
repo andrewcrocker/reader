@@ -23,7 +23,7 @@ Read these first if you've seen the brief.
 | Reorder handles | Always, or edit mode | **Only in multi-select mode** |
 | Lyrics dimming | All dimmed text at 4.5:1 | Already-read text drops to about 2.6:1 (see Accessibility) |
 | Voice choice | Global or per-article | **One global voice** from three (Heart, Bella, Michael), picked in Settings. No picker in the player or First run |
-| Voice engine | On-device, with optional cloud | **Online (server Kokoro) by default** on every device; on-device stays as a Settings choice. First run asks about voice quality only for on-device |
+| Voice engine | On-device, with optional cloud | **Online (server Kokoro) only.** No engine or quality choice in Settings or First run |
 | Speed | Default speed plus a player picker | **One global speed.** The player picker and Settings edit the same value, and it persists |
 | Neutrals | Warm cream and brown (as drawn on the canvas) | **Toned down:** every neutral token keeps its lightness and hue at a quarter of the canvas chroma (OKLCH), so it reads as a barely warm gray. Contrast is unchanged. The canvas still shows the older, warmer values |
 
@@ -341,12 +341,10 @@ Tapping a Partial row's status (or a Failed row) opens a sheet:
 
 ### 10. Settings · artboard "Settings …"
 
-Pushed screen: back arrow and "Settings." The top level is a menu: **Voice**, **Playback**, and **Storage** rows (each with a one-line summary and a chevron), then an outline "Invite a friend" button, and the version at the foot. Each row pushes its own page with a back arrow; back returns to the menu. Pages use caps section labels and `line` dividers. The voice list shows all three voices. Quality rows (on-device only) show the one-time download size and its status.
+Pushed screen: back arrow and "Settings." The top level is a menu: **Voice**, **Playback**, and **Storage** rows (each with a one-line summary and a chevron), then an outline "Invite a friend" button, and the version at the foot. Each row pushes its own page with a back arrow; back returns to the menu. Pages use caps section labels and `line` dividers. The Voice page is just the three voices.
 
 - **Voice:**
-  - Engine: segmented "Online | On this device," **Online by default** everywhere. One line under it says what the choice means: online voices finish even after the app closes; on-device voices need no connection but the app has to stay open, and they're slow on many phones.
   - A radio list of three voices: **Heart** (default), **Bella**, **Michael**: name, a short descriptor ("Warm · US English"), and a 48 play-sample button. Samples are short bundled clips, so they work offline and before any download.
-  - Voice quality (**on-device only**; hidden for Online): High (330 MB) or Standard (92 MB). Switching downloads the other model and offers to re-render queued articles.
 
 - **Playback:**
   - Speed (opens the speed picker; same value as the player).

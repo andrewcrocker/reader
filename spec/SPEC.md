@@ -60,7 +60,7 @@ Status: reconciled with DESIGN.md (Oct 28, 2026). DESIGN.md owns screens, states
 │        │                                                              │
 │        ▼                                                              │
 │  TTS engine: Kokoro on the server (default; renders in the background)│
-│              or Kokoro on-device (Settings choice; free, offline)     │
+│              (on-device Kokoro remains in code, not offered)          │
 │        │                                                              │
 │        ▼                                                              │
 │  Render: per-chunk audio → concatenated file + timing map             │
@@ -236,7 +236,7 @@ Both engines run the same model (**Kokoro-82M**) and the same three voices, **He
 - **Budget:** one global counter (a Durable Object) allows 330,000 characters a day (about 33 articles, $0.33), which keeps a month under $10. Refused requests get `429 {error:"busy", retryAt}`; the app shows "Voices are busy" and retries after the reset (midnight UTC). The owner gets an email (Resend) at 80% and when the budget runs out, once each per day. DeepInfra's own spending limit is the backstop.
 - Article text goes to the voice host; DeepInfra lists zero retention.
 
-**Alternative: on-device neural TTS (Settings → Voice → On this device; free, offline).**
+**Former default: on-device neural TTS.** Removed from Settings on 2026-10-28; the engine stays in the code for the `/spike` benchmark.
 - **Kokoro-82M** via `kokoro-js` (transformers.js), running in the browser on WebGPU, falling back to WASM. Open weights (Apache 2.0). Piper is a lighter fallback with lower quality.
 - **Voice quality vs. voice.** The download size depends on the model's quantization (about 92 MB quantized, 330 MB full precision). The design calls these **Standard** and **High quality**, chosen in First run when on-device is the engine. **Voices** all come from the same model, so switching voice downloads nothing; it's chosen in Settings.
 - One-time model download, cached by the service worker. After that, rendering needs no network at all. Track download progress in `Settings.voiceModel` so First run and Settings can show it, and hold articles in `"extracted"` ("Waiting for voice download") until it completes.

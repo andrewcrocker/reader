@@ -119,7 +119,7 @@ export interface Settings {
   proxySecret: string;
   /** The Worker rejected `proxySecret` (401); the app shows the invite screen until a new invite arrives. */
   inviteRejected?: boolean;
-  /** "server" = Kokoro on our Worker's voice host (default); "device" = on-device Kokoro. */
+  /** "server" = Kokoro on our Worker's voice host. "device" (on-device Kokoro) has no Settings control; the /spike page still uses that engine. */
   engineKind: EngineKind;
   /** Backend preference for the on-device engine (spike/debug). */
   engine: EnginePref;
@@ -209,6 +209,12 @@ class ReaderDb extends Dexie {
       });
       await tx.table('articles').toCollection().modify((a: Record<string, unknown>) => {
         if (!a.audioKey && a.voice && !['af_heart', 'af_bella', 'am_michael'].includes(a.voice as string)) a.voice = 'af_heart';
+      });
+    });
+    this.version(4).upgrade(async (tx) => {
+      // The on-device choice left Settings; nobody can switch back, so nobody stays on it.
+      await tx.table('settings').toCollection().modify((s: Record<string, unknown>) => {
+        s.engineKind = 'server';
       });
     });
   }
