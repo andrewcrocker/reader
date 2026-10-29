@@ -22,8 +22,12 @@ Read these first if you've seen the brief.
 | Up-next peek | Peek or swipe | **Peek** of the next article at the bottom of Now Playing |
 | Reorder handles | Always, or edit mode | **Only in multi-select mode** |
 | Lyrics dimming | All dimmed text at 4.5:1 | Already-read text drops to about 2.6:1 (see Accessibility) |
-| Voice choice | Global or per-article | **One global voice**, picked from the on-device model's voices in Settings. First run only picks **voice quality** (the model download size). No picker in the player |
+| Voice choice | Global or per-article | **One global voice** from three (Heart, Bella, Michael), picked in Settings. No picker in the player or First run |
+| Voice engine | On-device, with optional cloud | **Online (server Kokoro) by default** on every device; on-device stays as a Settings choice. First run asks about voice quality only for on-device |
 | Speed | Default speed plus a player picker | **One global speed.** The player picker and Settings edit the same value, and it persists |
+| Neutrals | Warm cream and brown (as drawn on the canvas) | **Toned down:** every neutral token keeps its lightness and hue at a quarter of the canvas chroma (OKLCH), so it reads as a barely warm gray. Contrast is unchanged. The canvas still shows the older, warmer values |
+
+
 
 ## Product and principles
 
@@ -59,6 +63,9 @@ The Queue is the hub. Now Playing opens from the mini player on any screen. Lyri
 
 Ways in: app icon → Queue; share sheet → Queue (URL) or Add sheet on Text (text); invite link → First run → empty Queue.
 
+**Wide screens (900 px and up):** two panes. The Queue (or Settings) is a column on the left, at most 440 wide; Now Playing (or Lyrics view) stays open on the right. There's no mini player, collapse control, or swipe-down, and the Up next peek isn't a link because the queue is already beside it. The cover shrinks to fit the screen height. Sheets stay bottom sheets.
+
+
 ## Design tokens
 
 ### Color
@@ -67,25 +74,25 @@ The theme follows `prefers-color-scheme`. All text pairs below meet 4.5:1 unless
 
 | Token | Light | Dark | Use |
 | --- | --- | --- | --- |
-| `bg` | `#F6F2E9` | `#16140F` | Screen background, status bar |
-| `surface-sheet` | `#FBF8F1` | `#1F1C16` | Bottom sheets |
-| `fg` | `#1D1A15` | `#EDE6D8` | Primary text and icons |
-| `muted` | `#5C5548` | `#A99F8D` | Secondary text, upcoming lyrics |
-| `past` | `#A39A8A` | `#625A4D` | Already-read lyrics only (about 2.6:1, see Accessibility) |
-| `line` | `#DED6C6` | `#2C2820` | Dividers, phone/sheet borders |
-| `fill` | `#E7E0D2` | `#2B2720` | Placeholder art, chips, segmented tracks, sheet grabber |
-| `track` | `#DCD3C2` | `#38332A` | Scrubber and progress tracks |
-| `row-playing` | `#ECE5D5` | `#221E17` | Currently playing queue row |
+| `bg` | `#F3F2F0` | `#151413` | Screen background, status bar |
+| `surface-sheet` | `#F9F8F6` | `#1D1C1B` | Bottom sheets |
+| `fg` | `#1B1A19` | `#E8E6E3` | Primary text and icons |
+| `muted` | `#575652` | `#A2A09B` | Secondary text, upcoming lyrics |
+| `past` | `#9D9B97` | `#5D5B58` | Already-read lyrics only (about 2.6:1, see Accessibility) |
+| `line` | `#D9D7D3` | `#292826` | Dividers, phone/sheet borders |
+| `fill` | `#E2E0DD` | `#282726` | Placeholder art, chips, segmented tracks, sheet grabber |
+| `track` | `#D6D4CF` | `#353331` | Scrubber and progress tracks |
+| `row-playing` | `#E7E5E1` | `#1F1E1D` | Currently playing queue row |
 | `row-selected` | `accent` at 10% | `accent` at 10% | Selected rows; newly shared row |
 | `accent` | `#1F5C55` | `#8FD0C3` | App actions: add, save, select, toggles, links |
-| `on-accent` | `#F6F2E9` | `#0F2420` | Text/icons on `accent` |
+| `on-accent` | `#F3F2F0` | `#0F2420` | Text/icons on `accent` |
 | `warn` | `#8A5300` | `#E5B456` | Partial state |
 | `error` | `#A3261A` | `#F2907F` | Failed state, delete, "Clear all" |
-| `input-border` | `#8F8676` | `#6E6657` | Text fields (3:1 against `bg`) |
-| `mini-bg` | `#1D1A15` | `#2A261E` | Mini player (always dark) |
-| `mini-fg` / `mini-muted` | `#F6F2E9` / `#C2B9A8` | `#EDE6D8` / `#B3AA98` | Mini player text |
-| `mini-track` | `#3A352C` | `#3E382D` | Mini player progress track |
-| `toast-bg` / `toast-fg` | `#2A261E` / `#F6F2E9` | `#EDE6D8` / `#1D1A15` | Snackbars (inverse of theme) |
+| `input-border` | `#898783` | `#696763` | Text fields (3:1 against `bg`) |
+| `mini-bg` | `#1B1A19` | `#272624` | Mini player (always dark) |
+| `mini-fg` / `mini-muted` | `#F3F2F0` / `#BCBAB5` | `#E8E6E3` / `#ADABA6` | Mini player text |
+| `mini-track` | `#373533` | `#3A3936` | Mini player progress track |
+| `toast-bg` / `toast-fg` | `#272624` / `#F3F2F0` | `#E8E6E3` / `#1B1A19` | Snackbars (inverse of theme) |
 | `toast-action` | `#8FD0C3` | `#1F5C55` | Snackbar action text |
 | `scrim` | `rgba(10,8,5,0.48)` | same | Behind bottom sheets |
 
@@ -175,7 +182,8 @@ Every row shows a 16 dp status glyph at the start of its meta line, then text. E
 | --- | --- | --- | --- | --- |
 | Fetching | Dotted circle | "Fetching page…" | `muted` | No |
 | Rendering | Ring with progress arc | "**Preparing 42%** · ~22 m · Site" | text `fg` | Yes, to rendered point |
-| Queued for audio | Clock | "Queued for audio · ~11 m · Site" | `muted` | No |
+| Queued for audio | Clock | "Queued for audio · ~11 m · Site" (online voices: "Preparing… · ~11 m · Site" once sent) | `muted` | No |
+| Waiting for voices | Clock | "Waiting for voices · ~11 m · Site" (the server's daily voice budget is spent) | `muted` | No |
 | Ready | Circle with down-arrow | "18 m · Offline · Site" | `muted` | Yes, offline too |
 | In progress / Playing | Equalizer bars | "**Playing** · 14 m left · Site" + 3 dp progress bar | `accent` label | Yes |
 | Partial | Half-filled circle | "**Partial** · 6 m found · Site" | `warn` | Yes, what was found |
@@ -206,6 +214,7 @@ Every row shows a 16 dp status glyph at the start of its meta line, then text. E
   - A 36 dp banner under the header on `fill`: cloud-slash glyph and "Offline · ready articles still play."
   - Retry buttons are disabled (`input-border` color, cloud-slash glyph) and described by the row note.
   - Nothing else changes.
+- **Voices busy** (online voices, daily budget spent): the same banner with a clock glyph and "Voices are busy right now. Your articles will finish later." Affected rows read "Waiting for voices"; they start again on their own after the reset (midnight UTC). Offline wins if both apply.
 
 ### 2. Mini player
 
@@ -279,7 +288,7 @@ Bottom sheet on `surface-sheet`, scrim behind. Header: "Add to queue" and close.
 - **Link tab:**
   - A large `accent` button (72 tall): clipboard glyph, "Paste link," and a one-line preview of the clipboard URL. It is disabled with "No link on your clipboard" when empty.
   - Below an "or type it" divider: a URL field with an Add button (disabled until valid).
-  - Tip: "Share › Read-Aloud from any app. If a page won't load, switch to Text."
+  - Tip: "Share › Reader from any app. If a page won't load, switch to Text."
 - **Text tab:**
   - Title (optional; first line is used if blank), then the article text (Literata 15) with a word count and listen estimate.
   - "Save to queue" (full width, `accent`).
@@ -332,12 +341,13 @@ Tapping a Partial row's status (or a Failed row) opens a sheet:
 
 ### 10. Settings · artboard "Settings …"
 
-Pushed screen: back arrow and "Settings." A grouped list with caps section labels and `line` dividers.
+Pushed screen: back arrow and "Settings." The top level is a menu: **Voice**, **Playback**, and **Storage** rows (each with a one-line summary and a chevron), then an outline "Invite a friend" button, and the version at the foot. Each row pushes its own page with a back arrow; back returns to the menu. Pages use caps section labels and `line` dividers. The voice list shows all three voices. Quality rows (on-device only) show the one-time download size and its status.
 
 - **Voice:**
-  - A radio list of the model's voices: name, a short descriptor ("Warm · US English"), and a 48 play-sample button. The first two show inline; "More voices" opens the full list. Voices share one model, so switching voice downloads nothing. Samples are short bundled clips, so they work before the model finishes.
-  - Voice quality: "High · Downloaded · 330 MB." Opens a choice of High (330 MB) or Standard (92 MB). Switching downloads the other model and offers to re-render queued articles.
-  - Engine: segmented "On this phone | Cloud," with helper text "Cloud voices use your own API key and need a connection." Choosing Cloud opens a provider and API key screen. **Not yet designed:** use a plain form (provider picker, key field, "Test voice" button, voice list from the provider).
+  - Engine: segmented "Online | On this device," **Online by default** everywhere. One line under it says what the choice means: online voices finish even after the app closes; on-device voices need no connection but the app has to stay open, and they're slow on many phones.
+  - A radio list of three voices: **Heart** (default), **Bella**, **Michael**: name, a short descriptor ("Warm · US English"), and a 48 play-sample button. Samples are short bundled clips, so they work offline and before any download.
+  - Voice quality (**on-device only**; hidden for Online): High (330 MB) or Standard (92 MB). Switching downloads the other model and offers to re-render queued articles.
+
 - **Playback:**
   - Speed (opens the speed picker; same value as the player).
   - Skip interval (segmented 10s / 15s / 30s).
@@ -354,24 +364,24 @@ Pushed screen: back arrow and "Settings." A grouped list with caps section label
 
 ### 11. First run · artboard "First run …"
 
-Three steps with a progress-dot indicator: the active dot is 20 wide, done/active dots are `accent`, and pending dots are `fill`.
+Two steps with Online voices (the default): Welcome, then Save from anywhere. The voice download step appears only for on-device voices, making three. Progress dots: the active dot is 20 wide, done/active dots are `accent`, and pending dots are `fill`.
 
 1. **Welcome:**
    - A small stack of generated covers, then "Articles, read aloud." and one sentence of value.
    - **Install the app** (primary; triggers the PWA install prompt) and "Continue in the browser."
-2. **Download the voice:**
+2. **Download the voice** (on-device voices only):
    - A short line on privacy and Wi-Fi, then a radio list of quality cards with size and a sample button: High quality (330 MB) and Standard (92 MB).
    - High quality is marked Recommended and preselected. The default voice is used; picking a different voice happens in Settings.
    - Choosing a quality starts its download, shown inside the card: "Downloading · 148 of 330 MB" and a time estimate.
    - **Continue** is enabled immediately: "The download keeps going in the background."
    - Disabled offline, with a note.
 3. **Save from anywhere:**
-   - Three numbered steps: tap Share, choose Read-Aloud (schematic share row with our icon ringed), "It's in your queue."
+   - Three numbered steps: tap Share, choose Reader (schematic share row with our icon ringed), "It's in your queue."
    - A one-liner about the + button.
    - **Go to my queue** lands on the empty Queue.
    - A "Voice 71%" status chip in the top right shows while the download continues.
 
-Until the voice is ready, saved articles stay in "Queued for audio," with a meta note: "Waiting for voice download."
+With on-device voices, saved articles stay in "Queued for audio" until the voice is ready, with a meta note: "Waiting for voice download."
 
 ## Interactions and motion
 
@@ -436,5 +446,6 @@ Target WCAG 2.2 AA.
 - **Sleep timer**, per-article voices
 
 **Still open:**
-- [ ] Name and wordmark. "Read-Aloud" is a working name used in copy and the share target. The icon and wordmark wait on this.
+- [x] Name: **Reader** (2026-10-28), used in copy, the share target, the page title and link previews. The URL stays `read-aloud-c1w.pages.dev`.
+- [ ] Wordmark and icon.
 - [ ] Native later (SPEC.md §12): the arrival snackbar becomes a system toast without opening the app.

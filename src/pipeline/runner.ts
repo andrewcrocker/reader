@@ -1,12 +1,16 @@
-import { db, getSettings, nextQueueOrder, type Article } from '../db';
+import { db, domainOf, getSettings, nextQueueOrder, updateSettings, type Article, type VoiceQuality } from '../db';
 import { deleteAudio } from '../audio/storage';
-import { getSharedEngine } from '../tts/engine';
+import { fetchArtwork, purgeArt } from '../art/art';
+import { disposeSharedEngine, EngineLostError, getSharedEngine, reusableEngine, type KokoroEngine } from '../tts/engine';
 import { buildScript, htmlToBlocks, introBlock, plainTextToBlocks, type Block } from './textprep';
-import { fetchHtml, parseArticle } from './extract';
+import { ExtractError, fetchHtml, parseArticle } from './extract';
 import { renderArticle } from './render';
+import { collectArticle, ServerWaitError, setRetryHandler, submitPending } from './serverRender';
+import { deleteJob } from '../tts/server';
 
-// Single sequential worker loop: fetch/extract, then render, oldest first.
-// Called on launch, after adding, and when the network comes back (§4 step 4, §11a).
+// Two loops, each working through the queue in order: one fetches and extracts pages, one renders
+// audio (one article at a time). They run side by side so a long render never holds up a fetch.
+// Kicked on launch, after adding, and when the network comes back (SPEC §4, §11a).
 
 export type EngineState =
   | { phase: 'idle' }
@@ -26,19 +30,28 @@ function setEngineState(s: EngineState) {
   listeners.forEach((fn) => fn(s));
 }
 
-let running = false;
-let again = false;
+class EngineError extends Error {}
+
+type LoopName = 'fetch' | 'render';
+const loops: Record<LoopName, { running: boolean; again: boolean }> = {
+  fetch: { running: false, again: false },
+  render: { running: false, again: false },
+};
 const cancelled = new Set<string>();
 
-export async function addUrl(url: string): Promise<string> {
+const isOnline = () => navigator.onLine;
+
+export async function addUrl(url: string, provisionalTitle?: string): Promise<string> {
   const id = crypto.randomUUID();
   const settings = await getSettings();
   await db.articles.add({
     id,
+    source: 'url',
     url,
-    title: url,
+    domain: domainOf(url),
+    title: provisionalTitle?.trim() || url,
     savedAt: Date.now(),
-    status: 'fetching',
+    status: isOnline() ? 'fetching' : 'waiting',
     sentences: [],
     positionSec: 0,
     queueOrder: await nextQueueOrder(),
@@ -49,23 +62,34 @@ export async function addUrl(url: string): Promise<string> {
   return id;
 }
 
+function textScript(text: string, title?: string) {
+  const blocks = plainTextToBlocks(text);
+  const firstLine = text.trim().split('\n')[0]?.trim() ?? '';
+  const fallback = firstLine.length && firstLine.length <= 120 ? firstLine : `${blocks[0]?.text.split(/\s+/).slice(0, 8).join(' ') ?? 'Pasted text'}…`;
+  const finalTitle = title?.trim() || fallback;
+  // If the first line became the title, don't read it twice.
+  const body = !title?.trim() && blocks[0]?.text === firstLine && blocks.length > 1 ? blocks.slice(1) : blocks;
+  const script = buildScript(withIntro(body, { title: finalTitle }));
+  return { finalTitle, body, script };
+}
+
 export async function addText(text: string, title?: string): Promise<string> {
   const id = crypto.randomUUID();
   const settings = await getSettings();
-  const blocks = plainTextToBlocks(text);
-  const firstWords = blocks[0]?.text.split(/\s+/).slice(0, 8).join(' ') ?? 'Pasted text';
-  const finalTitle = title?.trim() || `${firstWords}…`;
-  const script = buildScript(withIntro(blocks, { title: title?.trim() }));
+  const { finalTitle, body, script } = textScript(text, title);
   await db.articles.add({
     id,
+    source: 'text',
     url: '',
     title: finalTitle,
     savedAt: Date.now(),
     status: 'extracted',
     extractionMethod: 'pasted',
+    extractionQuality: 'full',
     pastedText: text,
-    contentHtml: blocks.map((b) => `<p>${escapeHtml(b.text)}</p>`).join(''),
+    contentHtml: body.map((b) => `<p>${escapeHtml(b.text)}</p>`).join(''),
     sentences: script.sentences,
+    blocks: script.blocks,
     chunks: script.chunks,
     positionSec: 0,
     queueOrder: await nextQueueOrder(),
@@ -76,60 +100,196 @@ export async function addText(text: string, title?: string): Promise<string> {
   return id;
 }
 
-export async function deleteArticle(id: string): Promise<void> {
+/**
+ * "Paste the full text" (SPEC §4): replace a partial/failed article's content in place, keeping its
+ * id, queue position, art and URL. Discards audio; listening position resets.
+ */
+export async function replaceWithText(id: string, text: string, title?: string): Promise<void> {
+  const a = await db.articles.get(id);
+  if (!a) return;
+  cancelled.add(id);
+  const { finalTitle, body, script } = textScript(text, title || a.title);
+  await clearRender(a);
+  await db.articles.update(id, {
+    source: 'text',
+    title: finalTitle,
+    status: 'extracted',
+    extractionQuality: 'full',
+    extractionMethod: 'pasted',
+    pastedText: text,
+    error: undefined,
+    contentHtml: body.map((b) => `<p>${escapeHtml(b.text)}</p>`).join(''),
+    sentences: script.sentences,
+    blocks: script.blocks,
+    chunks: script.chunks,
+    positionSec: 0,
+    renderProgress: 0,
+    durationSec: undefined,
+    audioKey: undefined,
+    audioBytes: undefined,
+  });
+  void kick();
+}
+
+async function clearRender(a: Article) {
+  await db.renderedChunks.where('articleId').equals(a.id).delete();
+  if (a.audioKey) await deleteAudio(a.audioKey);
+}
+
+/** Hard delete: row, audio, rendered chunks, and art nothing else uses. */
+export async function purgeArticle(id: string): Promise<void> {
   cancelled.add(id);
   const a = await db.articles.get(id);
+  if (!a) return;
   await db.transaction('rw', db.articles, db.renderedChunks, async () => {
     await db.articles.delete(id);
     await db.renderedChunks.where('articleId').equals(id).delete();
   });
-  if (a?.audioKey) await deleteAudio(a.audioKey);
+  if (a.audioKey) await deleteAudio(a.audioKey);
+  if (a.serverJob) void deleteJob(await getSettings(), a.serverJob);
+  await purgeArt(a);
 }
 
 export async function retryArticle(id: string): Promise<void> {
   const a = await db.articles.get(id);
   if (!a) return;
-  await db.articles.update(id, { status: a.chunks?.length ? 'extracted' : 'fetching', error: undefined });
+  const status = a.chunks?.length ? 'extracted' : isOnline() ? 'fetching' : 'waiting';
+  await db.articles.update(id, { status, error: undefined, errorKind: undefined, serverJob: undefined, busyUntil: undefined });
+  void kick();
+}
+
+/** Re-render with the current voice (e.g. after changing voice or quality). Keeps text and position. */
+export async function rerenderArticle(id: string): Promise<void> {
+  const a = await db.articles.get(id);
+  if (!a?.chunks?.length) return;
+  cancelled.add(id);
+  const settings = await getSettings();
+  await clearRender(a);
+  if (a.serverJob) void deleteJob(settings, a.serverJob);
+  await db.articles.update(id, {
+    status: 'extracted',
+    renderProgress: 0,
+    audioKey: undefined,
+    audioBytes: undefined,
+    serverJob: undefined,
+    busyUntil: undefined,
+    voice: settings.voice,
+    ttsProvider: settings.provider,
+    error: undefined,
+  });
   void kick();
 }
 
 export async function kick(): Promise<void> {
-  if (running) {
-    again = true;
+  await Promise.all([run('fetch'), run('render')]);
+}
+
+async function run(name: LoopName): Promise<void> {
+  const loop = loops[name];
+  if (loop.running) {
+    loop.again = true;
     return;
   }
-  running = true;
-  const wakeLock = await requestWakeLock();
-  try {
+  loop.running = true;
+  const work = async () => {
     do {
-      again = false;
-      while (await step()) {
+      loop.again = false;
+      while (await (name === 'fetch' ? fetchStep() : renderStep())) {
         /* keep going */
       }
-    } while (again);
+    } while (loop.again);
+  };
+  try {
+    if (name === 'fetch') await work();
+    else await renderExclusively(work);
   } finally {
-    running = false;
-    await wakeLock?.release().catch(() => {});
+    loop.running = false;
   }
 }
 
-/** Does one unit of work. Returns false when there is nothing left to do. */
-async function step(): Promise<boolean> {
-  const pending = (await db.articles.orderBy('queueOrder').toArray()).filter(
-    (a) => (a.status === 'fetching' && navigator.onLine) || a.status === 'extracted' || a.status === 'rendering',
-  );
-  const next = pending[0];
+const IDLE_UNLOAD_MS = 60_000;
+let idleUnload: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * Only one copy of the app (installed app, a leftover browser tab) renders at a time, so only one
+ * holds the voice model in memory; on phones several copies crash the page. The others wait here
+ * and take over if that one closes. The model is freed once rendering has been idle a minute.
+ */
+async function renderExclusively(work: () => Promise<void>): Promise<void> {
+  const body = async () => {
+    clearTimeout(idleUnload);
+    // Rendering stops if the page is backgrounded, so keep the screen on while it runs.
+    await holdScreen();
+    try {
+      await work();
+    } finally {
+      await releaseScreen();
+      idleUnload = setTimeout(() => {
+        if (!loops.render.running) {
+          disposeSharedEngine();
+          readyEngine = null;
+        }
+      }, IDLE_UNLOAD_MS);
+    }
+  };
+  if ('locks' in navigator) await navigator.locks.request('read-aloud-render', body);
+  else await body();
+}
+
+const live = async () => (await db.articles.orderBy('queueOrder').toArray()).filter((a) => !a.deletedAt);
+
+/** Fetches and extracts the next page. Returns false when there's nothing to fetch. */
+async function fetchStep(): Promise<boolean> {
+  if (!isOnline()) return false;
+  // Saved while offline: start fetching now (SPEC §11).
+  await db.articles.where('status').equals('waiting').modify({ status: 'fetching' });
+  const next = (await live()).find((a) => a.status === 'fetching');
   if (!next) return false;
   cancelled.delete(next.id);
-
   try {
-    if (next.status === 'fetching') await extract(next);
-    else await render(next);
+    await extract(next);
+    // It has text now; the render loop picks it up when it gets to it.
+    void run('render');
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (await db.articles.get(next.id)) await db.articles.update(next.id, { status: 'failed', error: message });
+    if (!(await db.articles.get(next.id))) return true;
+    // Offline mid-fetch: wait for the connection rather than failing.
+    if (!isOnline()) await db.articles.update(next.id, { status: 'waiting' });
+    else await db.articles.update(next.id, failure(err));
   }
   return true;
+}
+
+/** Renders the next article (one at a time, in queue order). Returns false when there's nothing to do. */
+async function renderStep(): Promise<boolean> {
+  const all = await live();
+  const server = (await getSettings()).engineKind === 'server';
+  if (server && isOnline()) await submitPending(all);
+  const next = server ? nextForServer(await live()) : all.find((a) => a.status === 'rendering' && !a.archivedAt) ?? all.find((a) => a.status === 'extracted' && !a.archivedAt);
+  if (!next) return false;
+  cancelled.delete(next.id);
+  try {
+    if (server) await collectArticle(next, () => cancelled.has(next.id));
+    else await render(next);
+  } catch (err) {
+    // Engine or server trouble isn't this article's fault: leave it queued and stop until the next kick.
+    if (err instanceof EngineError || err instanceof ServerWaitError) return false;
+    // The text is fine (it was fetched already); it's the audio that failed.
+    if (await db.articles.get(next.id)) await db.articles.update(next.id, { ...failure(err), errorKind: 'audio', serverJob: undefined });
+  }
+  return true;
+}
+
+/** Server mode: collect articles whose jobs are already running first; skip any waiting out the budget. */
+function nextForServer(all: Article[]): Article | undefined {
+  const now = Date.now();
+  const open = all.filter((a) => !a.archivedAt && (a.status === 'rendering' || a.status === 'extracted'));
+  return open.find((a) => a.serverJob) ?? open.find((a) => !(a.busyUntil && a.busyUntil > now));
+}
+
+/** Failed state with a one-line, user-facing reason (DESIGN §9). */
+function failure(err: unknown): Partial<Article> {
+  if (err instanceof ExtractError) return { status: 'failed', error: err.message, errorKind: err.kind };
+  return { status: 'failed', error: err instanceof Error ? err.message : String(err), errorKind: undefined };
 }
 
 async function extract(a: Article) {
@@ -137,38 +297,95 @@ async function extract(a: Article) {
   const { html, finalUrl } = await fetchHtml(a.url, settings);
   const x = parseArticle(html, finalUrl);
   const script = buildScript(withIntro(htmlToBlocks(x.contentHtml), x));
-  if (!script.chunks.length) throw new Error('Extracted article has no readable text.');
-  await db.articles.update(a.id, {
+  if (!script.chunks.length) throw new ExtractError('We couldn’t find any article text on this page.', 'page');
+  const patch: Partial<Article> = {
     status: 'extracted',
     title: x.title,
     byline: x.byline,
     siteName: x.siteName,
+    domain: domainOf(finalUrl) ?? a.domain,
     imageUrl: x.imageUrl,
+    iconUrl: x.iconUrl,
     canonicalUrl: x.canonicalUrl,
     contentHtml: x.contentHtml,
     extractionMethod: x.method,
+    extractionQuality: x.quality,
     sentences: script.sentences,
+    blocks: script.blocks,
     chunks: script.chunks,
-  });
+  };
+  await db.articles.update(a.id, patch);
+  await fetchArtwork({ ...a, ...patch });
 }
 
-async function render(a: Article) {
+let readyEngine: KokoroEngine | null = null;
+
+/** Load (downloading if needed) the on-device voice model, tracking progress in Settings.voiceModel. */
+export async function ensureVoiceModel(quality?: VoiceQuality) {
   const settings = await getSettings();
-  await db.articles.update(a.id, { status: 'rendering', renderProgress: a.renderProgress ?? 0 });
-  const { engine, ready } = getSharedEngine(settings.engine, {
+  const q = quality ?? settings.voiceQuality;
+  // Already loaded: called before every chunk, so skip the status writes.
+  const current = reusableEngine(settings.engine, q);
+  if (current && current === readyEngine) return current;
+  const prev = settings.voiceModel;
+  if (prev.status !== 'ready' || prev.quality !== q) {
+    await updateSettings({ voiceModel: { status: 'downloading', quality: q, bytes: prev.quality === q ? prev.bytes : 0, totalBytes: prev.totalBytes } });
+  }
+  let lastWrite = 0;
+  const { engine, ready } = getSharedEngine(settings.engine, q, {
     onStatus: (message) => setEngineState({ phase: 'loading', message }),
-    onProgress: (file, loaded, total) =>
-      setEngineState({ phase: 'loading', message: `Loading ${file.split('/').pop()}`, loaded, total }),
+    onProgress: (file, loaded, total) => {
+      setEngineState({ phase: 'loading', message: `Loading ${file.split('/').pop()}`, loaded, total });
+      // The model file dominates; ignore the small config/voice files.
+      if (total > 20e6 && Date.now() - lastWrite > 500) {
+        lastWrite = Date.now();
+        void updateSettings({ voiceModel: { status: 'downloading', quality: q, bytes: loaded, totalBytes: total } });
+      }
+    },
   });
   if (engineState.phase !== 'ready') setEngineState({ phase: 'loading', message: 'Loading voice model…' });
   try {
     const info = await ready;
+    console.info(`Voice engine ready: ${info.device} ${info.dtype}${info.fallbackReason ? ` (${info.fallbackReason})` : ''}, ${Math.round(info.loadMs)} ms`);
+    readyEngine = engine;
     setEngineState({ phase: 'ready', device: info.device, dtype: info.dtype, fallbackReason: info.fallbackReason });
+    const s = await getSettings();
+    await updateSettings({ voiceModel: { status: 'ready', quality: q, bytes: s.voiceModel.totalBytes, totalBytes: s.voiceModel.totalBytes } });
+    return engine;
   } catch (err) {
     setEngineState({ phase: 'error', message: err instanceof Error ? err.message : String(err) });
+    await updateSettings({ voiceModel: { status: 'error', quality: q } });
     throw err;
   }
-  await renderArticle(a, engine, () => cancelled.has(a.id));
+}
+
+async function render(a: Article, attempt = 0) {
+  const s = await getSettings();
+  // Until First run picks a voice quality, don't start a 330 MB download on our own.
+  if (!s.onboarded && s.voiceModel.status === 'none') throw new EngineError('Voice quality not chosen yet');
+  await db.articles.update(a.id, { status: 'rendering', renderProgress: a.renderProgress ?? 0 });
+
+  try {
+    await ensureVoiceModel();
+  } catch (err) {
+    // Keep the article queued; the problem is the engine, not this article.
+    await db.articles.update(a.id, { status: 'extracted' });
+    throw new EngineError(err instanceof Error ? err.message : String(err));
+  }
+  try {
+    // A load failure mid-article is the engine's problem too, not the article's.
+    const getEngine = () =>
+      ensureVoiceModel().catch((err: unknown) => {
+        throw new EngineLostError(err instanceof Error ? err.message : String(err));
+      });
+    await renderArticle(a, getEngine, () => cancelled.has(a.id));
+  } catch (err) {
+    if (!(err instanceof EngineLostError)) throw err;
+    // Saved chunks survive, so a fresh engine picks up where this one stopped. Once in a row only:
+    // if it keeps dying (e.g. backgrounded), wait for the next kick rather than spin.
+    if (attempt > 0) throw new EngineError(err.message);
+    return render({ ...a, renderProgress: (await db.articles.get(a.id))?.renderProgress }, attempt + 1);
+  }
 }
 
 function withIntro(blocks: Block[], meta: { title?: string; byline?: string; siteName?: string }): Block[] {
@@ -180,17 +397,34 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 }
 
-async function requestWakeLock(): Promise<WakeLockSentinel | null> {
-  // Rendering stops if the page is backgrounded, so keep the screen on while it runs.
+let wakeLock: WakeLockSentinel | null = null;
+
+async function holdScreen(): Promise<void> {
+  if (wakeLock && !wakeLock.released) return;
   try {
-    if (document.visibilityState === 'visible' && 'wakeLock' in navigator) return await navigator.wakeLock.request('screen');
+    if (document.visibilityState === 'visible' && 'wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
   } catch {
     /* not granted; render anyway */
   }
-  return null;
 }
 
+async function releaseScreen(): Promise<void> {
+  await wakeLock?.release().catch(() => {});
+  wakeLock = null;
+}
+
+let started = false;
 export function startRunner(): void {
+  if (started) return;
+  started = true;
   window.addEventListener('online', () => void kick());
+  setRetryHandler(() => void kick());
+  // Back in front: resume anything stalled while hidden, and take the screen-on lock again
+  // (the browser drops it when the page is hidden).
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (loops.render.running) void holdScreen();
+    void kick();
+  });
   void kick();
 }

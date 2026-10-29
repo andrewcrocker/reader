@@ -1,0 +1,29 @@
+<!doctype html>
+<!-- Link-preview card (public/og.png). Re-render: Chrome --headless=new --window-size=1200,630 --screenshot=public/og.png design/og-card.html --><html><head><meta charset="utf-8"><style>
+@font-face{font-family:Literata;font-weight:500;src:url(../node_modules/@fontsource/literata/files/literata-latin-500-normal.woff2)}
+@font-face{font-family:Literata;font-weight:600;src:url(../node_modules/@fontsource/literata/files/literata-latin-600-normal.woff2)}
+@font-face{font-family:Plex;font-weight:400;src:url(../node_modules/@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-400-normal.woff2)}
+@font-face{font-family:Plex;font-weight:600;src:url(../node_modules/@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-600-normal.woff2)}
+html,body{margin:0;width:1200px;height:630px;overflow:hidden;background:#151413;color:#e8e6e3}
+.wrap{position:relative;width:1200px;height:630px;box-sizing:border-box;padding:76px 80px}
+.brand{display:flex;align-items:center;gap:14px;font:600 22px Plex;letter-spacing:.02em;color:#a2a09b}
+.brand img{width:44px;height:44px;border-radius:12px}
+h1{font:600 88px/1.02 Literata;letter-spacing:-.02em;margin:64px 0 0;width:600px}
+p{font:400 29px/1.4 Plex;color:#a2a09b;margin:28px 0 0;width:560px}
+.pill{position:absolute;left:80px;bottom:72px;display:flex;align-items:center;gap:14px;background:#282726;border-radius:999px;padding:12px 22px 12px 12px;font:600 21px Plex;color:#e8e6e3}
+.pill .play{width:40px;height:40px;border-radius:50%;background:#8fd0c3;display:grid;place-items:center}
+.pill .play:after{content:"";margin-left:4px;border-left:13px solid #0f2420;border-top:8px solid transparent;border-bottom:8px solid transparent}
+.bar{width:150px;height:6px;border-radius:3px;background:#3a3937;overflow:hidden}.bar i{display:block;width:38%;height:100%;background:#8fd0c3}
+.cover{position:absolute;border-radius:18px;padding:26px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;box-shadow:0 24px 60px rgba(0,0,0,.45)}
+.cover .site{font:600 13px Plex;letter-spacing:.12em;text-transform:uppercase;opacity:.85}
+.cover .rule{width:40px;height:3px;border-radius:2px;background:currentColor;opacity:.7;margin-bottom:14px}
+.cover .t{font:600 30px/1.12 Literata;margin:0}
+</style></head><body><div class="wrap">
+<div class="brand"><img src="../public/icons/icon-192.png">Reader</div>
+<h1>Articles,<br>read aloud.</h1>
+<p>Share any article from your phone. Listen later on a walk, a commute, or offline.</p>
+<div class="pill"><span class="play"></span>Listening<span class="bar"><i></i></span>8 m left</div>
+<div class="cover" style="left:700px;top:150px;width:250px;height:250px;background:#7E522C;color:#FEEADB;transform:rotate(-7deg)"><span class="site">The Urbanist</span><div class="rule"></div></div>
+<div class="cover" style="left:900px;top:120px;width:250px;height:250px;background:#62395F;color:#FBE8F8;transform:rotate(6deg)"><span class="site">Your queue</span><div class="rule"></div></div>
+<div class="cover" style="left:770px;top:250px;width:300px;height:300px;background:#1F5C55;color:#E4F3EF"><span class="site">Reader</span><div><div class="rule"></div><p class="t" style="width:auto;color:inherit">Read to you in a natural voice</p></div></div>
+</div></body></html>

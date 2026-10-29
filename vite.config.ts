@@ -36,20 +36,33 @@ const proxy: Record<string, ProxyOptions> = {
   },
 };
 
+const { version } = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string };
+
 export default defineConfig({
+  define: { __APP_VERSION__: JSON.stringify(version) },
   plugins: [
+
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // src/app/update.ts registers the worker and applies updates once nothing is playing.
+      registerType: 'prompt',
+      injectRegister: false,
       includeAssets: ['icons/*.png'],
       manifest: {
+        // "Reader" is the app's name (DESIGN "Still open": wordmark and icon).
         name: 'Reader',
         short_name: 'Reader',
         description: 'Save articles, listen later.',
         start_url: '/',
         display: 'standalone',
-        background_color: '#14161a',
-        theme_color: '#14161a',
+        // Dark is primary; index.html sets the status bar per scheme from the `bg` token.
+        background_color: '#151413',
+        theme_color: '#151413',
+        share_target: {
+          action: '/share',
+          method: 'GET',
+          params: { title: 'title', text: 'text', url: 'url' },
+        },
         icons: [
           { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
@@ -57,7 +70,11 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest}'],
+        // woff2: the self-hosted fonts, so type works offline; mp3: the voice samples in Settings.
+        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest,woff2,mp3}'],
+        // Only link-preview crawlers need the share card.
+        globIgnores: ['og.png'],
+
         // The transformers.js chunk is large; the app shell must still precache.
         maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
         navigateFallback: '/index.html',

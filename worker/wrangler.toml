@@ -1,10 +1,36 @@
 name = "reader-proxy"
-main = "src/index.ts"
+main = "src/entry.ts"
 compatibility_date = "2026-10-01"
+workers_dev = true
+preview_urls = false
 
 [vars]
 # Comma-separated list of origins allowed to call the proxy from a browser.
-ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:4173"
+ALLOWED_ORIGINS = "https://read-aloud-c1w.pages.dev,http://localhost:5173,http://localhost:4173"
+# Characters a day sent to the voice host, across everyone (~$0.33/day at $0.99 per million).
+DAILY_CHAR_CAP = "330000"
 
-# APP_SECRET is a secret: locally it comes from worker/.dev.vars,
-# in production from `wrangler secret put APP_SECRET`.
+# Secrets: locally from worker/.dev.vars, in production from `wrangler secret put <NAME>`:
+#   APP_SECRET         shared with the app's invite link
+#   DEEPINFRA_API_KEY  voice host
+#   RESEND_API_KEY     budget alert emails (send-only key)
+#   ALERT_EMAIL        where alerts go; must be the Resend account's own address
+
+# Rendered chunks wait here until the app downloads them. In production, add a 7-day expiry:
+#   wrangler r2 bucket lifecycle add reader-audio expire-jobs jobs/ --expire-days 7
+[[r2_buckets]]
+binding = "AUDIO"
+bucket_name = "reader-audio"
+
+[[workflows]]
+name = "reader-render"
+binding = "RENDER"
+class_name = "RenderWorkflow"
+
+[[durable_objects.bindings]]
+name = "QUOTA"
+class_name = "QuotaCounter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["QuotaCounter"]

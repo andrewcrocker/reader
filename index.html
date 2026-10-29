@@ -3,10 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#14161a" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F3F2F0" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#151413" />
     <link rel="icon" href="/icons/icon-192.png" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <title>Reader</title>
+    <meta name="description" content="Share any article from your phone and listen later, on a walk, a commute, or offline." />
+
+    <!-- Link previews (Slack, Bluesky, iMessage…). %VITE_SITE_URL% comes from .env.[mode]. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Reader" />
+    <meta property="og:title" content="Reader: articles, read aloud" />
+    <meta property="og:description" content="Share any article from your phone and listen later, on a walk, a commute, or offline." />
+    <meta property="og:url" content="%VITE_SITE_URL%/" />
+    <meta property="og:image" content="%VITE_SITE_URL%/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Reader: “Articles, read aloud.” beside a stack of article covers." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Reader: articles, read aloud" />
+    <meta name="twitter:description" content="Share any article from your phone and listen later, on a walk, a commute, or offline." />
+    <meta name="twitter:image" content="%VITE_SITE_URL%/og.png" />
+
   </head>
   <body>
     <div id="root"></div>

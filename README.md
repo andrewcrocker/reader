@@ -1,8 +1,16 @@
+![Reader: articles, read aloud](public/og.png)
+
 # Reader
 
-A personal "listen later" PWA. Paste a URL or some text, and it's turned into audio on your phone with an on-device voice model (Kokoro-82M), then played back with a proper player. The design is in [spec/SPEC.md](spec/SPEC.md).
+A "listen later" app. Share an article from your phone (or paste a link or text); it's read aloud by a natural voice (Kokoro-82M) and saved on the phone, so it plays later on a walk, a commute, or offline, with a read-along view that follows the audio sentence by sentence.
 
-**Built so far:** Phase 0 (the `/spike` TTS benchmark page) and Phase 1 (the listen-to-one-article MVP).
+- **Live:** https://read-aloud-c1w.pages.dev (invite-only; see [Deploy](#deploy))
+- **Specs:** engineering in [spec/SPEC.md](spec/SPEC.md), design in [spec/DESIGN.md](spec/DESIGN.md)
+- **Stack:** React + Vite PWA, Dexie (IndexedDB), a Cloudflare Worker for fetching pages and making voices, Cloudflare Pages for the app
+
+**How voices work.** By default the Worker renders them: the app sends an article's text once, a Cloudflare Workflow sends it to a hosted Kokoro API (DeepInfra) in parts, and the audio waits in R2 until the app collects it, so articles finish even with the app closed. It costs about 1¢ per article, capped at about $10 a month. On-device Kokoro (WebGPU/WASM) is still a Settings choice; it works well on desktop but struggled on a Pixel 8 (memory, background limits, heat), which is why the server is the default.
+
+**Built:** the full design (queue, Now Playing, read-along, sheets, Settings, First run, wide layout), server voices with a daily budget and email alerts, share target, invite links, offline playback, progressive playback while audio renders, link previews.
 
 ## Run it locally
 
@@ -23,8 +31,9 @@ npm run dev
 ```
 
 - App: http://localhost:5173
-- TTS spike: http://localhost:5173/spike
-- The fetch proxy runs at http://localhost:8787. The Vite dev server forwards `/api/*` to it, so the browser only talks to port 5173.
+- On-device TTS benchmark (dev tool): http://localhost:5173/spike
+- The Worker (fetch proxy and server voices) runs at http://localhost:8787. The Vite dev server forwards `/api/*` to it, so the browser only talks to port 5173. Locally, its R2 bucket, Workflow and Durable Object are simulated by `wrangler dev`.
+- Server voices need `DEEPINFRA_API_KEY` in `worker/.dev.vars`; budget alert emails need `RESEND_API_KEY` and `ALERT_EMAIL` (the Resend account's own address). Without the voice key, set Settings → Voice → Engine to "On this device".
 - The dev secret is `dev-secret`, in `worker/.dev.vars` (git-ignored, copied from `worker/.dev.vars.example`). Locally you never enter it: the `/api` proxy in both `npm run dev` and `npm run preview` reads it from that file and attaches it, so the Settings secret field can stay blank.
 
 Tests and type checks:
@@ -55,7 +64,7 @@ WebGPU, service workers, OPFS and multi-threaded WASM all need a **secure contex
 adb reverse tcp:5173 tcp:5173
 ```
 
-Then open `http://localhost:5173/spike` in Chrome on the phone. On the phone that address is `localhost`, so it counts as secure. You can watch logs from `chrome://inspect` on the Mac.
+Then open `http://localhost:5173` (or `/spike`) in Chrome on the phone. On the phone that address is `localhost`, so it counts as secure. You can watch logs from `chrome://inspect` on the Mac.
 
 **Option B: no cable, temporary tunnel.** This exposes your dev server at a random public `trycloudflare.com` URL for as long as the command runs. It needs no account.
 
@@ -67,9 +76,11 @@ brew install cloudflared
 cloudflared tunnel --url http://localhost:5173
 ```
 
-Open the printed `https://….trycloudflare.com/spike` on the phone.
+Open the printed `https://….trycloudflare.com` on the phone. To test install and the share sheet, tunnel the production build instead (`npm run build && npm run preview`, then `cloudflared tunnel --url http://localhost:4173`): the dev server has no service worker or manifest.
 
-### Running the spike
+### Running the on-device spike
+
+Only relevant to on-device voices. Measured on a Pixel 8: 1.17× real time on WebGPU, about 0.15× on WASM, and the page was killed for memory while loading the High model.
 
 1. Open `/spike`. Leave **Backend** on **Auto**. It tries WebGPU first and falls back to WASM if WebGPU is missing, fails to load, or produces bad audio.
 2. Pick a voice and press **Run**. The first run downloads the model: about 310 MB for WebGPU fp32, or about 90 MB for WASM q8. Later runs load from the browser cache.
@@ -80,9 +91,17 @@ Open the printed `https://….trycloudflare.com/spike` on the phone.
 
 Keep the screen on while it renders (the page requests a wake lock). Android throttles background tabs.
 
-## Deploy later (nothing has been deployed)
+## Deploy
 
-Everything below is for when you're ready. No Cloudflare account or project has been created.
+Deployed 2026-10-28:
+
+- App (Pages project `read-aloud`): https://read-aloud-c1w.pages.dev
+- Worker `reader-proxy`: https://reader-proxy.andrew-crocker-c26.workers.dev
+- Production secret: `worker/.prod.vars` (git-ignored). The invite link is `https://read-aloud-c1w.pages.dev/#invite=<APP_SECRET>`.
+
+To ship changes: `npm run deploy:worker` and `npm run deploy:app`. Secrets: `./scripts/put-secrets.sh`.
+
+How it was set up the first time:
 
 1. Log in to Cloudflare:
 
@@ -100,6 +119,22 @@ Everything below is for when you're ready. No Cloudflare account or project has 
    npx wrangler secret put APP_SECRET --config worker/wrangler.toml
    ```
 
+   Then the voice and alert secrets, one at a time (`DEEPINFRA_API_KEY`, `RESEND_API_KEY`, `ALERT_EMAIL`):
+
+   ```bash
+   npx wrangler secret put DEEPINFRA_API_KEY --config worker/wrangler.toml
+   ```
+
+   Create the audio bucket and its 7-day expiry for jobs nobody collected:
+
+   ```bash
+   npx wrangler r2 bucket create reader-audio
+   ```
+
+   ```bash
+   npx wrangler r2 bucket lifecycle add reader-audio expire-jobs jobs/ --expire-days 7
+   ```
+
 3. Edit `ALLOWED_ORIGINS` in [worker/wrangler.toml](worker/wrangler.toml) to your app's origin (for example `https://reader.pages.dev`). Then deploy the Worker:
 
    ```bash
@@ -114,12 +149,12 @@ Everything below is for when you're ready. No Cloudflare account or project has 
    VITE_PROXY_URL=https://reader-proxy.<you>.workers.dev
    ```
 
-   Don't put the secret in it, because the built JS is public. Enter the secret in the app's Settings instead (Phase 2 adds invite links for this).
+   Don't put the secret in it, because the built JS is public. People get it through the invite link (`#invite=<secret>`), which the app saves on the device; Settings → Invite a friend shares it.
 
-5. Create the Pages project once, then deploy:
+5. Create the Pages project once (`--force` makes a classic Pages project; without it Wrangler tries to auto-configure a Worker and fails on this repo), then deploy:
 
    ```bash
-   npx wrangler pages project create reader --production-branch main
+   npx wrangler pages project create read-aloud --production-branch main --force
    ```
 
    ```bash
@@ -133,14 +168,19 @@ Everything below is for when you're ready. No Cloudflare account or project has 
 | Piece | Where |
 |---|---|
 | Fetch proxy (Hono on Workers): auth, origin check, SSRF guard, 5 MB cap, 15 s timeout | [worker/src/index.ts](worker/src/index.ts) |
+| Server voices: `/render` routes, voice allowlist, daily budget, alert email, MP3 header stripping | [worker/src/render.ts](worker/src/render.ts) |
+| Render Workflow (one step per chunk) and the budget counter (Durable Object) | [worker/src/jobs.ts](worker/src/jobs.ts) |
+| App side of server voices: send once, collect chunks, build the file | [src/tts/server.ts](src/tts/server.ts), [src/pipeline/serverRender.ts](src/pipeline/serverRender.ts) |
 | Dexie schema, settings | [src/db.ts](src/db.ts) |
 | Readability extraction via the proxy | [src/pipeline/extract.ts](src/pipeline/extract.ts) |
 | Text prep (§6.1): cleanup, intro, normalization, sentence split, chunking | [src/pipeline/textprep.ts](src/pipeline/textprep.ts) |
 | Kokoro in a Web Worker, WebGPU→WASM fallback with output sanity check | [src/tts/kokoro.worker.ts](src/tts/kokoro.worker.ts), [src/tts/engine.ts](src/tts/engine.ts) |
 | Chunked render with per-chunk persistence, then concatenate + MP3 encode + timings | [src/pipeline/render.ts](src/pipeline/render.ts), [src/audio/](src/audio) |
-| Pipeline loop (resume on launch / `online`) | [src/pipeline/runner.ts](src/pipeline/runner.ts) |
-| Player (speed, scrub, ±skip, resume position, basic Media Session) | [src/pages/Player.tsx](src/pages/Player.tsx) |
-| Spike | [src/pages/Spike.tsx](src/pages/Spike.tsx) |
+| Pipeline loops: fetch and render side by side, resume on launch / `online` / return to the app | [src/pipeline/runner.ts](src/pipeline/runner.ts) |
+| Player: one `<audio>`, streaming while rendering, speed, skip, sentence nav, auto-advance, Media Session, article tint | [src/player/](src/player) |
+| Screens: Queue, Now Playing, read-along, sheets, Settings, First run, invite screen | [src/screens/](src/screens) |
+| UI state on the history stack (Android back), snackbar, share target, invites, app updates | [src/app/](src/app) |
+| On-device TTS benchmark | [src/pages/Spike.tsx](src/pages/Spike.tsx) |
 
 ### Where this differs from the spec
 
@@ -152,4 +192,4 @@ Everything below is for when you're ready. No Cloudflare account or project has 
 
   Voice files (about 0.5 MB each) are cached by kokoro-js in the Cache API (`kokoro-voices`). The ONNX Runtime WASM is self-hosted under `/ort/` and runtime-cached by the service worker.
 - **Sentence timings inside a multi-sentence chunk are estimated** from each sentence's share of the characters. Timings at chunk boundaries are exact.
-- A minimal Media Session (play, pause, seek) is included even though it's Phase 2, because Phase 0's background-playback test needs lock-screen controls.
+- **Server render jobs are split into parts of 30 chunks.** On the Workers free plan one Workflow run may make only 50 outside requests, one per chunk.

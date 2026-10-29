@@ -3,12 +3,14 @@ import { floatToInt16, silence, SAMPLE_RATE, wavBlob } from '../audio/pcm';
 import { encodeMp3 } from '../audio/encode';
 import { saveAudio } from '../audio/storage';
 import type { KokoroEngine } from '../tts/engine';
+import { placeChunk } from './timeline';
 
 /**
  * Renders any chunks not yet saved, then concatenates everything into one audio file
  * and writes sentence timings. Safe to call again after an interruption.
  */
-export async function renderArticle(article: Article, engine: KokoroEngine, isCancelled: () => boolean): Promise<void> {
+/** `getEngine` is asked before every chunk, so the engine can be swapped mid-article (e.g. back onto the GPU). */
+export async function renderArticle(article: Article, getEngine: () => Promise<KokoroEngine>, isCancelled: () => boolean): Promise<void> {
   const chunks = article.chunks ?? [];
   if (!chunks.length) throw new Error('nothing to render');
   const voice = article.voice!;
@@ -20,7 +22,11 @@ export async function renderArticle(article: Article, engine: KokoroEngine, isCa
   for (const chunk of chunks) {
     if (done.has(chunk.i)) continue;
     if (isCancelled()) return;
-    const { pcm, sampleRate } = await engine.synthesize(chunk.text, voice);
+    const engine = await getEngine();
+    if (isCancelled()) return;
+    const { pcm, sampleRate, ms } = await engine.synthesize(chunk.text, voice);
+    const sec = pcm.length / sampleRate;
+    console.debug(`chunk ${chunk.i + 1}/${chunks.length}: ${sec.toFixed(1)} s of audio in ${(ms / 1000).toFixed(1)} s (${(sec / (ms / 1000)).toFixed(2)}× real time)`);
     if (!(await db.articles.get(article.id))) return; // deleted mid-render
     const int16 = floatToInt16(pcm);
     await db.renderedChunks.put({ articleId: article.id, i: chunk.i, pcm: int16.buffer as ArrayBuffer, sampleRate });
@@ -31,7 +37,8 @@ export async function renderArticle(article: Article, engine: KokoroEngine, isCa
   await finalize(article);
 }
 
-async function finalize(article: Article): Promise<void> {
+/** Joins every saved chunk into one audio file with sentence timings. Used by on-device and server renders. */
+export async function finalize(article: Article): Promise<void> {
   const chunks = article.chunks!;
   const rows = await db.renderedChunks.where('articleId').equals(article.id).sortBy('i');
   if (rows.length !== chunks.length) throw new Error(`expected ${chunks.length} chunks, found ${rows.length}`);
@@ -44,17 +51,9 @@ async function finalize(article: Article): Promise<void> {
   for (const chunk of chunks) {
     const pcm = new Int16Array(rows[chunk.i].pcm);
     const dur = pcm.length / sampleRate;
-    // Sentence times inside a multi-sentence chunk are estimated by character share.
-    const group = sentences.slice(chunk.sentenceStart, chunk.sentenceStart + chunk.sentenceCount);
-    const totalChars = group.reduce((n, s) => n + s.text.length, 0) || 1;
-    let st = t;
-    for (const s of group) {
-      const d = (dur * s.text.length) / totalChars;
-      s.start = st;
-      s.end = st + d;
-      st += d;
-    }
-    parts.push(pcm, silence(chunk.pauseAfter, sampleRate));
+    placeChunk(sentences, chunk, t, dur);
+    parts.push
+(pcm, silence(chunk.pauseAfter, sampleRate));
     t += dur + chunk.pauseAfter;
   }
 

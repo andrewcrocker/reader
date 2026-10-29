@@ -27,7 +27,9 @@ export type KokoroOut =
       crossOriginIsolated: boolean;
     }
   | { type: 'audio'; id: number; pcm: Float32Array; sampleRate: number; ms: number }
-  | { type: 'error'; id?: number; message: string };
+  | { type: 'error'; id?: number; message: string }
+  // Something failed outside any request (e.g. Android took the GPU away); this worker is done.
+  | { type: 'lost'; message: string };
 
 const post = (m: KokoroOut, t: Transferable[] = []) => (self as DedicatedWorkerGlobalScope).postMessage(m, t);
 
@@ -173,6 +175,13 @@ async function generate(msg: Extract<KokoroIn, { type: 'generate' }>) {
   const pcm = out.audio instanceof Float32Array ? out.audio : new Float32Array(out.audio);
   post({ type: 'audio', id: msg.id, pcm, sampleRate: out.sampling_rate, ms: performance.now() - t0 }, [pcm.buffer]);
 }
+
+// onnxruntime's WebGPU backend can reject in a promise nobody awaits (mapAsync after the GPU is
+// lost), which leaves the current generate() hanging forever. Report it so the engine is rebuilt.
+self.addEventListener('unhandledrejection', (e) => {
+  const reason = (e as PromiseRejectionEvent).reason;
+  post({ type: 'lost', message: reason instanceof Error ? reason.message : String(reason) });
+});
 
 self.onmessage = (e: MessageEvent<KokoroIn>) => {
   const msg = e.data;
