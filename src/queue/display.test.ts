@@ -39,7 +39,7 @@ describe('rowMeta', () => {
   const text = (a: Article, c: Ctx = ctx) => rowMeta(a, displayState(a, c), c).segs.map((s) => s.text).join(' · ');
 
   it('reads like the design', () => {
-    expect(text(art({}))).toBe('14 m · Offline · Example');
+    expect(text(art({}))).toBe('14 m · Example');
     expect(text(art({ positionSec: 0 }), { ...ctx, currentId: 'a' })).toBe('Playing · 14 m left · Example');
     expect(text(art({ status: 'rendering', renderProgress: 0.42, durationSec: undefined }))).toMatch(/^Preparing 42% · ~\d+ m · Example$/);
     expect(text(art({ status: 'extracted', durationSec: undefined }))).toMatch(/^Queued for audio · ~\d+ m · Example$/);

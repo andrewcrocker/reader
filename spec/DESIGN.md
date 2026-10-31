@@ -184,7 +184,7 @@ Every row shows a 16 dp status glyph at the start of its meta line, then text. E
 | Rendering | Ring with progress arc | "**Preparing 42%** · ~22 m · Site" | text `fg` | Yes, to rendered point |
 | Queued for audio | Clock | "Queued for audio · ~11 m · Site" (online voices: "Preparing… · ~11 m · Site" once sent) | `muted` | No |
 | Waiting for voices | Clock | "Waiting for voices · ~11 m · Site" (the server's daily voice budget is spent) | `muted` | No |
-| Ready | Circle with down-arrow | "18 m · Offline · Site" | `muted` | Yes, offline too |
+| Ready | Circle with down-arrow | "18 m · Site" | `muted` | Yes, offline too |
 | In progress / Playing | Equalizer bars | "**Playing** · 14 m left · Site" + 3 dp progress bar | `accent` label | Yes |
 | Partial | Half-filled circle | "**Partial** · 6 m found · Site" | `warn` | Yes, what was found |
 | Failed | Triangle with ! | "**Couldn't load the page**" + Retry button | `error` | No |

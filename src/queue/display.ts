@@ -184,7 +184,6 @@ export function rowMeta(a: Article, state: DisplayState, ctx: Ctx & { isNew?: bo
       default:
         glyph = 'ready';
         push(dur(len !== undefined ? len / ctx.speed : undefined));
-        push('Offline');
         push(site);
         spokenState = 'ready';
     }
