@@ -3,7 +3,7 @@ import { deleteAudio } from '../audio/storage';
 import { fetchArtwork, purgeArt } from '../art/art';
 import { disposeSharedEngine, EngineLostError, getSharedEngine, reusableEngine, type KokoroEngine } from '../tts/engine';
 import { buildScript, htmlToBlocks, introBlock, plainTextToBlocks, type Block } from './textprep';
-import { ExtractError, fetchHtml, parseArticle } from './extract';
+import { ExtractError, loadArticle } from './extract';
 import { renderArticle } from './render';
 import { collectArticle, ServerWaitError, setRetryHandler, submitPending } from './serverRender';
 import { deleteJob } from '../tts/server';
@@ -294,8 +294,7 @@ function failure(err: unknown): Partial<Article> {
 
 async function extract(a: Article) {
   const settings = await getSettings();
-  const { html, finalUrl } = await fetchHtml(a.url, settings);
-  const x = parseArticle(html, finalUrl);
+  const x = await loadArticle(a.url, settings);
   const script = buildScript(withIntro(htmlToBlocks(x.contentHtml), x));
   if (!script.chunks.length) throw new ExtractError('We couldn’t find any article text on this page.', 'page');
   const patch: Partial<Article> = {
@@ -303,7 +302,7 @@ async function extract(a: Article) {
     title: x.title,
     byline: x.byline,
     siteName: x.siteName,
-    domain: domainOf(finalUrl) ?? a.domain,
+    domain: domainOf(x.finalUrl) ?? a.domain,
     imageUrl: x.imageUrl,
     iconUrl: x.iconUrl,
     canonicalUrl: x.canonicalUrl,

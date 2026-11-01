@@ -25,6 +25,8 @@ export class ExtractError extends Error {
   constructor(
     message: string,
     readonly kind: 'page' | 'service',
+    /** The link itself is the problem (not a web page, too large), so another copy wouldn't help. */
+    readonly final = false,
   ) {
     super(message);
   }
@@ -38,9 +40,10 @@ export function proxyFailure(status: number, body: { error?: string } | null, co
   const page = (m: string) => new ExtractError(m, 'page');
   if (!body?.error) return new ExtractError(SERVICE_DOWN, 'service');
   if (status === 401 || status === 403 || status === 500) return new ExtractError(NOT_SET_UP, 'service');
-  if (status === 400) return page('That doesn’t look like a web address.');
-  if (status === 413) return page('This page is too large to load.');
-  if (status === 415) return page(/pdf/i.test(body.error + contentType) ? 'This link is a PDF, which can’t be read yet.' : 'This link isn’t a web page.');
+  const final = (m: string) => new ExtractError(m, 'page', true);
+  if (status === 400) return final('That doesn’t look like a web address.');
+  if (status === 413) return final('This page is too large to load.');
+  if (status === 415) return final(/pdf/i.test(body.error + contentType) ? 'This link is a PDF, which can’t be read yet.' : 'This link isn’t a web page.');
   if (/timed out/.test(body.error)) return page('The site took too long to respond.');
   if (status === 502) return page('The site couldn’t be reached.');
   return new ExtractError(SERVICE_DOWN, 'service');
@@ -79,6 +82,45 @@ export async function fetchHtml(url: string, settings: Settings): Promise<{ html
   const bad = siteFailure(status);
   if (bad) throw bad;
   return { html: await res.text(), finalUrl: res.headers.get('X-Final-Url') ?? url, status };
+}
+
+const ARCHIVES = ['wayback', 'archive-today'] as const;
+
+/** Failures a copy of the page could get around. A bad address, a PDF or our service being down can't be helped by one. */
+function archiveMightHelp(err: unknown): err is ExtractError {
+  return err instanceof ExtractError && err.kind === 'page' && !err.final;
+}
+
+/** The newest archived copy, or null if there's none we can get. Prefers a complete copy over a cut-off one. */
+async function fromArchives(url: string, settings: Settings, parse: typeof parseArticle): Promise<Extracted | null> {
+  let partial: Extracted | null = null;
+  for (const source of ARCHIVES) {
+    try {
+      const endpoint = `${settings.proxyUrl.replace(/\/$/, '')}/archive?source=${source}&url=${encodeURIComponent(url)}`;
+      const res = await fetch(endpoint, { headers: { 'X-App-Secret': settings.proxySecret } });
+      if (!res.ok) continue;
+      // Parsed against the article's own URL. An archive's canonical link points at the archive, so it's dropped.
+      const copy: Extracted = { ...parse(await res.text(), url), canonicalUrl: undefined, method: source };
+      if (copy.quality === 'full') return copy;
+      partial ??= copy;
+    } catch {
+      /* no usable text in this copy: try the next archive */
+    }
+  }
+  return partial;
+}
+
+/** Fetch and parse the page; if that fails, fall back to an existing archived copy (SPEC §5, ladder step 5). */
+export async function loadArticle(url: string, settings: Settings, parse: typeof parseArticle = parseArticle): Promise<Extracted> {
+  try {
+    const { html, finalUrl } = await fetchHtml(url, settings);
+    return parse(html, finalUrl);
+  } catch (err) {
+    if (!archiveMightHelp(err)) throw err;
+    const copy = await fromArchives(url, settings, parse);
+    if (copy) return copy;
+    throw new ExtractError(`${err.message} No archived copy was found either.`, 'page');
+  }
 }
 
 

@@ -77,26 +77,80 @@ app.get('/fetch', async (c) => {
     return c.json({ error: timedOut ? 'upstream timed out' : 'upstream fetch failed' }, 502);
   }
 
+  return passThroughHtml(upstream, upstream.url || target.toString());
+});
+
+/**
+ * GET /archive?url=…&source=wayback|archive-today
+ *
+ * The newest existing snapshot of a page the plain fetch couldn't load (SPEC §5, ladder step 5).
+ * Only reads what's already archived; never asks an archive to capture anything. 404 means no
+ * snapshot. X-Final-Url stays the original article URL, so the app files it under the real site.
+ */
+app.get('/archive', async (c) => {
+  const target = parseTarget(c.req.query('url'));
+  if (typeof target === 'string') return c.json({ error: target }, 400);
+  const source = c.req.query('source');
+  if (source !== 'wayback' && source !== 'archive-today') return c.json({ error: `unknown source: ${source}` }, 400);
+
+  let upstream: Response | null;
+  try {
+    upstream = source === 'wayback' ? await waybackSnapshot(target) : await archiveTodaySnapshot(target);
+  } catch (err) {
+    const timedOut = err instanceof Error && err.name === 'TimeoutError';
+    return c.json({ error: timedOut ? 'upstream timed out' : 'upstream fetch failed' }, 502);
+  }
+  if (!upstream || upstream.status === 404) return c.json({ error: 'no snapshot' }, 404);
+  // archive.today can answer data-center traffic with a CAPTCHA (429) rather than the snapshot.
+  if (!upstream.ok) return c.json({ error: `archive status ${upstream.status}` }, 502);
+  return passThroughHtml(upstream, target.toString());
+});
+
+async function waybackSnapshot(target: URL): Promise<Response | null> {
+  const lookup = await fetch(`https://archive.org/wayback/available?url=${encodeURIComponent(target.toString())}`, {
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (!lookup.ok) throw new Error(`wayback lookup status ${lookup.status}`);
+  const data = (await lookup.json()) as { archived_snapshots?: { closest?: { available?: boolean; timestamp?: string } } };
+  const closest = data.archived_snapshots?.closest;
+  if (!closest?.available || !/^\d+$/.test(closest.timestamp ?? '')) return null;
+  // `id_` asks for the page as captured, without the Wayback toolbar or rewritten links.
+  return fetch(`https://web.archive.org/web/${closest.timestamp}id_/${target.toString()}`, {
+    headers: BROWSER_HEADERS,
+    redirect: 'follow',
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+}
+
+function archiveTodaySnapshot(target: URL): Promise<Response> {
+  return fetch(`https://archive.ph/newest/${target.toString()}`, {
+    headers: BROWSER_HEADERS,
+    redirect: 'follow',
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+}
+
+function passThroughHtml(upstream: Response, finalUrl: string): Response {
   const contentType = upstream.headers.get('Content-Type') ?? '';
   if (contentType && !/html|xml|text\/plain/i.test(contentType)) {
-    return c.json({ error: `unsupported content type: ${contentType}`, status: upstream.status }, 415);
+    return Response.json({ error: `unsupported content type: ${contentType}`, status: upstream.status }, { status: 415 });
   }
   const declared = Number(upstream.headers.get('Content-Length') ?? 0);
-  if (declared > MAX_BYTES) return c.json({ error: 'page too large' }, 413);
-  if (!upstream.body) return c.json({ error: 'empty upstream body', status: upstream.status }, 502);
+  if (declared > MAX_BYTES) return Response.json({ error: 'page too large' }, { status: 413 });
+  if (!upstream.body) return Response.json({ error: 'empty upstream body', status: upstream.status }, { status: 502 });
 
   return new Response(upstream.body.pipeThrough(byteLimit(MAX_BYTES)), {
     status: 200,
     headers: {
       // Keep the upstream charset so the browser decodes correctly.
       'Content-Type': contentType || 'text/html',
-      'X-Final-Url': upstream.url || target.toString(),
+      'X-Final-Url': finalUrl,
       'X-Upstream-Status': String(upstream.status),
       'X-Upstream-Content-Type': contentType,
       'Cache-Control': 'no-store',
     },
   });
-});
+}
 
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 

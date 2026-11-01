@@ -54,6 +54,48 @@ describe('/fetch', () => {
   });
 });
 
+describe('/archive', () => {
+  const article = 'https://example.com/story';
+  const html = (body: string, status = 200) => new Response(body, { status, headers: { 'Content-Type': 'text/html' } });
+
+  it('fetches the Wayback snapshot as captured, keeping the original URL', async () => {
+    const seen: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (u: string) => {
+      seen.push(u);
+      return u.includes('/wayback/available')
+        ? Response.json({ archived_snapshots: { closest: { available: true, timestamp: '20261101120000' } } })
+        : html('snapshot');
+    }));
+    const res = await req(`/archive?source=wayback&url=${encodeURIComponent(article)}`);
+    expect(res.status).toBe(200);
+    expect(seen[1]).toBe(`https://web.archive.org/web/20261101120000id_/${article}`);
+    expect(res.headers.get('X-Final-Url')).toBe(article);
+    expect(await res.text()).toBe('snapshot');
+  });
+
+  it('says 404 when Wayback has no snapshot', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ archived_snapshots: {} })));
+    expect((await req(`/archive?source=wayback&url=${encodeURIComponent(article)}`)).status).toBe(404);
+  });
+
+  it('tells a missing archive.today snapshot apart from a blocked request', async () => {
+    const seen: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (u: string) => {
+      seen.push(u);
+      return html('nope', 404);
+    }));
+    expect((await req(`/archive?source=archive-today&url=${encodeURIComponent(article)}`)).status).toBe(404);
+    expect(seen[0]).toBe(`https://archive.ph/newest/${article}`);
+    vi.stubGlobal('fetch', vi.fn(async () => html('captcha', 429)));
+    expect((await req(`/archive?source=archive-today&url=${encodeURIComponent(article)}`)).status).toBe(502);
+  });
+
+  it('refuses unknown sources and private hosts', async () => {
+    expect((await req(`/archive?source=other&url=${encodeURIComponent(article)}`)).status).toBe(400);
+    expect((await req('/archive?source=wayback&url=http://127.0.0.1/x')).status).toBe(400);
+  });
+});
+
 describe('/asset', () => {
   it('passes images through with CORP so the isolated app can load them', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(new Uint8Array([1, 2, 3]), { headers: { 'Content-Type': 'image/png' } })));
