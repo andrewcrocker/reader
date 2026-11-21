@@ -40,7 +40,6 @@ export function ShareListSheet({ ids, onShared }: { ids: string[]; onShared?: ()
 
   const share = async () => {
     if (!link) return;
-    const title = name.trim() || 'Reading list';
     const done = (how: string) => {
       back();
       onShared?.();
@@ -48,7 +47,9 @@ export function ShareListSheet({ ids, onShared }: { ids: string[]; onShared?: ()
     };
     if (navigator.share) {
       try {
-        await navigator.share({ title, text: `${title}: ${plural(links.length, 'article')}`, url: link.url });
+        // Only the link: Android's Copy (and many apps) prepend any text, which makes pasting it messier.
+        // The list's name and articles travel inside the link and show when it's opened.
+        await navigator.share({ url: link.url });
         return done('List shared');
       } catch (e) {
         // Closing the share sheet isn't an error; stay here so they can try again.

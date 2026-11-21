@@ -390,7 +390,7 @@ With on-device voices, saved articles stay in "Queued for audio" until the voice
 
 A snapshot of some articles, sent as one link (SPEC §4). Nothing is uploaded and nothing stays in sync: the link holds the list.
 
-- **Share as list** (multi-select header, share glyph): a sheet with a line on what it does, an optional **List name** field (placeholder "Reading list"), the articles in queue order (title in Literata, site under it), and **Share N articles** (primary). It opens the system share sheet, or copies the link where there isn't one.
+- **Share as list** (multi-select header, share glyph): a sheet with a line on what it does, an optional **List name** field (placeholder "Reading list"), the articles in queue order (title in Literata, site under it), and **Share N articles** (primary). It opens the system share sheet with just the link (no extra text, so Copy gives a clean URL; the name travels inside the link), or copies the link where there isn't one.
   - Only links can go in. Pasted text is left out, with a `status-note` in the sheet ("1 pasted article wasn't included: only links can be shared.") and the same note in the snackbar afterwards.
   - Past about 2,000 characters the note also warns that some apps may cut the link off. The link still works.
   - Sharing exits selection and shows "Link copied" or "List shared" in the snackbar.
