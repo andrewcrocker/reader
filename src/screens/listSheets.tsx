@@ -34,7 +34,9 @@ export function ShareListSheet({ ids, onShared }: { ids: string[]; onShared?: ()
     };
   }, [list]);
 
-  const skippedNote = skipped ? `${plural(skipped, 'pasted article')} ${skipped === 1 ? 'wasn’t' : 'weren’t'} included` : '';
+  const uploads = chosen.filter((a) => a.source === 'file').length;
+  const kind = uploads === skipped ? 'uploaded file' : uploads ? 'pasted or uploaded article' : 'pasted article';
+  const skippedNote = skipped ? `${plural(skipped, kind)} ${skipped === 1 ? 'wasn’t' : 'weren’t'} included` : '';
 
   const share = async () => {
     if (!link) return;
