@@ -60,11 +60,39 @@ export function orderBetween(before: number | undefined, after: number | undefin
   return (before + after) / 2;
 }
 
+/** Where `id` lands when moved to index `to` of `ids` (Up next, in order): the new order and its neighbors. */
+export function placeAt(ids: string[], id: string, to: number): { order: string[]; before?: string; after?: string } {
+  const rest = ids.filter((x) => x !== id);
+  const i = Math.max(0, Math.min(to, rest.length));
+  return { order: [...rest.slice(0, i), id, ...rest.slice(i)], before: rest[i - 1], after: rest[i] };
+}
+
 /** Drag reorder: place `id` between the rows now above and below it. */
 export async function reorder(id: string, beforeId: string | undefined, afterId: string | undefined): Promise<void> {
-  const [before, after] = await Promise.all([beforeId ? db.articles.get(beforeId) : undefined, afterId ? db.articles.get(afterId) : undefined]);
-  await db.articles.update(id, { queueOrder: orderBetween(before?.queueOrder, after?.queueOrder) });
+  await db.transaction('rw', db.articles, async () => {
+    const pick = () => Promise.all([beforeId ? db.articles.get(beforeId) : undefined, afterId ? db.articles.get(afterId) : undefined]);
+    let [before, after] = await pick();
+    let q = orderBetween(before?.queueOrder, after?.queueOrder);
+    // Halving runs out of precision after many moves into the same gap: renumber everything and try again.
+    if (before && after && !(q > before.queueOrder && q < after.queueOrder)) {
+      const all = await db.articles.orderBy('queueOrder').toArray();
+      for (const [i, a] of all.entries()) await db.articles.update(a.id, { queueOrder: i + 1 });
+      [before, after] = await pick();
+      q = orderBetween(before?.queueOrder, after?.queueOrder);
+    }
+    await db.articles.update(id, { queueOrder: q });
+  });
   void kick();
+}
+
+/** Move up/down by one place in Up next (`ids`, in order). The row menu and the keyboard use this. */
+export async function moveBy(ids: string[], id: string, delta: number): Promise<boolean> {
+  const from = ids.indexOf(id);
+  const to = from + delta;
+  if (from < 0 || delta === 0 || to < 0 || to >= ids.length) return false;
+  const { before, after } = placeAt(ids, id, to);
+  await reorder(id, before, after);
+  return true;
 }
 
 export async function retryMany(ids: string[]): Promise<void> {

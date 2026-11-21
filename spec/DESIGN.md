@@ -20,7 +20,7 @@ Read these first if you've seen the brief.
 | Finished articles | Disappear, dim, or Archive | **Move to Archive** (a section at the bottom of the queue). Settings keeps "delete instead" as an option |
 | Shared text | Not covered | Text (not a URL) shared from another app opens the **Add sheet on the Text tab**, prefilled |
 | Up-next peek | Peek or swipe | **Peek** of the next article at the bottom of Now Playing |
-| Reorder handles | Always, or edit mode | **Only in multi-select mode** |
+| Reorder | Handles always, or in edit mode | **Hold a row and drag it.** Handles appear only in multi-select |
 | Lyrics dimming | All dimmed text at 4.5:1 | Already-read text drops to about 2.6:1 (see Accessibility) |
 | Voice choice | Global or per-article | **One global voice** from three (Heart, Bella, Michael), picked in Settings. No picker in the player or First run |
 | Voice engine | On-device, with optional cloud | **Online (server Kokoro) only.** No engine or quality choice in Settings or First run |
@@ -214,6 +214,7 @@ Every row shows a 16 dp status glyph at the start of its meta line, then text. E
   - A 36 dp banner under the header on `fill`: cloud-slash glyph and "Offline · ready articles still play."
   - Retry buttons are disabled (`input-border` color, cloud-slash glyph) and described by the row note.
   - Nothing else changes.
+- **Reorder** (Up next only): hold a row for about 400 ms. It lifts (a light buzz, a shadow, 2% larger) and follows the finger; the rows it passes slide apart to show where it will land, and the list scrolls when the row nears the top or the mini player. Let go to drop it. Moving more than about 8 px before the hold fires scrolls, swipes, or does nothing, as usual, so a long list never reorders by accident. Holding and letting go without moving enters multi-select, as a long-press always did. With a mouse, press and hold the same way. On wide screens each row's ⋯ menu also has **Move up** and **Move down**. Reduced motion: no lift scale, and the slot opens instantly.
 - **Voices busy** (online voices, daily budget spent): the same banner with a clock glyph and "Voices are busy right now. Your articles will finish later." Affected rows read "Waiting for voices"; they start again on their own after the reset (midnight UTC). Offline wins if both apply.
 
 ### 2. Mini player
@@ -309,9 +310,9 @@ Bottom sheet on `surface-sheet`, scrim behind. Header: "Add to queue" and close.
 
 ### 7. Multi-select · artboard "Multi-select …"
 
-- **Enter:** long-press a row.
+- **Enter:** hold a row and let go without moving it (holding and moving reorders; see Queue).
 - **Header** (on a slightly darker `bg`): close, "N selected," Select all.
-- **Rows:** a checkbox (accent-colored) leads; selected rows use `row-selected`; drag handles appear at the trailing edge.
+- **Rows:** a checkbox (accent-colored) leads; selected rows use `row-selected`; drag handles appear at the trailing edge. A focused handle moves its row with the up and down arrow keys.
 - **Bottom action bar** (replaces the mini player): Delete (`error`), Move to top, Mark played, Re-render, Retry. Each has an icon over a label.
   - Disable Retry if no failed row is selected.
   - Disable Re-render if nothing renderable is selected.
@@ -393,8 +394,10 @@ With on-device voices, saved articles stay in "Queued for audio" until the voice
 | Tap Partial/Failed status | Open the explainer sheet |
 | Swipe row left | Delete, undo snackbar |
 | Swipe row right | Mark played → Archive, undo snackbar |
-| Long-press row | Multi-select |
+| Hold row, then drag (Up next) | Reorder |
+| Hold row, then let go | Multi-select |
 | Drag handle (multi-select) | Reorder |
+| Move up / Move down (⋯ menu, wide) | Reorder by one |
 | Tap / swipe up mini player | Expand to Now Playing, shared-element art |
 | Swipe down on Now Playing | Collapse |
 | Long-press back / forward | Previous / next article |
