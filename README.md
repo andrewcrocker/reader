@@ -7,6 +7,7 @@ A "listen later" app. Share an article from your phone (or paste a link or text)
 - **Live:** https://read-aloud-c1w.pages.dev (invite-only; see [Deploy](#deploy))
 - **Specs:** engineering in [spec/SPEC.md](spec/SPEC.md), design in [spec/DESIGN.md](spec/DESIGN.md)
 - **Stack:** React + Vite PWA, Dexie (IndexedDB), a Cloudflare Worker for fetching pages and making voices, Cloudflare Pages for the app
+- **Contributing:** see [CONTRIBUTING.md](CONTRIBUTING.md). MIT licensed ([LICENSE](LICENSE)).
 
 **How voices work.** The Worker renders them: the app sends an article's text once, a Cloudflare Workflow sends it to a hosted Kokoro API (DeepInfra) in parts, and the audio waits in R2 until the app collects it, so articles finish even with the app closed. It costs about 1¢ per article, capped at about $10 a month. On-device Kokoro (WebGPU/WASM) was the original plan and its engine is still in the code (the `/spike` page uses it), but it struggled on a Pixel 8 (memory, background limits, heat), so the app no longer offers it.
 
