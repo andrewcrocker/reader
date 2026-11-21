@@ -57,11 +57,16 @@ export async function jobStatus(s: Settings, job: string): Promise<JobStatus> {
   return (await res.json()) as JobStatus;
 }
 
-/** One finished chunk, decoded to mono PCM at the app's sample rate. */
-export async function fetchChunk(s: Settings, job: string, i: number): Promise<Float32Array> {
+/** One finished chunk's MP3 bytes, as the server stored them. Works in the service worker too. */
+export async function fetchChunkBytes(s: Settings, job: string, i: number): Promise<ArrayBuffer> {
   const res = await call(`${base(s)}/${job}/${i}`, { headers: auth(s), cache: 'no-store' });
   if (!res.ok) throw new ServerUnavailableError(`Voice server error (${res.status})`);
-  return decodeMp3(await res.arrayBuffer());
+  return res.arrayBuffer();
+}
+
+/** One finished chunk, decoded to mono PCM at the app's sample rate. */
+export async function fetchChunk(s: Settings, job: string, i: number): Promise<Float32Array> {
+  return decodeMp3(await fetchChunkBytes(s, job, i));
 }
 
 /** Frees the server's copy once the app has every chunk. Best effort: R2 expires leftovers after 7 days. */

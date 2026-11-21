@@ -48,9 +48,16 @@ describe('/fetch', () => {
     expect(await res.text()).toContain('hi');
   });
 
-  it('refuses non-HTML content', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('%PDF', { headers: { 'Content-Type': 'application/pdf' } })));
-    expect((await req('/fetch?url=https://example.com/a.pdf')).status).toBe(415);
+  it('passes PDFs through for the app to read', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('%PDF-1.7', { headers: { 'Content-Type': 'application/pdf' } })));
+    const res = await req('/fetch?url=https://example.com/a.pdf');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toBe('application/pdf');
+  });
+
+  it('refuses other non-HTML content', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('PK', { headers: { 'Content-Type': 'application/zip' } })));
+    expect((await req('/fetch?url=https://example.com/a.zip')).status).toBe(415);
   });
 });
 

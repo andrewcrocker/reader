@@ -121,25 +121,30 @@ Status: reconciled with DESIGN.md (Oct 28, 2026). DESIGN.md owns screens, states
 | **Share sheet: text** (Android) | v1 | Shared plain text (selected text from a reader or notes app) opens the Add sheet on the Text tab, prefilled, so the user can add a title and save. |
 | **Paste URL** | v1 | A prominent "Paste link" button reads the clipboard on tap. Silent clipboard reading on app open isn't allowed in browsers, so it has to be a tap. |
 | **Paste text** | v1 | Paste the article body itself. The escape hatch for anything extraction can't reach. Also used to complete a partial article (below). |
+| **PDF** | v1 | A link to a PDF (Link tab or share), a PDF shared from Files or a browser, or one chosen on the Add sheet's PDF tab. Its text is pulled out and read like an article (§4b). |
 | **Feed inbox** (discovery) | Later | Subscribe to RSS/Atom feeds. New items land in an **Inbox**, separate from the queue. Inbox items are **not** auto-rendered. Not designed yet. |
 | **Desktop bookmarklet** | Out of scope for v1 | See "Saving from another device" below. |
 
-**v1 = share sheet (URL and text) + paste URL + paste text.**
+**v1 = share sheet (URL, text, PDF file) + paste URL + paste text + PDF upload.**
 
 **Share target**
 
 ```json
 "share_target": {
   "action": "/share",
-  "method": "GET",
-  "params": { "title": "title", "text": "text", "url": "url" }
+  "method": "POST",
+  "enctype": "multipart/form-data",
+  "params": { "title": "title", "text": "text", "url": "url", "files": [{ "name": "file", "accept": ["application/pdf", ".pdf"] }] }
 }
 ```
+
+POST, so the service worker receives the share (§11b): it saves the link or PDF itself, starts work on it that carries on after the app closes, and redirects to `/share?added=<id>`. Shared text is handed to the page as `/share?title=…&text=…`, since it waits for Save. A file that isn't a PDF redirects to `/share?unsupported=<name>`, which shows a snackbar.
 
 Classify each share:
 1. If `url` is present, it's a link.
 2. Else if `text` is a single URL, or short text (under about 300 characters) containing exactly one URL, it's a link. Many Android apps send links this way ("Headline https://…"). Use the shared `title` or the leading text as a provisional title.
 3. Otherwise it's text: open the Add sheet on Text with `text` as the body and `title` (if any) as the title.
+4. A shared PDF file is saved with `source: "file"` (the blob waits in `files` until it's read).
 
 A link adds a row and opens the Queue with the arrival highlight (DESIGN.md §6). Text waits for the user to tap Save.
 
@@ -160,10 +165,22 @@ Because the queue lives only on the phone, a laptop has nowhere to send an artic
 2. Extraction pipeline (§5) → `status: "extracted"`, with `extractionQuality` set (or `status: "failed"` with a reason).
 3. Fetch and store artwork (site art and article art) through `/asset`, and compute the tint source color (§4a).
 4. TTS rendering (§6) → `status: "rendering"` with progress → `"ready"`. Only one article renders at a time; others wait in `"extracted"`. Rendering also waits until the voice model is downloaded.
-5. Work resumes on next app open if the app was closed mid-pipeline. (PWAs get no reliable background execution.)
+5. Closing the app doesn't stop this: the service worker carries on for a few minutes, and Background Sync brings it back later (§11b). Anything still left resumes on the next app open.
 
 **Completing a partial article ("Paste the full text")**
 The Partial explainer sheet opens the Add sheet on Text, prefilled with the article's title. On save, the pasted body replaces `contentHtml` and `sentences` on the **same** article (keeping its id, queue position, art, and URL), sets `source: "text"` and `extractionQuality: "full"`, discards existing audio, and re-renders. Any listening position resets.
+
+## 4b. PDFs
+
+A PDF arrives as a link (the Worker's `/fetch` passes PDFs through, up to 30 MB, and the app also sniffs `%PDF`), a shared file, or an upload (up to 50 MB). The text is read with pdf.js (`unpdf`, which runs without a DOM, so the service worker can do it too), then cleaned up for listening (`src/pipeline/pdf.ts`):
+
+1. **Reading order.** Text runs are grouped into lines per page. A two-column page is split at its gutter and read left column, then right; full-width lines (title, abstract, wide captions) cut the page into bands. Rotated text (margin stamps, watermarks) is dropped.
+2. **Running heads and page numbers.** Lines near the top or bottom of the page are dropped when they repeat (digits ignored) on at least 30% of pages, or look like a page number, a DOI or a URL.
+3. **Small print.** Footnote markers (small numerals in a line), tiny text (chart labels) and footnotes below a page's last body line are dropped.
+4. **Paragraphs and headings.** Lines join into paragraphs and split on larger gaps, first-line indents and short last lines. A sentence carries on across a page or column break. Words hyphenated across lines are rejoined ("news-/papers" → "newspapers", but "self-/aware" keeps its hyphen). Short lines in larger type, or numbered like "2.1 Methods" on a line of their own, become headings, so §6.1's section skipping (References etc.) applies.
+5. **Captions and tables.** Paragraphs starting "Figure 3:" / "Table 2." and runs that are mostly numbers are dropped.
+
+The title is the PDF's metadata title unless it's junk ("Microsoft Word - draft.docx"), else the largest text on page one, else the file name. Scanned PDFs (no text layer) fail with "This PDF is a scan, so there's no text to read." Password-protected ones fail too. Documents over about 150,000 characters (3½ hours) are cut there and marked Partial. The uploaded file is deleted once its text is out; Read along shows the cleaned text.
 
 ## 4a. Artwork and tint
 
@@ -419,10 +436,25 @@ Sharing means sharing **the app**, not content. Each person's queue, articles, a
 - Service worker precaches the app shell and fonts. The app launches in airplane mode.
 - Articles in `ready` state are fully offline (text, audio, timings, art).
 - Online voices need a connection to send and collect a job; saved articles wait ("Queued for audio") and continue when it's back. On-device rendering continues offline once the model is downloaded.
-- URLs shared while offline are saved as `waiting`, and the pipeline runs when connectivity returns (`online` event + on app open).
+- URLs shared while offline are saved as `waiting`, and the pipeline runs when connectivity returns (`online` event + on app open, or the service worker's Background Sync).
+- Uploaded PDFs are read offline; only their audio needs a connection.
 - UI: one slim banner ("Offline · ready articles still play"), no layout shift. Disable only network actions: Retry, voice download, Invite. Detect with `navigator.onLine` plus failed proxy requests.
 
 ---
+
+## 11b. Working while closed
+
+The friend test: share an article, close the app, and it should be ready to play later without keeping the app open. A PWA can't run freely in the background, but the service worker (`src/sw.ts`) gets a few minutes at a time, which is enough because the slow part (rendering) happens on the server:
+
+- **Share target.** Shares go to the service worker (§4), which saves the article and works on it right away, whether or not the page stays open.
+- **Background Sync** (`reader-work`). When the page is hidden with work left (text to fetch, articles to send, audio to download), it registers a one-off sync. Chrome runs it once the app is closed (and when the connection comes back). If the server is still rendering when time runs out, the sync fails on purpose so Chrome retries later with backoff.
+- **Periodic Background Sync** (`reader-refresh`, about every 3 hours, installed app on Android, if Chrome grants it based on engagement) picks up anything else.
+
+Each run, under a 4-minute budget: extract waiting articles (with linkedom standing in for `DOMParser`, §5), send them to the voice server (`submitPending`, holding a Web Lock so the page and the worker never send the same article twice), then download finished chunks. A service worker can't decode audio, so it stores the MP3 bytes in `serverAudio`; once it has every chunk it tells the server to delete its copy. When the app opens, the page decodes those locally (no network needed) into `renderedChunks`, builds the file, and streams meanwhile (§6.2). The service worker also messages any open page when it finishes, so the page collects right away.
+
+On open, the article in the player is collected first, so tapping one that isn't downloaded yet starts it streaming in a second or two. Chunks are downloaded four at a time.
+
+Limits: none of this works on iPhone (no Background Sync), Chrome decides when syncs and refreshes actually run, and a force-stopped Chrome runs nothing. Each of these falls back to the old behavior: the work finishes on the next open. The next step up would be Web Push (the Worker notifies when a render finishes), which also gives a "Ready to listen" notification.
 
 ## 11a. Persistence across restarts
 
@@ -456,7 +488,8 @@ All requests need the header `X-App-Secret: <secret>`. CORS is restricted to the
 
 ```
 GET  /fetch?url=<encoded>&profile=default|nocookie|referrer|amp
-  → 200 { finalUrl, status, contentType, html }
+  → 200 the page's HTML streamed through, or a PDF's bytes (application/pdf, or octet-stream from a .pdf path; up to 30 MB)
+       headers X-Final-Url, X-Upstream-Status, X-Upstream-Content-Type
   → 4xx/5xx { error }
 
 GET  /asset?url=<encoded>

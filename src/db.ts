@@ -30,8 +30,9 @@ export interface LyricBlock {
 
 export interface Article {
   id: string;
-  source: 'url' | 'text';
-  /** Empty for pasted text. */
+  /** `file`: an uploaded or shared PDF (no URL to go back to). */
+  source: 'url' | 'text' | 'file';
+  /** Empty for pasted text and uploaded files. */
   url: string;
   canonicalUrl?: string;
   /** The URL until a real title arrives. */
@@ -87,6 +88,23 @@ export interface RenderedChunk {
   i: number;
   pcm: ArrayBuffer; // Int16 mono
   sampleRate: number;
+}
+
+/**
+ * A server chunk's MP3, downloaded while the app was closed (by the service worker, which can't
+ * decode audio). The page decodes these into `renderedChunks` the next time it collects.
+ */
+export interface ServerAudioRow {
+  articleId: string;
+  i: number;
+  mp3: ArrayBuffer;
+}
+
+/** An uploaded or shared file (a PDF), kept only until its text is extracted. Keyed by article id. */
+export interface FileRow {
+  id: string;
+  blob: Blob;
+  name?: string;
 }
 
 export interface AudioBlobRow {
@@ -158,6 +176,8 @@ export const DEFAULT_SETTINGS: Settings = {
 class ReaderDb extends Dexie {
   articles!: Table<Article, string>;
   renderedChunks!: Table<RenderedChunk, [string, number]>;
+  serverAudio!: Table<ServerAudioRow, [string, number]>;
+  files!: Table<FileRow, string>;
   audio!: Table<AudioBlobRow, string>;
   art!: Table<ArtRow, string>;
   settings!: Table<Settings, string>;
@@ -217,6 +237,8 @@ class ReaderDb extends Dexie {
         s.engineKind = 'server';
       });
     });
+    // Chunks the service worker downloads in the background, waiting to be decoded; PDFs waiting to be read.
+    this.version(5).stores({ serverAudio: '[articleId+i], articleId', files: 'id' });
   }
 }
 

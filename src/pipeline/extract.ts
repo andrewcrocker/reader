@@ -1,8 +1,12 @@
 import { Readability } from '@mozilla/readability';
 import type { Settings } from '../db';
 import { noteInviteRejected } from '../app/invite';
+import { absUrl, parseHtml } from './dom';
+import type { Block } from './textprep';
+import { parsePdf } from './pdf';
 
 export interface Extracted {
+  /** Empty for an uploaded file. */
   finalUrl: string;
   canonicalUrl?: string;
   title: string;
@@ -15,6 +19,8 @@ export interface Extracted {
   quality: 'full' | 'partial';
   textLength: number;
   method: string;
+  /** PDFs: the text already split into headings and paragraphs (web pages go through `htmlToBlocks`). */
+  blocks?: Block[];
 }
 
 /**
@@ -65,7 +71,13 @@ export function siteFailure(status: number): ExtractError | null {
   return new ExtractError(m, 'page');
 }
 
-export async function fetchHtml(url: string, settings: Settings): Promise<{ html: string; finalUrl: string; status: number }> {
+/** What `/fetch` returned: a web page's HTML, or a PDF's bytes. */
+export type Fetched = { html: string; pdf?: undefined; finalUrl: string; status: number } | { html?: undefined; pdf: Uint8Array; finalUrl: string; status: number };
+
+const isPdf = (contentType: string, bytes: Uint8Array) =>
+  /application\/(x-)?pdf/i.test(contentType) || (bytes.length > 4 && bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46); // %PDF
+
+export async function fetchHtml(url: string, settings: Settings): Promise<Fetched> {
   const endpoint = `${settings.proxyUrl.replace(/\/$/, '')}/fetch?url=${encodeURIComponent(url)}`;
   let res: Response;
   try {
@@ -81,7 +93,18 @@ export async function fetchHtml(url: string, settings: Settings): Promise<{ html
   const status = Number(res.headers.get('X-Upstream-Status') ?? 200);
   const bad = siteFailure(status);
   if (bad) throw bad;
-  return { html: await res.text(), finalUrl: res.headers.get('X-Final-Url') ?? url, status };
+  const finalUrl = res.headers.get('X-Final-Url') ?? url;
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  if (isPdf(res.headers.get('Content-Type') ?? '', bytes)) return { pdf: bytes, finalUrl, status };
+  // The Worker keeps the page's charset in Content-Type; decode the way the browser would.
+  const charset = /charset=([^;]+)/i.exec(res.headers.get('Content-Type') ?? '')?.[1]?.trim().replace(/["']/g, '');
+  let html: string;
+  try {
+    html = new TextDecoder(charset || 'utf-8').decode(bytes);
+  } catch {
+    html = new TextDecoder().decode(bytes);
+  }
+  return { html, finalUrl, status };
 }
 
 const ARCHIVES = ['wayback', 'archive-today'] as const;
@@ -113,8 +136,9 @@ async function fromArchives(url: string, settings: Settings, parse: typeof parse
 /** Fetch and parse the page; if that fails, fall back to an existing archived copy (SPEC §5, ladder step 5). */
 export async function loadArticle(url: string, settings: Settings, parse: typeof parseArticle = parseArticle): Promise<Extracted> {
   try {
-    const { html, finalUrl } = await fetchHtml(url, settings);
-    return parse(html, finalUrl);
+    const page = await fetchHtml(url, settings);
+    if (page.pdf) return await parsePdf(page.pdf, { finalUrl: page.finalUrl });
+    return parse(page.html, page.finalUrl);
   } catch (err) {
     if (!archiveMightHelp(err)) throw err;
     const copy = await fromArchives(url, settings, parse);
@@ -125,18 +149,18 @@ export async function loadArticle(url: string, settings: Settings, parse: typeof
 
 
 export function parseArticle(html: string, finalUrl: string): Extracted {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const doc = parseHtml(html);
   // So Readability resolves relative links/images against the article, not the app.
   const base = doc.createElement('base');
   base.href = finalUrl;
   doc.head.prepend(base);
 
-  const meta = (sel: string) => doc.querySelector<HTMLMetaElement>(sel)?.content?.trim() || undefined;
-  const canonicalUrl = doc.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.href || undefined;
-  const imageUrl = meta('meta[property="og:image"]') ?? meta('meta[name="twitter:image"]');
+  const meta = (sel: string) => doc.querySelector(sel)?.getAttribute('content')?.trim() || undefined;
+  const canonicalUrl = absUrl(doc.querySelector('link[rel="canonical"]')?.getAttribute('href'), finalUrl);
+  const imageUrl = absUrl(meta('meta[property="og:image"]') ?? meta('meta[name="twitter:image"]'), finalUrl);
   const ogSite = meta('meta[property="og:site_name"]');
 
-  const iconUrl = bestTouchIcon(doc);
+  const iconUrl = bestTouchIcon(doc, finalUrl);
   const paywalled = declaresPaywall(doc);
   const declaredWords = declaredWordCount(doc);
 
@@ -201,8 +225,8 @@ function declaredWordCount(doc: Document): number | undefined {
 }
 
 /** Site art: the largest apple-touch-icon (SPEC §4a). Manifest icons and favicons aren't used yet. */
-function bestTouchIcon(doc: Document): string | undefined {
-  const links = [...doc.querySelectorAll<HTMLLinkElement>('link[rel~="apple-touch-icon"], link[rel~="apple-touch-icon-precomposed"]')];
-  const size = (l: HTMLLinkElement) => Number(l.getAttribute('sizes')?.split('x')[0]) || 180;
-  return links.sort((a, b) => size(b) - size(a))[0]?.href || undefined;
+function bestTouchIcon(doc: Document, base: string): string | undefined {
+  const links = [...doc.querySelectorAll('link[rel~="apple-touch-icon"], link[rel~="apple-touch-icon-precomposed"]')];
+  const size = (l: Element) => Number(l.getAttribute('sizes')?.split('x')[0]) || 180;
+  return absUrl(links.sort((a, b) => size(b) - size(a))[0]?.getAttribute('href'), base);
 }

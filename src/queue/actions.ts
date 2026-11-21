@@ -127,10 +127,11 @@ export interface ExportFile {
 
 export function toExportItem(a: Article): ExportItem | null {
   if (a.deletedAt) return null;
-  const text = a.source === 'text' ? a.pastedText : undefined;
-  if (a.source === 'text' ? !text : !a.url) return null;
+  // An uploaded PDF has no link to go back to: it travels as its extracted text.
+  const text = a.source === 'text' ? a.pastedText : a.source === 'file' ? a.sentences.map((s) => s.text).join(' ') : undefined;
+  if (a.source === 'url' ? !a.url : !text) return null;
   return {
-    source: a.source,
+    source: a.source === 'url' ? 'url' : 'text',
     ...(a.source === 'url' ? { url: a.url } : { text }),
     title: a.title,
     savedAt: a.savedAt,

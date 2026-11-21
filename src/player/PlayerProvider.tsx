@@ -1,11 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { db, updateSettings, type Article } from '../db';
 import { loadAudio } from '../audio/storage';
-import { rasterCover, useArtUrl } from '../art/art';
+import { rasterCover } from '../art/art';
+import { useArtUrl } from '../art/useArtUrl';
 import { coverColor } from '../ui/Art';
 import { coverInk } from '../theme/color';
 import { lengthSec, siteLabel } from '../queue/display';
-import { purgeArticle } from '../pipeline/runner';
+import { kick, purgeArticle } from '../pipeline/runner';
 import { useAppData } from '../app/data';
 import { applyTint } from './tint';
 import { nextSentenceStart, prevSentenceStart } from './sentences';
@@ -172,7 +173,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       savePosition();
       el?.pause();
       pendingPlay.current = true;
-      void updateSettings({ lastPlayingArticleId: id });
+      // The collector goes for the playing article first, so one that isn't downloaded yet starts streaming.
+      void updateSettings({ lastPlayingArticleId: id }).then(() => kick());
     },
     [savePosition],
   );

@@ -8,6 +8,8 @@ export type Env = RenderEnv & {
 };
 
 const MAX_BYTES = 5 * 1024 * 1024;
+/** PDFs are bigger than pages; the app reads their text itself. */
+const MAX_PDF_BYTES = 30 * 1024 * 1024;
 const TIMEOUT_MS = 15_000;
 const PROFILES = ['default', 'nocookie', 'referrer'] as const;
 type Profile = (typeof PROFILES)[number];
@@ -132,14 +134,17 @@ function archiveTodaySnapshot(target: URL): Promise<Response> {
 
 function passThroughHtml(upstream: Response, finalUrl: string): Response {
   const contentType = upstream.headers.get('Content-Type') ?? '';
-  if (contentType && !/html|xml|text\/plain/i.test(contentType)) {
+  // Many servers send PDFs as octet-stream; trust a .pdf path then (the app checks the bytes too).
+  const pdf = /application\/(x-)?pdf/i.test(contentType) || (/octet-stream/i.test(contentType) && /\.pdf$/i.test(new URL(finalUrl).pathname));
+  if (contentType && !pdf && !/html|xml|text\/plain/i.test(contentType)) {
     return Response.json({ error: `unsupported content type: ${contentType}`, status: upstream.status }, { status: 415 });
   }
+  const max = pdf ? MAX_PDF_BYTES : MAX_BYTES;
   const declared = Number(upstream.headers.get('Content-Length') ?? 0);
-  if (declared > MAX_BYTES) return Response.json({ error: 'page too large' }, { status: 413 });
+  if (declared > max) return Response.json({ error: pdf ? 'pdf too large' : 'page too large' }, { status: 413 });
   if (!upstream.body) return Response.json({ error: 'empty upstream body', status: upstream.status }, { status: 502 });
 
-  return new Response(upstream.body.pipeThrough(byteLimit(MAX_BYTES)), {
+  return new Response(upstream.body.pipeThrough(byteLimit(max)), {
     status: 200,
     headers: {
       // Keep the upstream charset so the browser decodes correctly.

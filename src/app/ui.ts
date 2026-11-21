@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react';
 // Android's back gesture closes the top one (sheet, then Now Playing, then Settings).
 
 export type Sheet =
-  | { kind: 'add'; tab: 'link' | 'text'; text?: string; title?: string; shared?: boolean; replaceId?: string }
+  | { kind: 'add'; tab: 'link' | 'text' | 'pdf'; text?: string; title?: string; shared?: boolean; replaceId?: string }
   | { kind: 'speed' }
   | { kind: 'explain'; id: string };
 

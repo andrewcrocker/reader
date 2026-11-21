@@ -283,7 +283,7 @@ Toggled by Read along. The cover area and metadata collapse into a compact heade
 
 ### 5. Add sheet · artboard "Add sheet …"
 
-Bottom sheet on `surface-sheet`, scrim behind. Header: "Add to queue" and close. Segmented control: **Link | Text**.
+Bottom sheet on `surface-sheet`, scrim behind. Header: "Add to queue" and close. Segmented control: **Link | Text | PDF**.
 
 - **Link tab:**
   - A large `accent` button (72 tall): clipboard glyph, "Paste link," and a one-line preview of the clipboard URL. It is disabled with "No link on your clipboard" when empty.
@@ -292,8 +292,12 @@ Bottom sheet on `surface-sheet`, scrim behind. Header: "Add to queue" and close.
 - **Text tab:**
   - Title (optional; first line is used if blank), then the article text (Literata 15) with a word count and listen estimate.
   - "Save to queue" (full width, `accent`).
+- **PDF tab:**
+  - The same large `accent` button: upload glyph, "Choose a PDF," "From your files" (or the reason a file was refused: not a PDF, over 50 MB). It opens the system file picker.
+  - Hint: Reader pulls out the text and reads it aloud; Read along shows it. Share › Reader from Files works too, as does a PDF link on the Link tab. Scanned PDFs have no text.
+  - Choosing a file saves it straight away; the row reads "Preparing" while the text is pulled out, then goes on as usual. Its site label is "PDF."
 - **Shared text arrival:** opens on Text, prefilled, with a status row: "Text shared from <app>. Add a title, then save."
-- **After saving:** the sheet closes and the new row appears at the bottom of Up next in its first state (Fetching for links, Queued for audio for text).
+- **After saving:** the sheet closes and the new row appears at the bottom of Up next in its first state (Fetching for links and PDFs, Queued for audio for text).
 
 ### 6. Share-sheet arrival · artboard "Share-sheet arrival …"
 

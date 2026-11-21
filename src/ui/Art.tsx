@@ -1,5 +1,6 @@
 import type { Article } from '../db';
-import { initials, useArtUrl } from '../art/art';
+import { initials } from '../art/art';
+import { useArtUrl } from '../art/useArtUrl';
 import { coverInk, domainColor } from '../theme/color';
 import { siteLabel, urlTitle } from '../queue/display';
 import { Icon } from './Icon';
