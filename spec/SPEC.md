@@ -307,6 +307,7 @@ Always render at 1.0× and handle speed at playback (`playbackRate`), so one ren
 - Resume position saved per article (on `pause`, `visibilitychange`, and every ~5s).
 - **While rendering:** play up to `renderedUntilSec`; seeking past it snaps back to it.
 - **On finish:** set `playedAt`, then archive or delete per `Settings.keepPlayed` (default archive). Auto-advance continues to the next Up next article that is playable.
+- **Chimes:** a short rising chime plays before an article starts from the top, and a falling one when it ends. Resuming partway plays none. With auto-advance, the next article waits for the end chime. The chimes are made in code, play through a second `<audio>` element, and can be turned off (`Settings.chimes`, default on). If a chime can't play, playback carries on without it.
 
 **Lock screen / headphones:** Media Session API with metadata (title, site, artwork in the order article art → site art → rasterized generated cover, all from local blobs so it works offline) and handlers for play, pause, seekbackward, seekforward, seekto, and previoustrack/nexttrack mapped to **previous/next article**. Bluetooth headset buttons route through these handlers. Sentence navigation is in-app only.
 
@@ -387,6 +388,7 @@ interface Settings {
   speed: number;              // global
   skipSeconds: 10 | 15 | 30;
   autoAdvance: boolean;
+  chimes: boolean;            // start and end chimes; default true
   keepPlayed: "archive" | "delete";   // default "archive"
   lyricsOn: boolean;
   lastPlayingArticleId?: string;  // restored on launch (§11a)

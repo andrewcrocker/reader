@@ -148,6 +148,8 @@ export interface Settings {
   speed: number;
   skipSeconds: 10 | 15 | 30;
   autoAdvance: boolean;
+  /** A short chime when an article starts and when it ends. */
+  chimes: boolean;
   keepPlayed: 'archive' | 'delete';
   lyricsOn: boolean;
   lastPlayingArticleId?: string;
@@ -169,6 +171,7 @@ export const DEFAULT_SETTINGS: Settings = {
   speed: 1,
   skipSeconds: 15,
   autoAdvance: true,
+  chimes: true,
   keepPlayed: 'archive',
   lyricsOn: false,
 };

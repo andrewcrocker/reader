@@ -246,6 +246,13 @@ function PlaybackPage() {
       </div>
       <div className="s-row">
         <span>
+          <span className="k">Chimes</span>
+          <span className="d">A short sound when an article starts and ends</span>
+        </span>
+        <Switch on={s.chimes} label="Chimes" onChange={(v) => set({ chimes: v })} />
+      </div>
+      <div className="s-row">
+        <span>
           <span className="k">When an article finishes</span>
           <span className="d">{s.keepPlayed === 'archive' ? 'Moves to Archive, where you can replay it' : 'Deleted with its audio'}</span>
         </span>

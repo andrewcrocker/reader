@@ -355,6 +355,7 @@ Pushed screen: back arrow and "Settings." The top level is a menu: **Voice**, **
   - Speed (opens the speed picker; same value as the player).
   - Skip interval (segmented 10s / 15s / 30s).
   - Auto-advance switch.
+  - Chimes switch ("A short sound when an article starts and ends").
   - "When an article finishes": Archive / Delete.
 - **Storage:**
   - Total used (Literata 28).
