@@ -144,7 +144,7 @@ How it was set up the first time:
 
    Note the printed `https://reader-proxy.<you>.workers.dev` URL.
 
-4. Point the production build at the Worker. Create `.env.production` with one line:
+4. Point the production build at the Worker. Set the one line in `.env.production` to your Worker (in a fork, keep this change out of pull requests; see [CLAUDE.md](CLAUDE.md)):
 
    ```
    VITE_PROXY_URL=https://reader-proxy.<you>.workers.dev

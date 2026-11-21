@@ -15,7 +15,7 @@ You don't need any API keys to work on most of the app. Without `DEEPINFRA_API_K
 ## Making a change
 
 1. Fork the repo and make a branch from `main`.
-2. Keep each PR to one change. Small PRs get reviewed faster.
+2. Keep each PR to one change. Small PRs get reviewed faster. Leave `.env.production`, `ALLOWED_ORIGINS` in `worker/wrangler.toml` and the Pages project name out of PRs, even if your fork changes them to run its own copy. If you use Claude, [CLAUDE.md](CLAUDE.md) tells it this.
 3. Add or update tests in the same area when you change behavior (`*.test.ts` files sit next to the code).
 4. Before you open the PR, run:
 
