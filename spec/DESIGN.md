@@ -311,7 +311,7 @@ Bottom sheet on `surface-sheet`, scrim behind. Header: "Add to queue" and close.
 ### 7. Multi-select · artboard "Multi-select …"
 
 - **Enter:** hold a row and let go without moving it (holding and moving reorders; see Queue).
-- **Header** (on a slightly darker `bg`): close, "N selected," Select all.
+- **Header** (on a slightly darker `bg`): close, "N selected," Share as list (share glyph; see 12), Select all.
 - **Rows:** a checkbox (accent-colored) leads; selected rows use `row-selected`; drag handles appear at the trailing edge. A focused handle moves its row with the up and down arrow keys.
 - **Bottom action bar** (replaces the mini player): Delete (`error`), Move to top, Mark played, Re-render, Retry. Each has an icon over a label.
   - Disable Retry if no failed row is selected.
@@ -385,6 +385,19 @@ Two steps with Online voices (the default): Welcome, then Save from anywhere. Th
    - A "Voice 71%" status chip in the top right shows while the download continues.
 
 With on-device voices, saved articles stay in "Queued for audio" until the voice is ready, with a meta note: "Waiting for voice download."
+
+### 12. Reading lists
+
+A snapshot of some articles, sent as one link (SPEC §4). Nothing is uploaded and nothing stays in sync: the link holds the list.
+
+- **Share as list** (multi-select header, share glyph): a sheet with a line on what it does, an optional **List name** field (placeholder "Reading list"), the articles in queue order (title in Literata, site under it), and **Share N articles** (primary). It opens the system share sheet, or copies the link where there isn't one.
+  - Only links can go in. Pasted text is left out, with a `status-note` in the sheet ("1 pasted article wasn't included: only links can be shared.") and the same note in the snackbar afterwards.
+  - Past about 2,000 characters the note also warns that some apps may cut the link off. The link still works.
+  - Sharing exits selection and shows "Link copied" or "List shared" in the snackbar.
+- **Opening a list link:** the Queue opens with a sheet titled with the list name (or "Reading list"), then "A reading list someone shared · N articles · M already in your queue."
+  - Each article is a checkbox row: title, then site. All start checked. Articles already in the queue (by URL, Archive included) show unchecked and disabled, with "Already in your queue."
+  - **Add all to Up next** (primary) becomes "Add N to Up next" when some are unchecked. Each one is added like a pasted link, at the end of Up next, and the snackbar says "N articles added to Up next."
+  - A damaged link shows a snackbar instead: "That reading list link is damaged. Ask for it again."
 
 ## Interactions and motion
 

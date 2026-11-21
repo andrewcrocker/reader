@@ -152,6 +152,9 @@ export function Queue() {
             <Icon name="close" />
           </button>
           <h1 aria-live="polite">{selected.size} selected</h1>
+          <button className="icon-btn" aria-label="Share as list" title="Share as list" onClick={() => openSheet({ kind: 'share-list', ids: [...upNext, ...archive].filter((a) => selected.has(a.id)).map((a) => a.id), onShared: done })}>
+            <Icon name="share" />
+          </button>
           <button className="text-btn" onClick={() => setSelected(new Set([...upNext, ...archive].map((a) => a.id)))}>
             Select all
           </button>

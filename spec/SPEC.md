@@ -122,6 +122,7 @@ Status: reconciled with DESIGN.md (Oct 28, 2026). DESIGN.md owns screens, states
 | **Paste URL** | v1 | A prominent "Paste link" button reads the clipboard on tap. Silent clipboard reading on app open isn't allowed in browsers, so it has to be a tap. |
 | **Paste text** | v1 | Paste the article body itself. The escape hatch for anything extraction can't reach. Also used to complete a partial article (below). |
 | **PDF** | v1 | A link to a PDF (Link tab or share), a PDF shared from Files or a browser, or one chosen on the Add sheet's PDF tab. Its text is pulled out and read like an article (§4b). |
+| **Reading list link** | v1 | A friend's `#list=` link (below). Opens a sheet of its articles; the chosen ones are added like pasted links. |
 | **Feed inbox** (discovery) | Later | Subscribe to RSS/Atom feeds. New items land in an **Inbox**, separate from the queue. Inbox items are **not** auto-rendered. Not designed yet. |
 | **Desktop bookmarklet** | Out of scope for v1 | See "Saving from another device" below. |
 
@@ -152,6 +153,16 @@ A link adds a row and opens the Queue with the arrival highlight (DESIGN.md §6)
 - PWA: sharing opens the app, which shows the new item in the queue. You then switch back to whatever you were reading. Fine, slightly clunky.
 - Native (§12): sharing can show a "Saved" toast and stay in the current app, with rendering happening in the background. The PWA arrival snackbar is designed to shrink to that.
 - iPhone: no PWA share target. Use an Apple Shortcut in the share sheet that opens `app/#add=<url>`.
+
+**Sharing a reading list**
+Multi-select → **Share as list** turns the chosen articles into one link, so a friend can add them to their own queue. Still no server and no accounts: the list lives in the URL fragment, which browsers never send to a server.
+
+- Format: `https://app/#list=<payload>`, where the payload is base64url of `deflate-raw` (`CompressionStream`) of JSON `{ name?, items: [{ url, title, site? }] }`. Codec and tests in `src/app/share.ts`.
+- Only URL articles go in. Pasted text stays on the phone, and the snackbar says how many were left out.
+- Shared with `navigator.share`, or copied to the clipboard where that's missing.
+- About 10 articles fit in 2,000 characters. Longer lists still work, but the sheet warns that some apps cut long links.
+- Opening the link shows the list as a sheet with a checkbox per article (all on). Links already in the queue are skipped. The rest go through the same add-URL path as a pasted link, in list order. The fragment is cleared from the address bar on open, like `#add=`. Decoding drops anything that isn't an http(s) link.
+- It's a snapshot: nothing syncs, and the sender's queue isn't touched.
 
 **Saving from another device (the catch with "everything local")**
 Because the queue lives only on the phone, a laptop has nowhere to send an article. Options, in order of simplicity:
@@ -418,7 +429,7 @@ The queue row state in DESIGN.md comes from these fields. First match wins.
 
 ## 10a. Sharing with friends
 
-Sharing means sharing **the app**, not content. Each person's queue, articles, audio, and settings live only on their own device.
+Sharing means sharing **the app**, not content. Each person's queue, articles, audio, and settings live only on their own device. The one exception is a reading-list link (§4), which carries a few article links, never audio or text.
 
 - **Distribution:** an invite link like `https://app.example/#invite=<secret>`. Opening it stores the proxy secret locally and starts First run (welcome and install, how to save; plus the voice download for on-device voices). The secret is in the URL fragment, so it's never sent to the server or logged.
 - **Invite a friend:** Settings → About → Share sends the same link through the system share sheet.
