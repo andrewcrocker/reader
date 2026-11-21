@@ -49,7 +49,7 @@ This is a podcast player for articles. Listening is the main job and reading is 
 | Constraint | Design implication |
 | --- | --- |
 | Pixel 8, about 412 × 915 dp | Designed at 412 wide. Must hold at 360 and 390 |
-| Installed PWA, standalone | No browser chrome. Set the status-bar color per theme (`bg` token). Respect safe areas and the gesture bar: 28 dp top inset in the mocks, 20 dp bottom margin under the mini player |
+| Installed PWA, standalone | No browser chrome. Set the status-bar color per theme (`bg` token). Respect safe areas and the gesture bar: 28 dp top inset in the mocks, 12 dp bottom margin under the mini player |
 | Android share sheet | A shared URL adds a row and opens the Queue (see Share-sheet arrival). Shared plain text opens the Add sheet on Text. Many apps send links in the `text` field ("Headline https://…"): if the shared text is a URL, or short text ending in one, treat it as a link |
 | Lock screen / notification | Only title, site, artwork, standard controls. Artwork order: article art, site art, generated cover |
 | On-device audio takes minutes | Rendering progress is first-class (row status, buffered scrubber) |
@@ -126,7 +126,7 @@ Playback controls take their color from the current article's artwork, clamped s
 | Field & Circuit plum `#5B2A6E` | `#5B2A6E` | `#D9BEE6` |
 | The Margin black `#151515` | falls back to `accent` | falls back to `accent` |
 
-**Where the tint is used:** play/pause, auto-advance "on" pill (filled), speed and Read-along pills (wash + ink), scrubber fill and thumb, buffered segment, speed-picker slider and stepper, Lyrics current-sentence underline, Back-to-current pill, mini player progress line.
+**Where the tint is used:** play/pause, auto-advance "on" pill (filled), speed and Read-along pills (wash + ink), scrubber fill and thumb, buffered segment, speed-picker slider and stepper, Lyrics current-sentence highlight, Back-to-current pill, mini player progress line.
 
 **Where it is not used:** backgrounds, the Up-next peek (that article has its own color), anything on the Queue except the mini player progress.
 
@@ -218,7 +218,7 @@ Every row shows a 16 dp status glyph at the start of its meta line, then text. E
 
 ### 2. Mini player
 
-- **Layout:** `mini-bg` card, 14 radius, 12 side margin, 20 above the gesture bar.
+- **Layout:** `mini-bg` card, 14 radius, 12 margin on the sides and 12 above the gesture bar, so the gaps match.
 - **Contents:**
   - A 3 dp progress line on top: dark `tint` on `mini-track`.
   - 44 art, title (1 line, Literata 15), "Site · 14 m left," and a 48 play/pause.
@@ -265,7 +265,7 @@ Toggled by Read along. The cover area and metadata collapse into a compact heade
 - **Text:** Literata 23/1.48, 28 gutters. Headings and paragraph breaks are kept.
 - **Three tiers:**
   - **Already read:** `past`.
-  - **Current sentence:** `fg`, with a **wavy underline** in `tint`: 2 dp thick, 7 dp offset, `text-decoration-skip-ink: none`.
+  - **Current sentence:** `fg` on a **highlight**: `tint` at 20% behind the text, 5 radius, 3 dp side padding, cloned across line breaks.
   - **Upcoming:** `muted`.
 - **Auto-follow:**
   - The current sentence sits about one third from the top.
@@ -279,7 +279,7 @@ Toggled by Read along. The cover area and metadata collapse into a compact heade
   - A 3 dp tinted scrubber with times.
   - Then speed pill, back, play/pause (64, `tint`), forward, and the Read-along pill (filled, since it's on).
 - **Reduced motion:** scroll snaps, no crossfade.
-- **Stretch:** word-level emphasis, with the underline drawing under each word as it's spoken.
+- **Stretch:** word-level emphasis, with the highlight moving across each word as it's spoken.
 
 ### 5. Add sheet · artboard "Add sheet …"
 

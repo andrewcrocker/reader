@@ -223,7 +223,7 @@ a { color: var(--accent); }
 .snackbar .ok { color: var(--toast-action); flex: none; }
 
 .mini {
-  margin: 0 12px 20px; border-radius: 14px; background: var(--mini-bg); color: var(--mini-fg); overflow: hidden;
+  margin: 0 12px 12px; border-radius: 14px; background: var(--mini-bg); color: var(--mini-fg); overflow: hidden;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18); touch-action: pan-x;
 }
 .mini-progress { height: 3px; background: var(--mini-track); }
@@ -299,12 +299,13 @@ a { color: var(--accent); }
 .lyrics-scroll p { margin: 0 0 22px; }
 .lyrics-scroll h2 { margin: 0 0 10px; font-size: 19px; font-weight: 600; line-height: 1.3; }
 .lyrics-scroll .intro { font-style: italic; }
-.s { cursor: pointer; transition: color 150ms; border-radius: 3px; }
-.s.past { color: var(--past); }
-.s.cur {
-  color: var(--fg); text-decoration-line: underline; text-decoration-style: wavy; text-decoration-color: var(--tint);
-  text-decoration-thickness: 2px; text-underline-offset: 7px; text-decoration-skip-ink: none;
+.s {
+  cursor: pointer; transition: color 150ms, background-color 200ms; border-radius: 5px;
+  padding: 1px 3px; margin: 0 -3px; -webkit-box-decoration-break: clone; box-decoration-break: clone;
 }
+.s.past { color: var(--past); }
+/* Current sentence: a soft wash of the article's tint behind the text (wraps cleanly across lines). */
+.s.cur { color: var(--fg); background: color-mix(in srgb, var(--tint) 20%, transparent); }
 .back-to-current {
   position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); height: 44px; padding: 0 18px 0 14px; border: 0; border-radius: 22px;
   background: var(--tint); color: var(--on-tint); display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px;
