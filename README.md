@@ -4,7 +4,7 @@
 
 A "listen later" app. Share an article from your phone (or paste a link or text); it's read aloud by a natural voice (Kokoro-82M) and saved on the phone, so it plays later on a walk, a commute, or offline, with a read-along view that follows the audio sentence by sentence.
 
-- **Live:** https://read-aloud-c1w.pages.dev (invite-only; see [Deploy](#deploy))
+- **Live:** https://pocketreader.me (invite-only; see [Deploy](#deploy))
 - **Specs:** engineering in [spec/SPEC.md](spec/SPEC.md), design in [spec/DESIGN.md](spec/DESIGN.md)
 - **Stack:** React + Vite PWA, Dexie (IndexedDB), a Cloudflare Worker for fetching pages and making voices, Cloudflare Pages for the app
 - **Contributing:** see [CONTRIBUTING.md](CONTRIBUTING.md). MIT licensed ([LICENSE](LICENSE)).
@@ -96,9 +96,9 @@ Keep the screen on while it renders (the page requests a wake lock). Android thr
 
 Deployed 2026-10-28:
 
-- App (Pages project `read-aloud`): https://read-aloud-c1w.pages.dev
+- App (Pages project `read-aloud`): https://pocketreader.me (also https://read-aloud-c1w.pages.dev)
 - Worker `reader-proxy`: https://reader-proxy.andrew-crocker-c26.workers.dev
-- Production secret: `worker/.prod.vars` (git-ignored). The invite link is `https://read-aloud-c1w.pages.dev/#invite=<APP_SECRET>`.
+- Production secret: `worker/.prod.vars` (git-ignored). The invite link is `https://pocketreader.me/#invite=<APP_SECRET>`.
 
 To ship changes: `npm run deploy:worker` and `npm run deploy:app`. Secrets: `./scripts/put-secrets.sh`.
 

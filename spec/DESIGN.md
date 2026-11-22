@@ -465,6 +465,6 @@ Target WCAG 2.2 AA.
 - **Sleep timer**, per-article voices
 
 **Still open:**
-- [x] Name: **Reader** (2026-10-28), used in copy, the share target, the page title and link previews. The URL stays `read-aloud-c1w.pages.dev`.
+- [x] Name: **Reader** (2026-10-28), used in copy, the share target, the page title and link previews. The URL is `pocketreader.me` (2026-11-21); `read-aloud-c1w.pages.dev` still works.
 - [ ] Wordmark and icon.
 - [ ] Native later (SPEC.md §12): the arrival snackbar becomes a system toast without opening the app.
