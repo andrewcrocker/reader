@@ -190,6 +190,8 @@ The feed is stored under the address it ended up at, so `http://` and `https://`
 
 **New-post indicator.** A single dot on the Subscriptions tab while any stored post has `seenAt = null`. Posts are marked seen when the user leaves the Subscriptions tab, or when the app goes to the background while that tab is open. Marking them on arrival would clear the per-post markers before anyone could read them.
 
+**Recent label.** Separately from `seenAt`, each feed's three newest stored posts show a small "New" in the meta line, so recent posts stand out from old ones even right after subscribing (when everything is seen). Ranked by `publishedAt`, else `firstSeenAt`, with equal times keeping list order; computed in memory (`recentIds()` in `feeds/diff.ts`), nothing stored. As newer posts arrive the label moves to them.
+
 **Add.** Tapping Add on a post checks the existing articles by address (ignoring the scheme, `www.`, a trailing slash, the `#fragment`, and `utm_` parameters, against both `url` and `canonicalUrl`). If one exists, the post links to it. Otherwise it goes through the normal save flow above (`addUrl`, with the post's title as the provisional title). Either way the post stores `articleId`, and its button reads "Added".
 
 **Out of scope for now:** background or push checks (they'd need a server and state, which breaks the no-accounts rule), OPML import and JSON Feed.

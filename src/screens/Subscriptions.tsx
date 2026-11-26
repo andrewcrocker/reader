@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { Feed, FeedItem } from '../db';
 import { useAppData } from '../app/data';
 import { openSheet, showSnack } from '../app/ui';
+import { recentIds } from '../feeds/diff';
 import { ago, shortDate } from '../feeds/format';
 import { addFeedItem, checkFeeds, removeFeed } from '../feeds/store';
 import { Icon } from '../ui/Icon';
@@ -18,6 +19,7 @@ export function Subscriptions() {
   const [checking, setChecking] = useState(false);
   const [adding, setAdding] = useState<ReadonlySet<string>>(new Set());
   const byFeed = new Map(feeds.map((f) => [f.id, f]));
+  const recent = useMemo(() => recentIds(feedItems), [feedItems]);
   const lastChecked = Math.max(0, ...feeds.map((f) => f.lastCheckedAt ?? 0));
 
   const checkNow = async () => {
@@ -79,10 +81,10 @@ export function Subscriptions() {
       ) : (
         <div className="feed-body">
           {feedItems.length > 0 ? (
-            <ul className="feed-list" aria-label="New posts">
+            <ul className="feed-list" aria-label="Posts">
               {feedItems.map((item) => (
                 <li key={item.id} className="row-wrap">
-                  <PostRow item={item} feed={byFeed.get(item.feedId)} busy={adding.has(item.id)} onAdd={() => void add(item)} />
+                  <PostRow item={item} feed={byFeed.get(item.feedId)} recent={recent.has(item.id)} busy={adding.has(item.id)} onAdd={() => void add(item)} />
                 </li>
               ))}
             </ul>
@@ -120,7 +122,7 @@ export function Subscriptions() {
   );
 }
 
-function PostRow({ item, feed, busy, onAdd }: { item: FeedItem; feed?: Feed; busy: boolean; onAdd: () => void }) {
+function PostRow({ item, feed, recent, busy, onAdd }: { item: FeedItem; feed?: Feed; recent: boolean; busy: boolean; onAdd: () => void }) {
   const unread = item.seenAt === null;
   const added = !!item.articleId;
   return (
@@ -128,9 +130,14 @@ function PostRow({ item, feed, busy, onAdd }: { item: FeedItem; feed?: Feed; bus
       <div className="row-main">
         <p className="row-title">{item.title}</p>
         <p className="row-meta">
-          {unread && <span className="new-dot" aria-hidden="true" />}
           <span className="segs">
-            {unread && <span className="sr-only">New. </span>}
+            {unread && <span className="sr-only">Unread. </span>}
+            {recent && (
+              <>
+                <span className="new-tag">New</span>
+                {' · '}
+              </>
+            )}
             {[feed?.title, shortDate(item.publishedAt ?? item.firstSeenAt)].filter(Boolean).join(' · ')}
           </span>
         </p>

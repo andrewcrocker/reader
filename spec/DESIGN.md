@@ -41,7 +41,7 @@ This is a podcast player for articles. Listening is the main job and reading is 
 
 1. **Audio first.** Every screen answers "what's playing and what's next." The player is never more than one tap away.
 2. **One-handed and eyes-free.** Primary controls sit in the bottom third.
-3. **Calm, not busy.** No streaks, badges, or guilt counts, and nothing that pushes: Subscriptions is pull only. The only indicator in the app is one small `accent` dot on the Subscriptions tab when a blog you follow has new posts. No counts, no red.
+3. **Calm, not busy.** No streaks, badges, or guilt counts, and nothing that pushes: Subscriptions is pull only. The only indicator in the app is one small `accent` dot on the Subscriptions tab when a blog you follow has new posts. No counts, no red. (The quiet "New" text on a blog's three newest posts is part of the list, not an indicator.)
 4. **Honest status.** Always show what's happening, how far along it is, and whether an article plays offline.
 5. **Forgiving.** Destructive actions undo. Everything resumes where you left off.
 6. **Native-feeling.** Standard Android gestures, dark mode, and system text size.
@@ -355,7 +355,8 @@ The first tab. It's pull only: new posts from the blogs you follow wait here, an
 
 - **Header:** "Subscriptions" (Literata 30) and a line such as "Checked 12 m ago". On the right, **Check now** (a circular-arrow icon button, shown once there's a subscription; disabled offline) and **Subscribe** (filled `accent` circle, 48).
 - **Posts:** every blog's posts in one list, newest first. A row has the title (Literata 16, 2 lines), then the blog's name and a short date ("Vitalik Buterin's website · Nov 26"), and a text button **Add** (`accent`) at the end.
-  - **New posts** have a small filled `accent` dot before the meta line and a 600-weight title, and read "New" to a screen reader. They stay marked until you leave the tab.
+  - **Unseen posts** have a 600-weight title and read "Unread" to a screen reader. They stay marked until you leave the tab. There's no per-post dot: beside the "New" label it would say the same thing twice. The tab's dot stays.
+  - **Recent posts:** each blog's three newest posts start the meta line with a quiet "New" (13, 600, `muted`, the meta line's own size and color, so no fill, pill or `accent`): "New · Vitalik Buterin's website · Nov 26". It shows right after subscribing, doesn't depend on unseen, and moves to newer posts as they arrive. It's text, so a screen reader reads it as is.
   - **After Add:** the button becomes a quiet "Added" with a check, which isn't a button. A snackbar says "Saved to your queue". A post that's already an article isn't added twice: the snackbar says "Already in your queue".
 - **Your subscriptions:** below the posts, a caps section label and one row per blog: name, its address, and **Remove** (`error` text) at the end. Remove has an Undo snackbar. A blog that couldn't be checked shows a quiet line under its address with a warning glyph: "Couldn't check. The page wasn't found (404)." There are no banners, and checks try again by themselves.
 - **Empty state:** the feed glyph in an 88 circle, "No subscriptions yet", "Paste a blog's address to see its new posts here.", and a "Subscribe to a blog" text button.

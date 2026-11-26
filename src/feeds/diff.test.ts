@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { diffItems, idsToPrune, inboxOrder, isDue, itemId, MIN_CHECK_GAP_MS, newestFirst, urlKey, WINDOW } from './diff';
+import { diffItems, idsToPrune, inboxOrder, isDue, itemId, MIN_CHECK_GAP_MS, newestFirst, recentIds, urlKey, WINDOW } from './diff';
 import type { ParsedItem } from './parse';
 
 const post = (n: number, extra: Partial<ParsedItem> = {}): ParsedItem => ({ link: `https://b.example/${n}`, title: `Post ${n}`, publishedAt: n * 1000, ...extra });
@@ -111,6 +111,58 @@ describe('idsToPrune and inboxOrder', () => {
   it('orders the inbox newest first, by first-seen time for posts without a date', () => {
     const items = [stored('a', 1, 500), stored('a', 2, undefined), stored('b', 3, 9)];
     expect(inboxOrder(items).map((i) => i.id)).toEqual(['a-1', 'b-3', 'a-2']);
+  });
+});
+
+describe('recentIds', () => {
+  const stored = (feedId: string, n: number, publishedAt?: number, firstSeenAt = n) => ({ id: `${feedId}-${n}`, feedId, publishedAt, firstSeenAt });
+  const ids = (set: Set<string>) => [...set].sort();
+
+  it('takes the three newest of each feed', () => {
+    const items = [
+      ...[1, 2, 3, 4, 5].map((n) => stored('a', n, n)),
+      ...[1, 2, 3, 4].map((n) => stored('b', n, n * 10)),
+    ];
+    expect(ids(recentIds(items))).toEqual(['a-3', 'a-4', 'a-5', 'b-2', 'b-3', 'b-4']);
+  });
+
+  it('does not depend on the order the items come in', () => {
+    const items = [1, 2, 3, 4, 5].map((n) => stored('a', n, n));
+    expect(ids(recentIds([...items].reverse()))).toEqual(ids(recentIds(items)));
+  });
+
+  it('marks every post of a feed with fewer than three, and nothing for no items', () => {
+    expect(ids(recentIds([stored('a', 1, 1), stored('a', 2, 2), stored('b', 1, 1)]))).toEqual(['a-1', 'a-2', 'b-1']);
+    expect(recentIds([]).size).toBe(0);
+  });
+
+  it('ranks a post with no publish date by when it was first seen', () => {
+    const items = [
+      stored('a', 1, 100),
+      stored('a', 2, 200),
+      stored('a', 3, 300),
+      stored('a', 4, undefined, 250), // between 200 and 300
+    ];
+    expect(ids(recentIds(items))).toEqual(['a-2', 'a-3', 'a-4']);
+    // Seen long ago, it is the oldest and drops out.
+    expect(ids(recentIds([...items.slice(0, 3), stored('a', 4, undefined, 50)]))).toEqual(['a-1', 'a-2', 'a-3']);
+  });
+
+  it('keeps the order given for equal times, so the same three every time', () => {
+    const items = [1, 2, 3, 4, 5].map((n) => stored('a', n, 500));
+    expect(ids(recentIds(items))).toEqual(['a-1', 'a-2', 'a-3']);
+    expect(ids(recentIds(items))).toEqual(ids(recentIds(items)));
+    // Undated posts seen at the same moment tie the same way.
+    const undated = [1, 2, 3, 4].map((n) => stored('a', n, undefined, 7));
+    expect(ids(recentIds(undated))).toEqual(['a-1', 'a-2', 'a-3']);
+  });
+
+  it('moves to newer posts as they arrive, and takes a different count', () => {
+    const before = [1, 2, 3].map((n) => stored('a', n, n));
+    expect(ids(recentIds(before))).toEqual(['a-1', 'a-2', 'a-3']);
+    const after = [...before, stored('a', 4, 4)];
+    expect(ids(recentIds(after))).toEqual(['a-2', 'a-3', 'a-4']);
+    expect(ids(recentIds(after, 1))).toEqual(['a-4']);
   });
 });
 
