@@ -11,7 +11,7 @@ A "listen later" app. Share an article from your phone (or paste a link or text)
 
 **How voices work.** The Worker renders them: the app sends an article's text once, a Cloudflare Workflow sends it to a hosted Kokoro API (DeepInfra) in parts, and the audio waits in R2 until the app collects it, so articles finish even with the app closed. It costs about 1¢ per article, capped at about $10 a month. On-device Kokoro (WebGPU/WASM) was the original plan and its engine is still in the code (the `/spike` page uses it), but it struggled on a Pixel 8 (memory, background limits, heat), so the app no longer offers it.
 
-**Built:** the full design (queue, Now Playing, read-along, sheets, Settings, First run, wide layout), server voices with a daily budget and email alerts, share target, invite links, offline playback, progressive playback while audio renders, link previews.
+**Built:** the full design (queue, Now Playing, read-along, sheets, Settings, First run, wide layout, bottom tab bar), a pull-only Subscriptions inbox for blogs' RSS/Atom feeds, server voices with a daily budget and email alerts, share target, invite links, offline playback, progressive playback while audio renders, link previews.
 
 ## Run it locally
 
@@ -179,7 +179,8 @@ How it was set up the first time:
 | Chunked render with per-chunk persistence, then concatenate + MP3 encode + timings | [src/pipeline/render.ts](src/pipeline/render.ts), [src/audio/](src/audio) |
 | Pipeline loops: fetch and render side by side, resume on launch / `online` / return to the app | [src/pipeline/runner.ts](src/pipeline/runner.ts) |
 | Player: one `<audio>`, streaming while rendering, speed, skip, sentence nav, auto-advance, Media Session, article tint | [src/player/](src/player) |
-| Screens: Queue, Now Playing, read-along, sheets, Settings, First run, invite screen | [src/screens/](src/screens) |
+| Screens: Queue, Archive, Subscriptions, tab bar, Now Playing, read-along, sheets, Settings, First run, invite screen | [src/screens/](src/screens) |
+| Subscriptions (§4b): feed parsing and discovery, new-post diffing, checks | [src/feeds/](src/feeds) |
 | UI state on the history stack (Android back), snackbar, share target, invites, app updates | [src/app/](src/app) |
 | On-device TTS benchmark | [src/pages/Spike.tsx](src/pages/Spike.tsx) |
 

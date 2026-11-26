@@ -17,7 +17,9 @@ Read these first if you've seen the brief.
 | Secondary row | Speed, auto-advance, sleep, lyrics | **Speed, auto-advance, read along** (3 pills) |
 | Tap row | Play, or open a preview | **Plays immediately** (or resumes) |
 | Swipe right | Move to top, or mark played | **Mark played**, which moves the row to Archive |
-| Finished articles | Disappear, dim, or Archive | **Move to Archive** (a section at the bottom of the queue). Settings keeps "delete instead" as an option |
+| Finished articles | Disappear, dim, or Archive | **Move to Archive** (its own tab on the bottom tab bar). Settings keeps "delete instead" as an option |
+| Navigation | Queue as the only hub | **Bottom tab bar:** Subscriptions, Up next, Archive. Up next is home |
+| Finding new articles | A feed inbox, not designed yet | **Subscriptions:** pull only. You paste a blog's address, new posts wait in the Subscriptions tab, and nothing joins the queue until you tap Add |
 | Shared text | Not covered | Text (not a URL) shared from another app opens the **Add sheet on the Text tab**, prefilled |
 | Up-next peek | Peek or swipe | **Peek** of the next article at the bottom of Now Playing |
 | Reorder handles | Always, or edit mode | **Only in multi-select mode** |
@@ -39,7 +41,7 @@ This is a podcast player for articles. Listening is the main job and reading is 
 
 1. **Audio first.** Every screen answers "what's playing and what's next." The player is never more than one tap away.
 2. **One-handed and eyes-free.** Primary controls sit in the bottom third.
-3. **Calm, not busy.** No feeds, badges, streaks, or guilt counts.
+3. **Calm, not busy.** No streaks, badges, or guilt counts, and nothing that pushes: Subscriptions is pull only. The only indicator in the app is one small `accent` dot on the Subscriptions tab when a blog you follow has new posts. No counts, no red.
 4. **Honest status.** Always show what's happening, how far along it is, and whether an article plays offline.
 5. **Forgiving.** Destructive actions undo. Everything resumes where you left off.
 6. **Native-feeling.** Standard Android gestures, dark mode, and system text size.
@@ -59,11 +61,19 @@ This is a podcast player for articles. Listening is the main job and reading is 
 
 ## Navigation
 
-The Queue is the hub. Now Playing opens from the mini player on any screen. Lyrics view is a mode inside Now Playing. Settings is a pushed screen from the Queue header. The Add sheet, speed picker, and Partial explainer are bottom sheets.
+A **bottom tab bar** switches between three views: **Subscriptions | Up next | Archive**. Up next is the hub and the home view, in the middle. Now Playing opens from the mini player on any tab. Lyrics view is a mode inside Now Playing. Settings is a pushed screen from the Up next header, and it has no tab bar. The Add sheet, Subscribe sheet, speed picker, and Partial explainer are bottom sheets.
 
-Ways in: app icon → Queue; share sheet → Queue (URL) or Add sheet on Text (text); invite link → First run → empty Queue.
+Ways in: app icon → Up next; share sheet → Up next (URL) or Add sheet on Text (text); `#add=` link → Up next; invite link → First run → empty Up next. The app always opens on Up next. The tab isn't remembered between launches.
 
-**Wide screens (900 px and up):** two panes. The Queue (or Settings) is a column on the left, at most 440 wide; Now Playing (or Lyrics view) stays open on the right. There's no mini player, collapse control, or swipe-down, and the Up next peek isn't a link because the queue is already beside it. The cover shrinks to fit the screen height. Sheets stay bottom sheets.
+**Back:** Up next is the bottom of the back stack. Subscriptions and Archive each sit one step above it, so back from either returns to Up next. Switching between those two swaps in place, and tapping Up next does the same as back.
+
+**Tab bar:**
+- **Layout:** three equal tabs in a 64 tall bar, plus the bottom safe-area inset, on `bg` with a `line` top border. Each tab is an outline icon over a 12 label.
+- **Current tab:** a `row-selected` pill behind the icon, the icon and label in `accent`, and the label at 600. Other tabs are `muted`. It's marked with `aria-current="page"`, so state isn't carried by color alone.
+- **Dock:** the bar is the last item in the bottom dock. The snackbar and mini player sit above it, and the bar gives way to the multi-select action bar while selecting.
+- **New-post dot:** a 9 dp filled `accent` dot at the top right of the Subscriptions icon, with a 2 dp ring in the background color. The tab's accessible name becomes "Subscriptions, new posts". Posts count as seen when you leave Subscriptions (or the app goes to the background while it's open), and the dot goes with that.
+
+**Wide screens (900 px and up):** two panes. The Up next, Subscriptions, Archive, or Settings view is a column on the left, at most 440 wide, with the tab bar at the bottom of that column. Now Playing (or Lyrics view) stays open on the right. There's no mini player, collapse control, or swipe-down, and the Up next peek isn't a link because the queue is already beside it. The cover shrinks to fit the screen height. Sheets stay bottom sheets.
 
 
 ## Design tokens
@@ -202,10 +212,10 @@ Every row shows a 16 dp status glyph at the start of its meta line, then text. E
 
 - **Header:** "Up next" (Literata 30), then a line with count and total time at speed ("8 articles · 2 h 46 m at 1.4×"). Settings (sliders icon) and Add (filled `accent` circle, 48) on the right.
 - **List:**
-  - Up next rows in order, then an **Archive** section label and archived rows.
+  - Up next rows in order. Archived rows are on the Archive tab.
   - The currently playing row uses `row-playing`.
-  - Rows are separated by space, not dividers. One divider sits under the header and one above Archive.
-- **Mini player:** pinned at the bottom (see 2).
+  - Rows are separated by space, not dividers. One divider sits under the header.
+- **Mini player and tab bar:** pinned at the bottom, the mini player above the tab bar (see 2 and Navigation).
 - **Empty state** · artboard "Empty queue / …":
   - Share glyph in a 88 circle, "Nothing queued yet", and "Share an article from any app and it lands here, ready to play."
   - Then an "or paste a link" text button that opens the Add sheet.
@@ -339,7 +349,24 @@ Tapping a Partial row's status (or a Failed row) opens a sheet:
   - Heading "Couldn't load this page," with a one-line reason.
   - Actions: Retry (primary), Paste the text, Open original.
 
-### 10. Settings · artboard "Settings …"
+### 10. Subscriptions
+
+The first tab. It's pull only: new posts from the blogs you follow wait here, and nothing is added to the queue, fetched, or rendered until you tap **Add**.
+
+- **Header:** "Subscriptions" (Literata 30) and a line such as "Checked 12 m ago". On the right, **Check now** (a circular-arrow icon button, shown once there's a subscription; disabled offline) and **Subscribe** (filled `accent` circle, 48).
+- **Posts:** every blog's posts in one list, newest first. A row has the title (Literata 16, 2 lines), then the blog's name and a short date ("Vitalik Buterin's website · Nov 26"), and a text button **Add** (`accent`) at the end.
+  - **New posts** have a small filled `accent` dot before the meta line and a 600-weight title, and read "New" to a screen reader. They stay marked until you leave the tab.
+  - **After Add:** the button becomes a quiet "Added" with a check, which isn't a button. A snackbar says "Saved to your queue". A post that's already an article isn't added twice: the snackbar says "Already in your queue".
+- **Your subscriptions:** below the posts, a caps section label and one row per blog: name, its address, and **Remove** (`error` text) at the end. Remove has an Undo snackbar. A blog that couldn't be checked shows a quiet line under its address with a warning glyph: "Couldn't check. The page wasn't found (404)." There are no banners, and checks try again by themselves.
+- **Empty state:** the feed glyph in an 88 circle, "No subscriptions yet", "Paste a blog's address to see its new posts here.", and a "Subscribe to a blog" text button.
+- **Subscribe sheet:** a bottom sheet like the Add sheet. One field, "Blog address", and a Subscribe button. It accepts a blog's address or a feed's address. Errors show as a `fill` note under the field ("Couldn't find a feed at that address."). The posts already on the blog count as seen, so subscribing doesn't light the dot.
+- **When it checks:** on launch, when the app comes back to the front, and on Check now. A blog checked in the last 30 minutes is skipped, except by Check now. Only the newest 20 posts of a blog are considered.
+
+### 11. Archive
+
+The last tab. The same rows, gestures, and multi-select as Up next, for articles you've finished. Header: "Archive" and a count ("12 articles"), with no buttons. Swipe left deletes; there's no swipe right. In multi-select, Mark played is disabled. Moving a row to the top returns it to Up next. Empty state: the archive glyph, "Nothing in the archive", "Articles you've listened to land here."
+
+### 12. Settings · artboard "Settings …"
 
 Pushed screen: back arrow and "Settings." The top level is a menu: **Voice**, **Playback**, and **Storage** rows (each with a one-line summary and a chevron), then an outline "Invite a friend" button, and the version at the foot. Each row pushes its own page with a back arrow; back returns to the menu. Pages use caps section labels and `line` dividers. The Voice page is just the three voices.
 
@@ -360,7 +387,7 @@ Pushed screen: back arrow and "Settings." The top level is a menu: **Voice**, **
   - "Clear all articles…" (`error`, confirms).
 - **About:** "Invite a friend" with a Share button (system share of the invite link), and the version.
 
-### 11. First run · artboard "First run …"
+### 13. First run · artboard "First run …"
 
 Two steps with Online voices (the default): Welcome, then Save from anywhere. The voice download step appears only for on-device voices, making three. Progress dots: the active dot is 20 wide, done/active dots are `accent`, and pending dots are `fill`.
 
@@ -385,6 +412,8 @@ With on-device voices, saved articles stay in "Queued for audio" until the voice
 
 | Interaction | Behavior |
 | --- | --- |
+| Tap a tab | Switch view. Back from Subscriptions or Archive returns to Up next |
+| Tap Add on a post | Add it to Up next ("Saved to your queue" snackbar) |
 | Tap row | Play (or resume) immediately |
 | Tap Partial/Failed status | Open the explainer sheet |
 | Swipe row left | Delete, undo snackbar |
@@ -426,7 +455,7 @@ Target WCAG 2.2 AA.
 - **Exception (lyrics):** already-read text uses `past` at about 2.6:1.
   - It's intentional: the text has been heard, it isn't needed to operate the UI, and Lyrics view is off by default for screen-reader users.
   - If this needs to be strict, set `past` = `muted` and let the underline alone carry emphasis.
-- **State:** every state shows a glyph and text, never color alone.
+- **State:** every state shows a glyph and text, never color alone. The current tab has a pill and a heavier label. The new-post dot is a shape, and the Subscriptions tab is named "Subscriptions, new posts".
 - **TalkBack:**
   - Rows read "Title, site, duration, state."
   - The scrubber and speed controls announce values.
@@ -440,7 +469,8 @@ Target WCAG 2.2 AA.
 **Out of scope for v1:**
 - Accounts and sync, saving from a laptop
 - Highlights and notes, tags and search
-- A feed, a reading mode without audio
+- A reading mode without audio
+- Notifications, background checks, or auto-adding posts from a feed
 - **Sleep timer**, per-article voices
 
 **Still open:**

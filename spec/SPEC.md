@@ -14,7 +14,7 @@ Status: reconciled with DESIGN.md (Oct 28, 2026). DESIGN.md owns screens, states
 - Display-state mapping for the queue rows (§9a).
 - One global playback speed; skip interval is 10/15/30 s (§7).
 - Voice quality (model size) is separate from voice choice (§6.3).
-- Feed inbox moved out of Phase 2 to "Later" (§14).
+- Feed inbox moved out of Phase 2 to "Later" (§14). It has since been built (§4b).
 - Answered open questions: voice preference, finished articles, reading mode (§15).
 
 ---
@@ -121,7 +121,7 @@ Status: reconciled with DESIGN.md (Oct 28, 2026). DESIGN.md owns screens, states
 | **Share sheet: text** (Android) | v1 | Shared plain text (selected text from a reader or notes app) opens the Add sheet on the Text tab, prefilled, so the user can add a title and save. |
 | **Paste URL** | v1 | A prominent "Paste link" button reads the clipboard on tap. Silent clipboard reading on app open isn't allowed in browsers, so it has to be a tap. |
 | **Paste text** | v1 | Paste the article body itself. The escape hatch for anything extraction can't reach. Also used to complete a partial article (below). |
-| **Feed inbox** (discovery) | Later | Subscribe to RSS/Atom feeds. New items land in an **Inbox**, separate from the queue. Inbox items are **not** auto-rendered. Not designed yet. |
+| **Feed inbox** (discovery) | v1 | Subscribe to a blog's RSS/Atom feed by pasting its address (a site address works: the feed is found from the page). New posts wait in **Subscriptions**, a tab separate from the queue, and are never added or rendered until the user taps Add. Pull only: checked on launch, when the app comes back to the front, and on "Check now". See "Feed inbox" below. |
 | **Desktop bookmarklet** | Out of scope for v1 | See "Saving from another device" below. |
 
 **v1 = share sheet (URL and text) + paste URL + paste text.**
@@ -172,6 +172,27 @@ The Partial explainer sheet opens the Add sheet on Text, prefilled with the arti
 - **Tint source color:** after storing art, compute the dominant non-neutral color of the art shown in Now Playing (article art, else site art, else the generated cover color). Store it as `tintSource` (hex). The per-theme clamp (OKLCH) happens at render time, as specified in DESIGN.md "Article tint." No site art: derive a color from a hash of the domain into the fixed 8-hue palette in DESIGN.md.
 
 ---
+
+## 4b. Feed inbox
+
+A way to find articles, not a way to save them. It follows the same rules as the rest of the app: everything stays on the device, nothing is added or rendered by itself, and nothing pushes.
+
+**Subscribe.** The user pastes a site address or a feed address into the Subscribe sheet. Discovery goes through the Worker's `/fetch`, which already passes RSS, Atom and other XML through unchanged:
+
+1. Fetch the address. If it's RSS 2.0, RSS 1.0 or Atom, that's the feed.
+2. If it's HTML, take the page's `<link rel="alternate" type="application/rss+xml">` (or `atom+xml`) addresses, resolved against the page's address, first three in page order.
+3. Otherwise try `/feed.xml`, `/feed`, `/rss.xml`, `/atom.xml` and `/index.xml` on the same site.
+4. If none of those is a feed: "Couldn't find a feed at that address."
+
+The feed is stored under the address it ended up at, so `http://` and `https://` don't make two subscriptions. The latest 20 posts are stored and marked seen, so subscribing doesn't light the new-post dot.
+
+**Check (pull).** `checkFeeds()` runs on launch and whenever the app becomes visible. A feed checked in the last 30 minutes is skipped; "Check now" in Subscriptions ignores that. It does nothing offline or without an invite. For each feed it fetches and parses, and stores only posts not stored yet, as unseen. Only a feed's newest 20 posts are ever considered, so a long feed doesn't flood the inbox on its first check, and stored posts are trimmed to the newest 40 per feed. A feed that fails records a one-line `lastError` (cleared by the next good check) and its check time, so it isn't retried on every launch. There are no banners, and nothing is retried in the background.
+
+**New-post indicator.** A single dot on the Subscriptions tab while any stored post has `seenAt = null`. Posts are marked seen when the user leaves the Subscriptions tab, or when the app goes to the background while that tab is open. Marking them on arrival would clear the per-post markers before anyone could read them.
+
+**Add.** Tapping Add on a post checks the existing articles by address (ignoring the scheme, `www.`, a trailing slash, the `#fragment`, and `utm_` parameters, against both `url` and `canonicalUrl`). If one exists, the post links to it. Otherwise it goes through the normal save flow above (`addUrl`, with the post's title as the provisional title). Either way the post stores `articleId`, and its button reads "Added".
+
+**Out of scope for now:** background or push checks (they'd need a server and state, which breaks the no-accounts rule), OPML import and JSON Feed.
 
 ## 5. Extraction pipeline (escalation ladder)
 
@@ -344,9 +365,32 @@ interface Article {
   voice?: string;
   positionSec: number;        // resume point
   playedAt?: number;          // finished listening
-  archivedAt?: number;        // in the Archive section
+  archivedAt?: number;        // in the Archive view
   deletedAt?: number;         // soft delete; purge after the undo window
   queueOrder: number;         // fractional index for cheap reordering
+}
+
+/** A blog the user subscribes to (§4b). */
+interface Feed {
+  id: string;
+  feedUrl: string;            // the RSS/Atom address, after redirects
+  siteUrl?: string;
+  title: string;
+  addedAt: number;
+  lastCheckedAt?: number;     // set after every attempt, good or bad
+  lastError?: string;         // one line; cleared by the next good check
+}
+
+/** One post from a feed. */
+interface FeedItem {
+  id: string;                 // stable hash of feedId + (guid or link)
+  feedId: string;
+  link: string;
+  title: string;
+  publishedAt?: number;
+  firstSeenAt: number;
+  seenAt: number | null;      // null until the user has left Subscriptions with it listed
+  articleId?: string;         // set once added to the queue
 }
 
 interface Settings {
@@ -374,7 +418,7 @@ The queue row state in DESIGN.md comes from these fields. First match wins.
 | Display state | Condition |
 |---|---|
 | Deleted (hidden) | `deletedAt` set |
-| Archive section | `archivedAt` set |
+| Archive view | `archivedAt` set |
 | Waiting for connection | `status = "waiting"`, or `"fetching"` while offline |
 | Fetching | `status = "fetching"` |
 | Failed | `status = "failed"` |
@@ -390,11 +434,11 @@ The queue row state in DESIGN.md comes from these fields. First match wins.
 
 ## 10. Queue & CRUD
 
-- **Queue screen** (home): Up next in `queueOrder`, then an **Archive** section. Row anatomy and states are in DESIGN.md.
+- **Queue screen** (home): Up next in `queueOrder`. Archived rows are on the **Archive** tab, with the same rows and actions. A bottom tab bar switches between Subscriptions, Up next and Archive (DESIGN.md "Navigation"). The tab isn't saved: the app opens on Up next. Row anatomy and states are in DESIGN.md.
 - **Gestures:** tap plays immediately; swipe left deletes (undo); swipe right marks played and archives (undo); long-press enters multi-select.
 - **Reorder:** drag handles, shown in multi-select mode.
 - **Multi-select actions:** delete, move to top, mark played, re-render (e.g. after changing voice), retry extraction.
-- **Clear:** "Clear all" in Settings, with confirm. "Clear archive" isn't designed yet; an action on the Archive section header is the natural place.
+- **Clear:** "Clear all" in Settings, with confirm. "Clear archive" isn't designed yet; an action on the Archive tab's header is the natural place.
 - **Storage:** Settings shows total size split into audio, voice model, and art, plus "Delete audio for archived articles" (keeps text; re-renders on replay).
 
 ---
@@ -513,14 +557,14 @@ Only rendered audio is stored, and only until the app downloads it. No logging o
 - [ ] Optional word-level emphasis
 
 **Later**
-- [ ] Feed inbox (RSS/Atom via Worker); needs design
+- [ ] Feed inbox follow-ups: OPML import, JSON Feed. (The inbox itself is built, §4b.)
 - [ ] Saving from another device (relay inbox)
 
 ---
 
 ## 15. Open questions
 
-1. **Discovery:** is a feed inbox what you had in mind, or something more like recommendations? (Parked under Later.)
+1. ~~Discovery~~ **Decided:** a pull-only feed inbox (§4b): subscribe to blogs, new posts wait in Subscriptions, nothing is added or rendered until the user taps Add. No recommendations.
 2. **Voice quality bar:** if on-device Kokoro is good but noticeably below the best cloud voices, is that acceptable as the default for you too, or would you personally use BYO-key?
 2a. **Friends' phones:** roughly how many are on iPhone? That determines how much the PWA route matters compared with a native Android app.
 3. ~~Voice preference~~ **Decided:** one global voice, chosen in Settings.
