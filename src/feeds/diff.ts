@@ -37,6 +37,54 @@ export function newestFirst<T extends { publishedAt?: number }>(items: T[]): T[]
     .map((x) => x.item);
 }
 
+/**
+ * `link` moved onto `linkBase` (an origin): the same path, query and hash on that host. Links that
+ * already sit on that host, a missing `linkBase` (unset, or null for "keep links") and anything that
+ * isn't an address come back unchanged. Only the stored link is rebased, never what `itemId` hashes.
+ */
+export function rebaseLink(link: string, linkBase: string | null | undefined): string {
+  if (!linkBase) return link;
+  try {
+    const from = new URL(link);
+    const to = new URL(linkBase);
+    if (from.host === to.host) return link;
+    // Set piece by piece, not `new URL(path, base)`: a path starting "//" would be read as a host.
+    to.pathname = from.pathname;
+    to.search = from.search;
+    to.hash = from.hash;
+    return to.toString();
+  } catch {
+    return link;
+  }
+}
+
+export interface LinkProbe {
+  /** The newest post's link as the feed gives it. */
+  original: string;
+  /** The same path and query on the feed's own host. */
+  rebased: string;
+  /** The feed's origin: what `linkBase` becomes if `original` is gone and `rebased` works. */
+  base: string;
+}
+
+/**
+ * What to try to learn whether a feed's post links still work, or undefined when there's nothing to
+ * try: no posts, or the newest post's link is already on the feed's own host. A feed that is served
+ * from a separate host on purpose (feedburner, say) gets probed too, but its links keep working, so
+ * nothing is rebased.
+ */
+export function linkProbe(feedUrl: string, items: ParsedItem[]): LinkProbe | undefined {
+  const newest = newestFirst(items)[0];
+  if (!newest) return undefined;
+  try {
+    const base = new URL(feedUrl).origin;
+    if (new URL(newest.link).host === new URL(base).host) return undefined;
+    return { original: newest.link, rebased: rebaseLink(newest.link, base), base };
+  } catch {
+    return undefined;
+  }
+}
+
 export interface NewItem {
   id: string;
   feedId: string;
@@ -48,16 +96,17 @@ export interface NewItem {
 /**
  * The items in `fetched` that aren't stored yet, newest first. Looks only at the newest `window`
  * posts, so a long feed doesn't flood the inbox on the first check after subscribing (when only
- * that many were kept). A post listed twice counts once.
+ * that many were kept). A post listed twice counts once. The id comes from the feed's own guid or
+ * link; `linkBase` (see `rebaseLink`) changes only the stored link, so ids don't move when it is set.
  */
-export function diffItems(feedId: string, fetched: ParsedItem[], storedIds: ReadonlySet<string>, window = WINDOW): NewItem[] {
+export function diffItems(feedId: string, fetched: ParsedItem[], storedIds: ReadonlySet<string>, window = WINDOW, linkBase?: string | null): NewItem[] {
   const seen = new Set<string>();
   const out: NewItem[] = [];
   for (const it of newestFirst(fetched).slice(0, window)) {
     const id = itemId(feedId, it);
     if (storedIds.has(id) || seen.has(id)) continue;
     seen.add(id);
-    out.push({ id, feedId, link: it.link, title: it.title, publishedAt: it.publishedAt });
+    out.push({ id, feedId, link: rebaseLink(it.link, linkBase), title: it.title, publishedAt: it.publishedAt });
   }
   return out;
 }

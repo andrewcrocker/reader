@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { discoverFeed, FeedError, type FetchText } from './discover';
+import { discoverFeed, FeedError, probeLinkBase, type FetchText } from './discover';
 import { ATOM_FEED, VITALIK_FEED, VITALIK_HOME } from './fixtures';
+import { parseFeed, type ParsedItem } from './parse';
 
 /** A fake proxy: a table of address -> body. Anything else is a 404. Records what was asked for. */
 function proxy(pages: Record<string, string>, redirects: Record<string, string> = {}) {
@@ -71,6 +72,55 @@ describe('discoverFeed', () => {
   it('rejects something that isn’t an address without fetching', async () => {
     const { fetchText, asked } = proxy({});
     await expect(discoverFeed('not an address', fetchText)).rejects.toBeInstanceOf(FeedError);
+    expect(asked).toEqual([]);
+  });
+});
+
+describe('probeLinkBase', () => {
+  const VITALIK_URL = 'https://vitalik.eth.limo/feed.xml';
+  const vitalik = () => parseFeed(VITALIK_FEED, VITALIK_URL)!.items;
+  const POST = 'https://vitalik.ca/general/2026/11/26/a_shallow_dive_into_open-source_chip_design.html';
+  const MIRROR = 'https://vitalik.eth.limo/general/2026/11/26/a_shallow_dive_into_open-source_chip_design.html';
+
+  it('moves Vitalik’s links onto his feed’s host: vitalik.ca is gone, the same path works on eth.limo', async () => {
+    const { fetchText, asked } = proxy({ [MIRROR]: '<html>post</html>' });
+    expect(await probeLinkBase(VITALIK_URL, vitalik(), fetchText)).toBe('https://vitalik.eth.limo');
+    expect(asked).toEqual([POST, MIRROR]);
+  });
+
+  it('keeps the links when the original still answers, without asking about the feed’s host', async () => {
+    const items: ParsedItem[] = [{ link: 'https://blog.example/posts/1', title: 'One', publishedAt: 1 }];
+    const { fetchText, asked } = proxy({ 'https://blog.example/posts/1': '<html>post</html>', 'https://feeds.feedburner.com/posts/1': '<html>feedburner</html>' });
+    expect(await probeLinkBase('https://feeds.feedburner.com/example', items, fetchText)).toBeNull();
+    expect(asked).toEqual(['https://blog.example/posts/1']);
+  });
+
+  it('keeps the links when both fail: the feed’s host just served the feed, so it isn’t the connection', async () => {
+    const { fetchText, asked } = proxy({});
+    expect(await probeLinkBase(VITALIK_URL, vitalik(), fetchText)).toBeNull();
+    expect(asked).toEqual([POST, MIRROR]);
+  });
+
+  it('counts any failure of the original as gone, not only a 404', async () => {
+    for (const failure of [new Error('timed out'), new TypeError('Failed to fetch'), 'The site couldn’t be reached.']) {
+      const fetchText: FetchText = async (url) => {
+        if (url === MIRROR) return { text: '<html>post</html>', finalUrl: url };
+        throw failure;
+      };
+      expect(await probeLinkBase(VITALIK_URL, vitalik(), fetchText)).toBe('https://vitalik.eth.limo');
+    }
+  });
+
+  it('does not ask at all when the links are on the feed’s own host', async () => {
+    const { fetchText, asked } = proxy({});
+    const atom = parseFeed(ATOM_FEED, 'https://notes.example.com/atom.xml')!.items;
+    expect(await probeLinkBase('https://notes.example.com/atom.xml', atom, fetchText)).toBeNull();
+    expect(asked).toEqual([]);
+  });
+
+  it('leaves a feed with no posts undecided, so it is looked at again once it has some', async () => {
+    const { fetchText, asked } = proxy({});
+    expect(await probeLinkBase(VITALIK_URL, [], fetchText)).toBeUndefined();
     expect(asked).toEqual([]);
   });
 });

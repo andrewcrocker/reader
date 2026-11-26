@@ -115,12 +115,19 @@ export interface Feed {
   lastCheckedAt?: number;
   /** One-line reason the last check failed; cleared by the next good one. */
   lastError?: string;
+  /**
+   * Where post links are rebased to (an origin), for a blog that moved hosts but still serves its
+   * feed from the new one: the feed's own links point at a host that no longer answers. `null`
+   * means the links were checked and are kept as they are; unset means not checked yet. Not indexed.
+   */
+  linkBase?: string | null;
 }
 
-/** One post from a feed. `id` is a stable hash of the feed id and the post's guid or link. */
+/** One post from a feed. `id` is a stable hash of the feed id and the post's guid or link as the feed gave them. */
 export interface FeedItem {
   id: string;
   feedId: string;
+  /** Where the post is read. The feed's link, or that link moved onto the feed's host (see `Feed.linkBase`). */
   link: string;
   title: string;
   publishedAt?: number;

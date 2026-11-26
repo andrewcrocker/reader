@@ -27,6 +27,8 @@ export class ExtractError extends Error {
     readonly kind: 'page' | 'service',
     /** The link itself is the problem (not a web page, too large), so another copy wouldn't help. */
     readonly final = false,
+    /** The site did answer; our fetch service just won't take what it sent (too large, not a web page). */
+    readonly reached = false,
   ) {
     super(message);
   }
@@ -40,10 +42,10 @@ export function proxyFailure(status: number, body: { error?: string } | null, co
   const page = (m: string) => new ExtractError(m, 'page');
   if (!body?.error) return new ExtractError(SERVICE_DOWN, 'service');
   if (status === 401 || status === 403 || status === 500) return new ExtractError(NOT_SET_UP, 'service');
-  const final = (m: string) => new ExtractError(m, 'page', true);
+  const final = (m: string, reached = false) => new ExtractError(m, 'page', true, reached);
   if (status === 400) return final('That doesn’t look like a web address.');
-  if (status === 413) return final('This page is too large to load.');
-  if (status === 415) return final(/pdf/i.test(body.error + contentType) ? 'This link is a PDF, which can’t be read yet.' : 'This link isn’t a web page.');
+  if (status === 413) return final('This page is too large to load.', true);
+  if (status === 415) return final(/pdf/i.test(body.error + contentType) ? 'This link is a PDF, which can’t be read yet.' : 'This link isn’t a web page.', true);
   if (/timed out/.test(body.error)) return page('The site took too long to respond.');
   if (status === 502) return page('The site couldn’t be reached.');
   return new ExtractError(SERVICE_DOWN, 'service');

@@ -1,6 +1,8 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { diffItems, idsToPrune, inboxOrder, isDue, itemId, MIN_CHECK_GAP_MS, newestFirst, recentIds, urlKey, WINDOW } from './diff';
-import type { ParsedItem } from './parse';
+import { diffItems, idsToPrune, inboxOrder, isDue, itemId, linkProbe, MIN_CHECK_GAP_MS, newestFirst, rebaseLink, recentIds, urlKey, WINDOW } from './diff';
+import { ATOM_FEED, VITALIK_FEED } from './fixtures';
+import { parseFeed, type ParsedItem } from './parse';
 
 const post = (n: number, extra: Partial<ParsedItem> = {}): ParsedItem => ({ link: `https://b.example/${n}`, title: `Post ${n}`, publishedAt: n * 1000, ...extra });
 /** Posts 1..n, newest (highest number) first, like a feed. */
@@ -184,5 +186,112 @@ describe('urlKey', () => {
     expect(urlKey(undefined)).toBeUndefined();
     expect(urlKey('')).toBeUndefined();
     expect(urlKey('not a url')).toBeUndefined();
+  });
+});
+
+const VITALIK_URL = 'https://vitalik.eth.limo/feed.xml';
+const VITALIK_BASE = 'https://vitalik.eth.limo';
+const vitalik = () => parseFeed(VITALIK_FEED, VITALIK_URL)!.items;
+
+describe('rebaseLink', () => {
+  it('moves a post onto the feed’s host, keeping its path, query and hash', () => {
+    expect(rebaseLink('https://vitalik.ca/general/2026/10/31/digital_minimalism.html', VITALIK_BASE)).toBe('https://vitalik.eth.limo/general/2026/10/31/digital_minimalism.html');
+    expect(rebaseLink('http://old.example/a/b/?page=2&x=y#notes', 'https://new.example')).toBe('https://new.example/a/b/?page=2&x=y#notes');
+    expect(rebaseLink('https://old.example', 'https://new.example')).toBe('https://new.example/');
+  });
+
+  it('takes the port and scheme from the base', () => {
+    expect(rebaseLink('https://old.example/p', 'http://localhost:8080')).toBe('http://localhost:8080/p');
+  });
+
+  it('leaves a link already on that host alone, as written', () => {
+    expect(rebaseLink('https://vitalik.eth.limo/general/x.html', VITALIK_BASE)).toBe('https://vitalik.eth.limo/general/x.html');
+    expect(rebaseLink('http://new.example/Path?Q=1', 'https://new.example')).toBe('http://new.example/Path?Q=1');
+  });
+
+  it('does nothing without a base: unset, or null for "checked, keep links"', () => {
+    const link = 'https://vitalik.ca/general/x.html';
+    expect(rebaseLink(link, undefined)).toBe(link);
+    expect(rebaseLink(link, null)).toBe(link);
+    expect(rebaseLink(link, '')).toBe(link);
+  });
+
+  it('is stable when applied twice', () => {
+    const once = rebaseLink('https://vitalik.ca/general/x.html?a=1#h', VITALIK_BASE);
+    expect(rebaseLink(once, VITALIK_BASE)).toBe(once);
+  });
+
+  it('never reads a path starting with // as a host', () => {
+    expect(rebaseLink('https://old.example//evil.example/x', 'https://new.example')).toBe('https://new.example//evil.example/x');
+  });
+
+  it('returns what it was given when either side is not an address', () => {
+    expect(rebaseLink('not a url', VITALIK_BASE)).toBe('not a url');
+    expect(rebaseLink('https://vitalik.ca/x', 'not a url')).toBe('https://vitalik.ca/x');
+  });
+});
+
+describe('linkProbe', () => {
+  it('for Vitalik’s feed, asks about the newest post and what it becomes on the feed’s host', () => {
+    expect(linkProbe(VITALIK_URL, vitalik())).toEqual({
+      original: 'https://vitalik.ca/general/2026/11/26/a_shallow_dive_into_open-source_chip_design.html',
+      rebased: 'https://vitalik.eth.limo/general/2026/11/26/a_shallow_dive_into_open-source_chip_design.html',
+      base: VITALIK_BASE,
+    });
+  });
+
+  it('judges by the newest post, not the first listed', () => {
+    const items = [...vitalik()].reverse();
+    expect(linkProbe(VITALIK_URL, items)?.original).toContain('/2026/11/26/');
+    const mixed: ParsedItem[] = [
+      { link: 'https://elsewhere.example/old', title: 'Old', publishedAt: 1 },
+      { link: 'https://blog.example/new', title: 'New', publishedAt: 2 },
+    ];
+    expect(linkProbe('https://blog.example/feed', mixed)).toBeUndefined();
+  });
+
+  it('has nothing to ask when the newest post is already on the feed’s host', () => {
+    expect(linkProbe('https://notes.example.com/atom.xml', parseFeed(ATOM_FEED, 'https://notes.example.com/atom.xml')!.items)).toBeUndefined();
+  });
+
+  it('has nothing to ask for a feed with no posts, or an address that isn’t one', () => {
+    expect(linkProbe(VITALIK_URL, [])).toBeUndefined();
+    expect(linkProbe('not a url', vitalik())).toBeUndefined();
+  });
+
+  it('keeps the query in the rebased address, and a feed on its own host still gets probed', () => {
+    const items: ParsedItem[] = [{ link: 'https://blog.example/post?id=7', title: 'P', publishedAt: 1 }];
+    expect(linkProbe('https://feeds.feedburner.com/example', items)).toEqual({
+      original: 'https://blog.example/post?id=7',
+      rebased: 'https://feeds.feedburner.com/post?id=7',
+      base: 'https://feeds.feedburner.com',
+    });
+  });
+});
+
+describe('diffItems with a linkBase', () => {
+  it('stores rebased links but keeps every id as it was, so nothing stored looks new', () => {
+    const plain = diffItems('f', vitalik(), new Set());
+    const rebased = diffItems('f', vitalik(), new Set(), WINDOW, VITALIK_BASE);
+    expect(rebased.map((n) => n.id)).toEqual(plain.map((n) => n.id));
+    expect(rebased.map((n) => n.id)).toEqual(vitalik().map((it) => itemId('f', it)));
+    expect(plain.every((n) => n.link.startsWith('https://vitalik.ca/'))).toBe(true);
+    expect(rebased.every((n) => n.link.startsWith('https://vitalik.eth.limo/general/'))).toBe(true);
+    // Posts stored before the base was known, checked again after: still nothing new.
+    expect(diffItems('f', vitalik(), new Set(plain.map((n) => n.id)), WINDOW, VITALIK_BASE)).toEqual([]);
+  });
+
+  it('keeps the links when the base is null or unset', () => {
+    const plain = diffItems('f', vitalik(), new Set());
+    expect(diffItems('f', vitalik(), new Set(), WINDOW, null)).toEqual(plain);
+    expect(diffItems('f', vitalik(), new Set(), WINDOW, undefined)).toEqual(plain);
+  });
+
+  it('a rebased link is the same queue entry as the same post added from the feed’s host', () => {
+    const [newest] = diffItems('f', vitalik(), new Set(), WINDOW, VITALIK_BASE);
+    const original = vitalik()[0].link;
+    expect(urlKey(newest.link)).toBe(urlKey('https://www.vitalik.eth.limo/general/2026/11/26/a_shallow_dive_into_open-source_chip_design.html#top'));
+    expect(urlKey(newest.link)).not.toBe(urlKey(original));
+    expect(urlKey(rebaseLink(original, VITALIK_BASE))).toBe(urlKey(newest.link));
   });
 });

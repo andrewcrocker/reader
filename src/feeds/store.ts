@@ -1,8 +1,8 @@
 import { db, getSettings, type Feed, type FeedItem, type Settings } from '../db';
 import { ExtractError, fetchHtml } from '../pipeline/extract';
 import { addUrl } from '../pipeline/runner';
-import { discoverFeed, FeedError, type FetchText } from './discover';
-import { diffItems, idsToPrune, isDue, urlKey } from './diff';
+import { discoverFeed, FeedError, probeLinkBase, type FetchText } from './discover';
+import { diffItems, idsToPrune, isDue, rebaseLink, urlKey, WINDOW } from './diff';
 import { parseFeed } from './parse';
 
 // Subscriptions on the device (SPEC §4 "Feed inbox"). Pull only: feeds are read when the app
@@ -15,6 +15,18 @@ const fetcher =
     return { text: r.html, finalUrl: r.finalUrl };
   };
 
+/** Like `fetcher`, for asking whether a link's site answers: it did if our service only declined the page (too large, not HTML). */
+const probeFetcher =
+  (settings: Settings): FetchText =>
+  async (url) => {
+    try {
+      return await fetcher(settings)(url);
+    } catch (e) {
+      if (e instanceof ExtractError && e.reached) return { text: '', finalUrl: url };
+      throw e;
+    }
+  };
+
 /** One line for the user: our own errors say what's wrong; anything else gets a general line. */
 const reason = (e: unknown) => (e instanceof FeedError || e instanceof ExtractError ? e.message : 'Couldn’t read the feed.');
 
@@ -24,6 +36,8 @@ export async function subscribe(input: string): Promise<Feed> {
   const { feedUrl, feed: parsed } = await discoverFeed(input, fetcher(settings));
   if (await db.feeds.where('feedUrl').equals(feedUrl).first()) throw new FeedError('You’re already subscribed to that.');
 
+  // Whether the post links still work, or should move onto the feed's host (see `probeLinkBase`).
+  const linkBase = await probeLinkBase(feedUrl, parsed.items, probeFetcher(settings));
   const now = Date.now();
   const feed: Feed = {
     id: crypto.randomUUID(),
@@ -32,9 +46,10 @@ export async function subscribe(input: string): Promise<Feed> {
     title: parsed.title || new URL(feedUrl).hostname.replace(/^www\./, ''),
     addedAt: now,
     lastCheckedAt: now,
+    linkBase,
   };
   // The latest posts are kept, already seen, so subscribing doesn't light the dot.
-  const items: FeedItem[] = diffItems(feed.id, parsed.items, new Set()).map((n) => ({ ...n, firstSeenAt: now, seenAt: now }));
+  const items: FeedItem[] = diffItems(feed.id, parsed.items, new Set(), WINDOW, linkBase).map((n) => ({ ...n, firstSeenAt: now, seenAt: now }));
   await db.transaction('rw', db.feeds, db.feedItems, async () => {
     await db.feeds.add(feed);
     await db.feedItems.bulkAdd(items);
@@ -79,15 +94,17 @@ async function checkOne(feed: Feed, settings: Settings): Promise<number | null> 
     const page = await fetcher(settings)(feed.feedUrl);
     const parsed = parseFeed(page.text, page.finalUrl);
     if (!parsed) throw new FeedError('That address no longer gives a feed.');
+    // Feeds saved before `linkBase` existed (and feeds with no posts when they were checked) are looked at once, here.
+    const linkBase = feed.linkBase !== undefined ? feed.linkBase : await probeLinkBase(feed.feedUrl, parsed.items, probeFetcher(settings));
     return await db.transaction('rw', db.feeds, db.feedItems, async () => {
       // Removed while the request was out: don't bring its posts back.
       if (!(await db.feeds.get(feed.id))) return 0;
       const stored = await db.feedItems.where('feedId').equals(feed.id).toArray();
       const now = Date.now();
-      const fresh: FeedItem[] = diffItems(feed.id, parsed.items, new Set(stored.map((i) => i.id))).map((n) => ({ ...n, firstSeenAt: now, seenAt: null }));
+      const fresh: FeedItem[] = diffItems(feed.id, parsed.items, new Set(stored.map((i) => i.id)), WINDOW, linkBase).map((n) => ({ ...n, firstSeenAt: now, seenAt: null }));
       await db.feedItems.bulkAdd(fresh);
       await db.feedItems.bulkDelete(idsToPrune([...stored, ...fresh]));
-      await db.feeds.update(feed.id, { lastCheckedAt: now, lastError: undefined, siteUrl: parsed.siteUrl ?? feed.siteUrl });
+      await db.feeds.update(feed.id, { lastCheckedAt: now, lastError: undefined, siteUrl: parsed.siteUrl ?? feed.siteUrl, linkBase });
       return fresh.length;
     });
   } catch (e) {
@@ -116,14 +133,16 @@ export async function markAllSeen(): Promise<void> {
 
 /**
  * Adds a post to the queue. A post that is already an article (by address) isn't added twice.
- * `existed` says which happened.
+ * `existed` says which happened. The address is the feed's `linkBase` applied, also for posts
+ * stored before it was worked out, both to fetch and to compare with what's already queued.
  */
 export async function addFeedItem(item: FeedItem): Promise<{ articleId: string; existed: boolean }> {
   const fresh = await db.feedItems.get(item.id);
   if (fresh?.articleId) return { articleId: fresh.articleId, existed: true };
-  const key = urlKey(item.link);
+  const link = rebaseLink(item.link, (await db.feeds.get(item.feedId))?.linkBase);
+  const key = urlKey(link);
   const match = key ? await db.articles.filter((a) => !a.deletedAt && (urlKey(a.url) === key || urlKey(a.canonicalUrl) === key)).first() : undefined;
-  const articleId = match?.id ?? (await addUrl(item.link, item.title));
+  const articleId = match?.id ?? (await addUrl(link, item.title));
   await db.feedItems.update(item.id, { articleId });
   return { articleId, existed: !!match };
 }
