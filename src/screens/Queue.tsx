@@ -10,6 +10,7 @@ import { Icon } from '../ui/Icon';
 import { Snackbar } from '../ui/Snackbar';
 import { MiniPlayer } from './MiniPlayer';
 import { QueueRow } from './QueueRow';
+import { TabBar } from './TabBar';
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -29,8 +30,19 @@ export function markPlayedWithUndo(ids: string[]) {
   );
 }
 
+/** Up next, the home view. */
 export function Queue() {
+  return <QueueView view="queue" />;
+}
+
+/** The Archive tab: the same rows and actions, for what's been played. */
+export function Archive() {
+  return <QueueView view="archive" />;
+}
+
+function QueueView({ view }: { view: 'queue' | 'archive' }) {
   const { upNext, archive, settings, online } = useAppData();
+  const archived = view === 'archive';
   const player = usePlayer();
   const { newId } = useUi();
   const wide = useWide();
@@ -43,6 +55,7 @@ export function Queue() {
   const selecting = selected !== null;
   const byId = new Map([...upNext, ...archive].map((a) => [a.id, a]));
   const shownUpNext = preview ? preview.map((id) => byId.get(id)!).filter(Boolean) : upNext;
+  const inView = archived ? archive : upNext;
 
   // Share arrival: scroll the new row into view (DESIGN §6).
   useEffect(() => {
@@ -158,7 +171,7 @@ export function Queue() {
     );
   };
 
-  const empty = !upNext.length && !archive.length;
+  const empty = !inView.length;
   const chosen = [...(selected ?? [])].map((id) => byId.get(id)!).filter(Boolean);
   const done = () => setSelected(null);
   const ids = chosen.map((a) => a.id);
@@ -171,7 +184,7 @@ export function Queue() {
             <Icon name="close" />
           </button>
           <h1 aria-live="polite">{selected.size} selected</h1>
-          <button className="text-btn" onClick={() => setSelected(new Set([...upNext, ...archive].map((a) => a.id)))}>
+          <button className="text-btn" onClick={() => setSelected(new Set(inView.map((a) => a.id)))}>
             Select all
           </button>
         </div>
@@ -180,17 +193,19 @@ export function Queue() {
           {/* Buttons sit centered against the title and its summary line together. */}
           <div className="q-header-row">
             <div style={{ minWidth: 0 }}>
-              <h1 className="screen-title">Up next</h1>
-              {!empty && <p className="q-sub">{queueSummary(upNext, ctx)}</p>}
+              <h1 className="screen-title">{archived ? 'Archive' : 'Up next'}</h1>
+              {!empty && <p className="q-sub">{archived ? plural(archive.length, 'article') : queueSummary(upNext, ctx)}</p>}
             </div>
-            <div className="q-actions">
-              <button className="icon-btn" aria-label="Settings" onClick={openSettings}>
-                <Icon name="settings" />
-              </button>
-              <button className="icon-btn accent" aria-label="Add article" onClick={() => openSheet({ kind: 'add', tab: 'link' })}>
-                <Icon name="add" stroke={2} />
-              </button>
-            </div>
+            {!archived && (
+              <div className="q-actions">
+                <button className="icon-btn" aria-label="Settings" onClick={openSettings}>
+                  <Icon name="settings" />
+                </button>
+                <button className="icon-btn accent" aria-label="Add article" onClick={() => openSheet({ kind: 'add', tab: 'link' })}>
+                  <Icon name="add" stroke={2} />
+                </button>
+              </div>
+            )}
           </div>
         </header>
 
@@ -200,13 +215,21 @@ export function Queue() {
         <div className="offline-banner" role="status">
           <Icon name="cloud-off" size={18} /> Offline · ready articles still play
         </div>
-      ) : upNext.some((a) => isBusy(a)) ? (
+      ) : !archived && upNext.some((a) => isBusy(a)) ? (
         <div className="offline-banner" role="status">
           <Icon name="clock" size={18} /> Voices are busy right now. Your articles will finish later.
         </div>
       ) : null}
 
-      {empty ? (
+      {empty && archived ? (
+        <div className="empty">
+          <div className="empty-icon">
+            <Icon name="archive" size={36} />
+          </div>
+          <h2>Nothing in the archive</h2>
+          <p>Articles you’ve listened to land here.</p>
+        </div>
+      ) : empty ? (
         <div className="empty">
           <div className="empty-icon">
             <Icon name="share" size={36} />
@@ -218,18 +241,13 @@ export function Queue() {
           </button>
         </div>
       ) : (
-        <ul className="q-list" aria-label="Queue">
-          {shownUpNext.map((a) => row(a, false))}
-          {archive.length > 0 && (
-            <li className="q-section" aria-hidden="true">
-              Archive
-            </li>
-          )}
-          {archive.map((a) => row(a, true))}
+        <ul className="q-list" aria-label={archived ? 'Archive' : 'Queue'}>
+          {archived ? archive.map((a) => row(a, true)) : shownUpNext.map((a) => row(a, false))}
         </ul>
       )}
 
-      <div className="dock">
+      {/* The tab bar goes in the dock under the mini player, and gives way to the action bar while selecting. */}
+      <div className={selecting ? 'dock' : 'dock has-tabs'}>
         <Snackbar />
         {selecting ? (
           <div className="action-bar" role="toolbar" aria-label="Selected articles">
@@ -241,7 +259,7 @@ export function Queue() {
               <Icon name="move-top" />
               Move to top
             </button>
-            <button onClick={() => (markPlayedWithUndo(ids), done())}>
+            <button disabled={archived} onClick={() => (markPlayedWithUndo(ids), done())}>
               <Icon name="mark-played" />
               Mark played
             </button>
@@ -258,7 +276,10 @@ export function Queue() {
             </button>
           </div>
         ) : (
-          <MiniPlayer />
+          <>
+            <MiniPlayer />
+            <TabBar />
+          </>
         )}
       </div>
     </div>

@@ -6,7 +6,8 @@ import { useSyncExternalStore } from 'react';
 export type Sheet =
   | { kind: 'add'; tab: 'link' | 'text'; text?: string; title?: string; shared?: boolean; replaceId?: string }
   | { kind: 'speed' }
-  | { kind: 'explain'; id: string };
+  | { kind: 'explain'; id: string }
+  | { kind: 'subscribe' };
 
 export interface SnackAction {
   label: string;
@@ -24,7 +25,11 @@ export interface Snack {
 /** Settings is a menu with one level of pages under it. */
 export type SettingsPage = 'menu' | 'voice' | 'playback' | 'storage';
 
+/** The bottom tab bar. Up next is the home view; the app always opens on it. */
+export type Tab = 'subscriptions' | 'queue' | 'archive';
+
 interface UiState {
+  tab: Tab;
   settings: SettingsPage | null;
   nowPlaying: boolean;
   sheet: Sheet | null;
@@ -33,7 +38,7 @@ interface UiState {
   newId?: string;
 }
 
-let state: UiState = { settings: null, nowPlaying: false, sheet: null, snack: null };
+let state: UiState = { tab: 'queue', settings: null, nowPlaying: false, sheet: null, snack: null };
 const listeners = new Set<() => void>();
 
 function set(patch: Partial<UiState>) {
@@ -73,6 +78,17 @@ function push(patch: Partial<UiState>) {
   set(patch);
 }
 
+/**
+ * Switches the tab bar. Up next is the bottom of the history stack and the other two sit one entry
+ * above it, so Android's back from either returns to Up next, and switching between the two swaps in place.
+ */
+export function setTab(tab: Tab) {
+  if (tab === state.tab) return;
+  if (tab === 'queue') history.back();
+  else if (state.tab === 'queue') push({ tab });
+  else set({ tab });
+}
+
 export const openSettings = () => !state.settings && push({ settings: 'menu' });
 export const openSettingsPage = (page: Exclude<SettingsPage, 'menu'>) => push({ settings: page });
 /** Opens the Now Playing overlay. In the wide layout it's already on screen, so this does nothing. */
@@ -95,7 +111,7 @@ window.addEventListener('popstate', () => {
   else if (state.nowPlaying) set({ nowPlaying: false });
   // A settings page goes back to the menu; the menu goes back to the queue.
   else if (state.settings) set({ settings: state.settings === 'menu' ? null : 'menu' });
-
+  else if (state.tab !== 'queue') set({ tab: 'queue' });
 });
 
 // ---- Snackbar: one at a time, 6 s, a newer one replaces the older (DESIGN "Interactions") ----

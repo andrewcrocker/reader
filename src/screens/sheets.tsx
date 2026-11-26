@@ -4,6 +4,9 @@ import { back, openSheet, showSnack, type Sheet as SheetState } from '../app/ui'
 import { addText, addUrl, replaceWithText, retryArticle } from '../pipeline/runner';
 import { MAX_SPEED, MIN_SPEED, usePlayer } from '../player/PlayerProvider';
 import { fmtDuration, fmtSpeed, hasRealTitle, lengthSec, siteLabel, urlTitle } from '../queue/display';
+import { FeedError } from '../feeds/discover';
+import { subscribe } from '../feeds/store';
+import { ExtractError } from '../pipeline/extract';
 import { Art } from '../ui/Art';
 import { Icon, StatusGlyph } from '../ui/Icon';
 import { Sheet } from '../ui/Sheet';
@@ -297,6 +300,74 @@ export function ExplainSheet({ id }: { id: string }) {
           </button>
         </div>
       )}
+    </Sheet>
+  );
+}
+
+// ---------- Subscribe (SPEC §4 "Feed inbox") ----------
+
+export function SubscribeSheet() {
+  const { online } = useAppData();
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+
+  const save = async () => {
+    if (busy || !typed.trim()) return;
+    setBusy(true);
+    setError(undefined);
+    try {
+      const feed = await subscribe(typed);
+      back();
+      showSnack({ text: `Subscribed to ${feed.title}` });
+    } catch (e) {
+      setError(e instanceof FeedError || e instanceof ExtractError ? e.message : 'Couldn’t subscribe. Try again.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Sheet label="Subscribe to a blog">
+      <form
+        className="field"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+      >
+        <label htmlFor="feed-input">Blog address</label>
+        <div className="input-row">
+          <input
+            id="feed-input"
+            className="input"
+            type="text"
+            inputMode="url"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+            placeholder="https://"
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            autoComplete="off"
+          />
+          <button className="btn primary" type="submit" disabled={busy || !typed.trim() || !online}>
+            {busy ? 'Looking…' : 'Subscribe'}
+          </button>
+        </div>
+      </form>
+      {!online && (
+        <p className="status-note" role="status">
+          <Icon name="cloud-off" size={18} />
+          You’re offline. Try again when you’re back online.
+        </p>
+      )}
+      {error && (
+        <p className="status-note" role="alert">
+          <Icon name="warn" size={18} />
+          {error}
+        </p>
+      )}
+      <p className="hint">Paste a blog’s address, or its feed address. New posts show up in Subscriptions, and you pick which ones to add.</p>
     </Sheet>
   );
 }

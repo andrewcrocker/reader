@@ -112,6 +112,7 @@ a { color: var(--accent); }
 .icon-btn.filled { background: var(--fill); }
 .text-btn { height: 48px; padding: 0 14px; border: 0; background: transparent; color: var(--accent); font-weight: 600; font-size: 14px; border-radius: 24px; }
 .text-btn:disabled { color: var(--input-border); }
+.text-btn.danger { color: var(--error); }
 .btn {
   height: 52px; border: 0; border-radius: 26px; padding: 0 20px; font-weight: 600; font-size: 15.5px;
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
@@ -182,6 +183,19 @@ a { color: var(--accent); }
 .row-check { width: 22px; height: 22px; margin: 0 2px 0 0; flex: none; accent-color: var(--accent); }
 .drag-handle { width: 44px; height: 48px; flex: none; border: 0; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; padding: 0; cursor: grab; touch-action: none; }
 
+/* ---------- Subscriptions ---------- */
+.feed-body { flex: 1; border-top: 1px solid var(--line); }
+.feed-list { list-style: none; margin: 0; padding: 0; }
+.feed-none { margin: 0; padding: 24px 20px; font-size: 15px; color: var(--muted); }
+.feed-head { margin: 0; }
+.feed-row { align-items: center; padding-right: 8px; }
+.feed-row.unread .row-title { font-weight: 600; }
+.new-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--accent); }
+.feed-added { height: 48px; padding: 0 12px; flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; color: var(--muted); }
+.feed-sub { display: flex; align-items: center; gap: 14px; min-height: 64px; padding: 10px 8px 10px 20px; }
+.feed-sub .row-main { gap: 3px; }
+.feed-sub .row-meta > span.segs { white-space: normal; }
+
 /* ---------- Art ---------- */
 .art {
   flex: none; display: flex; align-items: center; justify-content: center; overflow: hidden;
@@ -213,6 +227,8 @@ a { color: var(--accent); }
 /* ---------- Bottom dock: snackbar + mini player / action bar ---------- */
 .dock { position: sticky; bottom: 0; z-index: 10; padding-bottom: env(safe-area-inset-bottom); pointer-events: none; }
 .dock > * { pointer-events: auto; }
+/* With the tab bar in the dock, the bar itself carries the safe-area inset so its background reaches the screen edge. */
+.dock.has-tabs { padding-bottom: 0; }
 .snackbar {
   margin: 8px 12px; padding: 6px 8px 6px 16px; min-height: 56px; border-radius: 14px; background: var(--toast-bg); color: var(--toast-fg);
   display: flex; align-items: center; gap: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
@@ -245,6 +261,24 @@ a { color: var(--accent); }
 }
 .action-bar button.danger { color: var(--error); }
 .action-bar button:disabled { color: var(--input-border); }
+
+/* ---------- Bottom tab bar: Subscriptions, Up next, Archive (DESIGN "Navigation") ---------- */
+.tabbar {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: var(--bg); border-top: 1px solid var(--line);
+  padding: 4px 8px calc(4px + env(safe-area-inset-bottom));
+}
+.tab {
+  min-height: 56px; border: 0; background: transparent; color: var(--muted); padding: 4px 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 12px; font-weight: 500;
+}
+.tab-ico { position: relative; width: 56px; height: 28px; border-radius: 14px; display: flex; align-items: center; justify-content: center; transition: background-color 150ms; }
+.tab-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The current tab is told apart by more than color: a filled pill behind the icon, a heavier label. */
+.tab[aria-current='page'] { color: var(--accent); font-weight: 600; }
+.tab[aria-current='page'] .tab-ico { background: var(--row-selected); }
+/* The one indicator (DESIGN principle 3): a small filled accent dot on Subscriptions. Never red, never a count. */
+.tab-dot { position: absolute; top: 1px; right: 12px; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--bg); }
+.tab[aria-current='page'] .tab-dot { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 10%, var(--bg)); }
 
 /* ---------- Now Playing ---------- */
 .np { position: fixed; inset: 0; z-index: 30; background: var(--bg); overflow-y: auto; display: flex; justify-content: center; animation: slide-up 250ms var(--ease); }

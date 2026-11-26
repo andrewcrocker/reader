@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { getSettings, updateSettings } from './db';
 import { AppDataProvider, useAppData } from './app/data';
 import { classifyShare, readHash, type Shared } from './app/share';
-import { openNowPlaying, openSheet, setNewId, showSnack, useUi, useWide } from './app/ui';
+import { getUi, openNowPlaying, openSheet, setNewId, showSnack, useUi, useWide } from './app/ui';
+import { markAllSeen, startFeedChecks } from './feeds/store';
 import { addUrl, kick, startRunner } from './pipeline/runner';
 import { acceptInvite, checkInvite } from './app/invite';
 import { InviteNeeded } from './screens/InviteNeeded';
@@ -10,9 +11,10 @@ import { moveToTop, purgeDeleted } from './queue/actions';
 import { PlayerProvider, usePlayer } from './player/PlayerProvider';
 import { FirstRun } from './screens/FirstRun';
 import { NowPlaying } from './screens/NowPlaying';
-import { Queue } from './screens/Queue';
+import { Archive, Queue } from './screens/Queue';
 import { Settings } from './screens/Settings';
-import { AddSheet, ExplainSheet, SpeedSheet } from './screens/sheets';
+import { AddSheet, ExplainSheet, SpeedSheet, SubscribeSheet } from './screens/sheets';
+import { Subscriptions } from './screens/Subscriptions';
 import { Spike } from './pages/Spike';
 
 export function App() {
@@ -58,6 +60,8 @@ function boot(): Promise<string | undefined> {
     // Rows left soft-deleted when the app closed mid-undo.
     await purgeDeleted();
     startRunner();
+    // Pull-only: looks for new posts now and each time the app comes back to the front (SPEC §4).
+    startFeedChecks();
     if (shared?.kind === 'text') openSheet({ kind: 'add', tab: 'text', text: shared.text, title: shared.title, shared: true });
     if (shared?.kind === 'link') return addUrl(shared.url, shared.title);
   })();
@@ -95,6 +99,21 @@ function Shell() {
     });
   }, [player.play]);
 
+  // New posts count as seen once the user leaves Subscriptions (or the app goes to the background
+  // while it's open). Marking them on arrival would clear the markers before they could be read.
+  const lastTab = useRef(ui.tab);
+  useEffect(() => {
+    if (lastTab.current === 'subscriptions' && ui.tab !== 'subscriptions') void markAllSeen();
+    lastTab.current = ui.tab;
+  }, [ui.tab]);
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === 'hidden' && getUi().tab === 'subscriptions') void markAllSeen();
+    };
+    document.addEventListener('visibilitychange', onHide);
+    return () => document.removeEventListener('visibilitychange', onHide);
+  }, []);
+
   if (!loaded) return <div className="app" />;
   // A just-opened invite counts until it's saved; after that, a 401 from the Worker shows the screen again.
   const fresh = !!launchInvite && launchInvite !== settings.proxySecret;
@@ -112,13 +131,16 @@ function Shell() {
       {sheet?.kind === 'add' && <AddSheet key={`${sheet.tab}${sheet.replaceId ?? ''}${sheet.text?.length ?? 0}`} sheet={sheet} />}
       {sheet?.kind === 'speed' && <SpeedSheet />}
       {sheet?.kind === 'explain' && <ExplainSheet id={sheet.id} />}
+      {sheet?.kind === 'subscribe' && <SubscribeSheet />}
     </>
   );
+  // Settings is its own screen; otherwise the tab bar picks the list. Up next is the home view.
+  const screen = ui.settings ? <Settings /> : ui.tab === 'subscriptions' ? <Subscriptions /> : ui.tab === 'archive' ? <Archive /> : <Queue />;
   if (wide) {
-    // Wide screens: the queue (or Settings) on the left, Now Playing always open on the right.
+    // Wide screens: the queue, Subscriptions, Archive or Settings on the left, Now Playing always open on the right.
     return (
       <div className="app wide">
-        <div className="pane-left">{ui.settings ? <Settings /> : <Queue />}</div>
+        <div className="pane-left">{screen}</div>
         <div className="pane-right">{player.current ? <NowPlaying embedded /> : <NothingPlaying />}</div>
         {sheets}
       </div>
@@ -126,7 +148,7 @@ function Shell() {
   }
   return (
     <div className="app">
-      {ui.settings ? <Settings /> : <Queue />}
+      {screen}
       {ui.nowPlaying && <NowPlaying />}
       {sheets}
     </div>
