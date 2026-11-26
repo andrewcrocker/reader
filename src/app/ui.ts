@@ -1,13 +1,12 @@
 import { useSyncExternalStore } from 'react';
 
 // App-wide UI state: which overlay is open and the one snackbar. Overlays push a history entry so
-// Android's back gesture closes the top one (sheet, then Now Playing, then Settings).
+// Android's back gesture closes the top one (sheet, then Now Playing, then Settings or Your subscriptions).
 
 export type Sheet =
   | { kind: 'add'; tab: 'link' | 'text'; text?: string; title?: string; shared?: boolean; replaceId?: string }
   | { kind: 'speed' }
-  | { kind: 'explain'; id: string }
-  | { kind: 'subscribe' };
+  | { kind: 'explain'; id: string };
 
 export interface SnackAction {
   label: string;
@@ -31,6 +30,8 @@ export type Tab = 'subscriptions' | 'queue' | 'archive';
 interface UiState {
   tab: Tab;
   settings: SettingsPage | null;
+  /** Your subscriptions: a full screen pushed from the Subscriptions header, like Settings from Up next. */
+  manage: boolean;
   nowPlaying: boolean;
   sheet: Sheet | null;
   snack: Snack | null;
@@ -38,7 +39,7 @@ interface UiState {
   newId?: string;
 }
 
-let state: UiState = { tab: 'queue', settings: null, nowPlaying: false, sheet: null, snack: null };
+let state: UiState = { tab: 'queue', settings: null, manage: false, nowPlaying: false, sheet: null, snack: null };
 const listeners = new Set<() => void>();
 
 function set(patch: Partial<UiState>) {
@@ -90,6 +91,7 @@ export function setTab(tab: Tab) {
 }
 
 export const openSettings = () => !state.settings && push({ settings: 'menu' });
+export const openManage = () => !state.manage && push({ manage: true });
 export const openSettingsPage = (page: Exclude<SettingsPage, 'menu'>) => push({ settings: page });
 /** Opens the Now Playing overlay. In the wide layout it's already on screen, so this does nothing. */
 export const openNowPlaying = () => !state.nowPlaying && !wideQuery.matches && push({ nowPlaying: true });
@@ -103,7 +105,7 @@ export function openSheet(sheet: Sheet) {
 
 /** Close the top overlay through history, so the back stack stays in step. */
 export function back() {
-  if (state.sheet || state.nowPlaying || state.settings) history.back();
+  if (state.sheet || state.nowPlaying || state.settings || state.manage) history.back();
 }
 
 window.addEventListener('popstate', () => {
@@ -111,6 +113,8 @@ window.addEventListener('popstate', () => {
   else if (state.nowPlaying) set({ nowPlaying: false });
   // A settings page goes back to the menu; the menu goes back to the queue.
   else if (state.settings) set({ settings: state.settings === 'menu' ? null : 'menu' });
+  // Your subscriptions goes back to the Subscriptions tab it was opened from.
+  else if (state.manage) set({ manage: false });
   else if (state.tab !== 'queue') set({ tab: 'queue' });
 });
 

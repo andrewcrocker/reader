@@ -10,7 +10,7 @@ type Name =
   | 'prev-sentence' | 'next-sentence' | 'auto-advance' | 'read-along' | 'link' | 'clipboard' | 'share'
   | 'cloud-off' | 'check' | 'arrow-up' | 'trash' | 'move-top' | 'mark-played' | 're-render' | 'retry' | 'drag'
   | 'minus' | 'plus' | 'shield' | 'warn' | 'download' | 'upload' | 'speaker' | 'more' | 'clock'
-  | 'rss' | 'queue' | 'archive';
+  | 'rss' | 'queue' | 'archive' | 'manage';
 
 const P: Record<Name, ReactNode> = {
   add: <path d="M12 5v14M5 12h14" />,
@@ -19,6 +19,15 @@ const P: Record<Name, ReactNode> = {
       <path d="M4 7h9M17 7h3M4 17h3M11 17h9" />
       <circle cx="15" cy="7" r="2" />
       <circle cx="9" cy="17" r="2" />
+    </>
+  ),
+  // A bulleted list: the blogs you follow, to manage. (Settings already has the sliders.)
+  manage: (
+    <>
+      <path d="M9 6.5h11M9 12h11M9 17.5h11" />
+      <circle cx="4.8" cy="6.5" r="1" fill="currentColor" />
+      <circle cx="4.8" cy="12" r="1" fill="currentColor" />
+      <circle cx="4.8" cy="17.5" r="1" fill="currentColor" />
     </>
   ),
   pause: (

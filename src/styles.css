@@ -187,14 +187,22 @@ a { color: var(--accent); }
 .feed-body { flex: 1; border-top: 1px solid var(--line); }
 .feed-list { list-style: none; margin: 0; padding: 0; }
 .feed-none { margin: 0; padding: 24px 20px; font-size: 15px; color: var(--muted); }
-.feed-head { margin: 0; }
 .feed-row { align-items: center; padding-right: 8px; }
 .feed-row.unread .row-title { font-weight: 600; }
 .new-tag { font-weight: inherit; }
 .feed-added { height: 48px; padding: 0 12px; flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; color: var(--muted); }
-.feed-sub { display: flex; align-items: center; gap: 14px; min-height: 64px; padding: 10px 8px 10px 20px; }
-.feed-sub .row-main { gap: 3px; }
-.feed-sub .row-meta > span.segs { white-space: normal; }
+/* One quiet line above the posts when a blog couldn't be checked; it opens Your subscriptions. */
+.feed-issue { width: 100%; min-height: 48px; padding: 0 20px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--muted); display: flex; align-items: center; gap: 8px; font-size: 13.5px; text-align: left; }
+.feed-issue .chev { margin-left: auto; }
+
+/* ---------- Your subscriptions ---------- */
+.manage-add { display: flex; flex-direction: column; gap: 12px; margin-top: 20px; }
+.manage-none { margin: 28px 0 0; font-size: 15px; line-height: 1.5; color: var(--muted); }
+.manage-list { list-style: none; margin: 28px 0 0; padding: 0; border-top: 1px solid var(--line); }
+.manage-row { display: flex; align-items: center; gap: 14px; min-height: 64px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.manage-row .row-main { gap: 3px; }
+.manage-row .row-meta > span.segs { white-space: normal; }
+.manage-row .text-btn { margin-right: -8px; }
 
 /* ---------- Art ---------- */
 .art {

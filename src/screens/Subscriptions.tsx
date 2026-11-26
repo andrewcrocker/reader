@@ -1,18 +1,18 @@
 import { useMemo, useState } from 'react';
 import type { Feed, FeedItem } from '../db';
 import { useAppData } from '../app/data';
-import { openSheet, showSnack } from '../app/ui';
+import { openManage, showSnack } from '../app/ui';
 import { recentIds } from '../feeds/diff';
 import { ago, shortDate } from '../feeds/format';
-import { addFeedItem, checkFeeds, removeFeed } from '../feeds/store';
+import { addFeedItem, checkFeeds } from '../feeds/store';
 import { Icon } from '../ui/Icon';
 import { Dock } from './TabBar';
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /**
- * The Subscriptions tab (SPEC §4 "Feed inbox"): new posts from the blogs you follow, and the list
- * of blogs. Nothing here is added to the queue until you tap Add.
+ * The Subscriptions tab (SPEC §4b): new posts from the blogs you follow. Subscribing, the list of
+ * blogs and removing one are on Your subscriptions (Manage). Nothing here is added to the queue until you tap Add.
  */
 export function Subscriptions() {
   const { feeds, feedItems, online } = useAppData();
@@ -21,6 +21,7 @@ export function Subscriptions() {
   const byFeed = new Map(feeds.map((f) => [f.id, f]));
   const recent = useMemo(() => recentIds(feedItems), [feedItems]);
   const lastChecked = Math.max(0, ...feeds.map((f) => f.lastCheckedAt ?? 0));
+  const failing = feeds.filter((f) => f.lastError).length;
 
   const checkNow = async () => {
     setChecking(true);
@@ -41,11 +42,6 @@ export function Subscriptions() {
     showSnack({ text: existed ? 'Already in your queue' : 'Saved to your queue' });
   };
 
-  const remove = async (feed: Feed) => {
-    const undo = await removeFeed(feed);
-    showSnack({ text: `Removed ${feed.title}`, actions: [{ label: 'Undo', run: undo }] });
-  };
-
   return (
     <div className="screen">
       <header className="q-header">
@@ -60,8 +56,8 @@ export function Subscriptions() {
                 <Icon name={online ? 'retry' : 'cloud-off'} />
               </button>
             )}
-            <button className="icon-btn accent" aria-label="Subscribe to a blog" onClick={() => openSheet({ kind: 'subscribe' })}>
-              <Icon name="add" stroke={2} />
+            <button className="icon-btn" aria-label="Manage subscriptions" onClick={openManage}>
+              <Icon name="manage" />
             </button>
           </div>
         </div>
@@ -73,13 +69,20 @@ export function Subscriptions() {
             <Icon name="rss" size={36} />
           </div>
           <h2>No subscriptions yet</h2>
-          <p>Paste a blog’s address to see its new posts here.</p>
-          <button className="text-btn" style={{ marginTop: 12 }} onClick={() => openSheet({ kind: 'subscribe' })}>
-            Subscribe to a blog
+          <p>New posts from the blogs you follow show up here.</p>
+          <button className="btn outline" style={{ marginTop: 20 }} onClick={openManage}>
+            Add a blog
           </button>
         </div>
       ) : (
         <div className="feed-body">
+          {failing > 0 && (
+            <button className="feed-issue" onClick={openManage}>
+              <Icon name="warn" size={16} className="glyph" />
+              {plural(failing, 'blog')} couldn’t be checked
+              <Icon name="chevron-right" size={18} className="chev" />
+            </button>
+          )}
           {feedItems.length > 0 ? (
             <ul className="feed-list" aria-label="Posts">
               {feedItems.map((item) => (
@@ -91,29 +94,6 @@ export function Subscriptions() {
           ) : (
             <p className="feed-none">No posts yet.</p>
           )}
-
-          <h2 className="q-section feed-head">Your subscriptions</h2>
-          <ul className="feed-list" aria-label="Your subscriptions">
-            {feeds.map((f) => (
-              <li key={f.id} className="feed-sub">
-                <div className="row-main">
-                  <p className="row-title">{f.title}</p>
-                  <p className="row-meta">
-                    <span className="segs">{f.siteUrl ? f.siteUrl.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '') : f.feedUrl.replace(/^https?:\/\/(www\.)?/, '')}</span>
-                  </p>
-                  {f.lastError && (
-                    <p className="row-meta">
-                      <Icon name="warn" size={16} className="glyph" />
-                      <span className="segs">Couldn’t check. {f.lastError}</span>
-                    </p>
-                  )}
-                </div>
-                <button className="text-btn danger" aria-label={`Remove ${f.title}`} onClick={() => void remove(f)}>
-                  Remove
-                </button>
-              </li>
-            ))}
-          </ul>
         </div>
       )}
 

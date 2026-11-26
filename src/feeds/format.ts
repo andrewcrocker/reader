@@ -20,3 +20,19 @@ export function ago(ts: number, now = Date.now()): string {
   if (h < 24) return `${h} h ago`;
   return `${Math.floor(h / 24)} d ago`;
 }
+
+/**
+ * The address shown under a blog's name: where its posts are read. That's the feed's `linkBase`
+ * if it has one (a blog that moved hosts), else its site, else the feed's own address. No `www.`.
+ */
+export function feedHost(feed: { feedUrl: string; siteUrl?: string; linkBase?: string | null }): string {
+  for (const url of [feed.linkBase, feed.siteUrl, feed.feedUrl]) {
+    if (!url) continue;
+    try {
+      return new URL(url).host.replace(/^www\./, '');
+    } catch {
+      /* not an address: try the next */
+    }
+  }
+  return feed.feedUrl;
+}

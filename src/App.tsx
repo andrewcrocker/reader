@@ -13,7 +13,8 @@ import { FirstRun } from './screens/FirstRun';
 import { NowPlaying } from './screens/NowPlaying';
 import { Archive, Queue } from './screens/Queue';
 import { Settings } from './screens/Settings';
-import { AddSheet, ExplainSheet, SpeedSheet, SubscribeSheet } from './screens/sheets';
+import { AddSheet, ExplainSheet, SpeedSheet } from './screens/sheets';
+import { Manage } from './screens/Manage';
 import { Subscriptions } from './screens/Subscriptions';
 import { Spike } from './pages/Spike';
 
@@ -131,13 +132,12 @@ function Shell() {
       {sheet?.kind === 'add' && <AddSheet key={`${sheet.tab}${sheet.replaceId ?? ''}${sheet.text?.length ?? 0}`} sheet={sheet} />}
       {sheet?.kind === 'speed' && <SpeedSheet />}
       {sheet?.kind === 'explain' && <ExplainSheet id={sheet.id} />}
-      {sheet?.kind === 'subscribe' && <SubscribeSheet />}
     </>
   );
-  // Settings is its own screen; otherwise the tab bar picks the list. Up next is the home view.
-  const screen = ui.settings ? <Settings /> : ui.tab === 'subscriptions' ? <Subscriptions /> : ui.tab === 'archive' ? <Archive /> : <Queue />;
+  // Settings and Your subscriptions are their own screens; otherwise the tab bar picks the list. Up next is the home view.
+  const screen = ui.settings ? <Settings /> : ui.manage ? <Manage /> : ui.tab === 'subscriptions' ? <Subscriptions /> : ui.tab === 'archive' ? <Archive /> : <Queue />;
   if (wide) {
-    // Wide screens: the queue, Subscriptions, Archive or Settings on the left, Now Playing always open on the right.
+    // Wide screens: the queue, Subscriptions, Archive, Settings or Your subscriptions on the left, Now Playing always open on the right.
     return (
       <div className="app wide">
         <div className="pane-left">{screen}</div>

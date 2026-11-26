@@ -177,7 +177,7 @@ The Partial explainer sheet opens the Add sheet on Text, prefilled with the arti
 
 A way to find articles, not a way to save them. It follows the same rules as the rest of the app: everything stays on the device, nothing is added or rendered by itself, and nothing pushes.
 
-**Subscribe.** The user pastes a site address or a feed address into the Subscribe sheet. Discovery goes through the Worker's `/fetch`, which already passes RSS, Atom and other XML through unchanged:
+**Subscribe.** The user pastes a site address or a feed address into the field at the top of **Your subscriptions** (see Manage below). Discovery goes through the Worker's `/fetch`, which already passes RSS, Atom and other XML through unchanged:
 
 1. Fetch the address. If it's RSS 2.0, RSS 1.0 or Atom, that's the feed.
 2. If it's HTML, take the page's `<link rel="alternate" type="application/rss+xml">` (or `atom+xml`) addresses, resolved against the page's address, first three in page order.
@@ -185,6 +185,8 @@ A way to find articles, not a way to save them. It follows the same rules as the
 4. If none of those is a feed: "Couldn't find a feed at that address."
 
 The feed is stored under the address it ended up at, so `http://` and `https://` don't make two subscriptions. The latest 20 posts are stored and marked seen, so subscribing doesn't light the new-post dot.
+
+**Manage.** The Subscriptions header has a quiet **Manage** button (a list icon, `aria-label` "Manage subscriptions") next to Check now. It pushes **Your subscriptions**, a full screen like Settings: same back arrow, one history entry, and the same back-gesture behavior (back returns to the inbox). It holds everything about the blogs themselves: the Subscribe field (a text input, so a bare domain works; the validation, errors, loading state and wording above), and one row per blog, newest first, with its title, its host for display (`feedHost()` in `feeds/format.ts`: the feed's `linkBase` host if set, else `siteUrl`, else the feed address; without `www.`), "Checked … ago", any `lastError` ("Couldn't check. …"), and **Remove** with an Undo snackbar. After a successful subscribe the field clears, the blog appears in the list, and a snackbar says "Subscribed to …". The inbox itself shows only posts, plus one muted line "N blog(s) couldn't be checked" that opens Manage when any feed has a `lastError`. With no subscriptions the inbox shows a short line and an "Add a blog" button that opens Manage.
 
 **Check (pull).** `checkFeeds()` runs on launch and whenever the app becomes visible. A feed checked in the last 30 minutes is skipped; "Check now" in Subscriptions ignores that. It does nothing offline or without an invite. For each feed it fetches and parses, and stores only posts not stored yet, as unseen. Only a feed's newest 20 posts are ever considered, so a long feed doesn't flood the inbox on its first check, and stored posts are trimmed to the newest 40 per feed. A feed that fails records a one-line `lastError` (cleared by the next good check) and its check time, so it isn't retried on every launch. There are no banners, and nothing is retried in the background.
 

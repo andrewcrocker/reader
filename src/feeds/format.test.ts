@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ago, shortDate } from './format';
+import { ago, feedHost, shortDate } from './format';
 
 describe('ago', () => {
   const now = Date.UTC(2026, 10, 26, 12);
@@ -26,5 +26,25 @@ describe('shortDate', () => {
   it('adds the year only when it is not this year', () => {
     expect(shortDate(Date.UTC(2026, 9, 31), now)).not.toMatch(/2026/);
     expect(shortDate(Date.UTC(2025, 9, 31), now)).toMatch(/2025/);
+  });
+});
+
+describe('feedHost', () => {
+  it('prefers the host the posts are rebased onto, so a moved blog shows where it is read', () => {
+    expect(feedHost({ feedUrl: 'https://vitalik.eth.limo/feed.xml', siteUrl: 'https://vitalik.ca/', linkBase: 'https://vitalik.eth.limo' })).toBe('vitalik.eth.limo');
+  });
+
+  it('falls back to the site, then to the feed address', () => {
+    expect(feedHost({ feedUrl: 'https://example.com/feed.xml', siteUrl: 'https://blog.example.com/', linkBase: null })).toBe('blog.example.com');
+    expect(feedHost({ feedUrl: 'https://example.com/feed.xml', siteUrl: 'https://blog.example.com/' })).toBe('blog.example.com');
+    expect(feedHost({ feedUrl: 'https://example.com/feed.xml' })).toBe('example.com');
+  });
+
+  it('drops www. and the path', () => {
+    expect(feedHost({ feedUrl: 'https://www.example.com/a/b/feed.xml', siteUrl: 'https://www.example.com/a/b/' })).toBe('example.com');
+  });
+
+  it('skips an address that does not parse', () => {
+    expect(feedHost({ feedUrl: 'https://example.com/feed.xml', siteUrl: 'not a url' })).toBe('example.com');
   });
 });
