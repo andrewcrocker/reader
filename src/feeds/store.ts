@@ -1,0 +1,144 @@
+import { db, getSettings, type Feed, type FeedItem, type Settings } from '../db';
+import { ExtractError, fetchHtml } from '../pipeline/extract';
+import { addUrl } from '../pipeline/runner';
+import { discoverFeed, FeedError, type FetchText } from './discover';
+import { diffItems, idsToPrune, isDue, urlKey } from './diff';
+import { parseFeed } from './parse';
+
+// Subscriptions on the device (SPEC §4 "Feed inbox"). Pull only: feeds are read when the app
+// opens, when it comes back to the front, and when asked. Nothing is added to the queue by itself.
+
+const fetcher =
+  (settings: Settings): FetchText =>
+  async (url) => {
+    const r = await fetchHtml(url, settings);
+    return { text: r.html, finalUrl: r.finalUrl };
+  };
+
+/** One line for the user: our own errors say what's wrong; anything else gets a general line. */
+const reason = (e: unknown) => (e instanceof FeedError || e instanceof ExtractError ? e.message : 'Couldn’t read the feed.');
+
+/** Subscribes to what a person pasted (a site or a feed address). The posts already there are kept as seen. */
+export async function subscribe(input: string): Promise<Feed> {
+  const settings = await getSettings();
+  const { feedUrl, feed: parsed } = await discoverFeed(input, fetcher(settings));
+  if (await db.feeds.where('feedUrl').equals(feedUrl).first()) throw new FeedError('You’re already subscribed to that.');
+
+  const now = Date.now();
+  const feed: Feed = {
+    id: crypto.randomUUID(),
+    feedUrl,
+    siteUrl: parsed.siteUrl,
+    title: parsed.title || new URL(feedUrl).hostname.replace(/^www\./, ''),
+    addedAt: now,
+    lastCheckedAt: now,
+  };
+  // The latest posts are kept, already seen, so subscribing doesn't light the dot.
+  const items: FeedItem[] = diffItems(feed.id, parsed.items, new Set()).map((n) => ({ ...n, firstSeenAt: now, seenAt: now }));
+  await db.transaction('rw', db.feeds, db.feedItems, async () => {
+    await db.feeds.add(feed);
+    await db.feedItems.bulkAdd(items);
+  });
+  return feed;
+}
+
+export interface CheckResult {
+  checked: number;
+  added: number;
+  failed: number;
+}
+
+const NONE: CheckResult = { checked: 0, added: 0, failed: 0 };
+let running: Promise<CheckResult> | null = null;
+
+/**
+ * Looks for new posts. Feeds checked in the last 30 minutes are skipped unless `force`. Only posts
+ * not stored yet are added, unseen. A feed that fails just records why, per feed, with no banner.
+ */
+export function checkFeeds({ force = false }: { force?: boolean } = {}): Promise<CheckResult> {
+  // A check already under way covers this call too (launch and "back in front" can land together).
+  running ??= run(force).catch(() => NONE).finally(() => (running = null));
+  return running;
+}
+
+async function run(force: boolean): Promise<CheckResult> {
+  // Offline or not set up isn't the feed's fault, so nothing is recorded.
+  if (!navigator.onLine) return NONE;
+  const settings = await getSettings();
+  if (!settings.proxySecret || settings.inviteRejected) return NONE;
+
+  const now = Date.now();
+  const due = (await db.feeds.toArray()).filter((f) => force || isDue(f, now));
+  const results = await Promise.all(due.map((f) => checkOne(f, settings)));
+  return results.reduce((sum, r) => ({ checked: sum.checked + 1, added: sum.added + (r ?? 0), failed: sum.failed + (r === null ? 1 : 0) }), NONE);
+}
+
+/** How many posts were added, or null if the feed couldn't be read. */
+async function checkOne(feed: Feed, settings: Settings): Promise<number | null> {
+  try {
+    const page = await fetcher(settings)(feed.feedUrl);
+    const parsed = parseFeed(page.text, page.finalUrl);
+    if (!parsed) throw new FeedError('That address no longer gives a feed.');
+    return await db.transaction('rw', db.feeds, db.feedItems, async () => {
+      // Removed while the request was out: don't bring its posts back.
+      if (!(await db.feeds.get(feed.id))) return 0;
+      const stored = await db.feedItems.where('feedId').equals(feed.id).toArray();
+      const now = Date.now();
+      const fresh: FeedItem[] = diffItems(feed.id, parsed.items, new Set(stored.map((i) => i.id))).map((n) => ({ ...n, firstSeenAt: now, seenAt: null }));
+      await db.feedItems.bulkAdd(fresh);
+      await db.feedItems.bulkDelete(idsToPrune([...stored, ...fresh]));
+      await db.feeds.update(feed.id, { lastCheckedAt: now, lastError: undefined, siteUrl: parsed.siteUrl ?? feed.siteUrl });
+      return fresh.length;
+    });
+  } catch (e) {
+    await db.feeds.update(feed.id, { lastCheckedAt: Date.now(), lastError: reason(e) });
+    return null;
+  }
+}
+
+let started = false;
+
+/** Checks now, then again each time the app comes back to the front. */
+export function startFeedChecks(): void {
+  if (started) return;
+  started = true;
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void checkFeeds();
+  });
+  void checkFeeds();
+}
+
+/** Marks every post as seen, which clears the dot. */
+export async function markAllSeen(): Promise<void> {
+  const now = Date.now();
+  await db.feedItems.filter((i) => i.seenAt === null).modify({ seenAt: now });
+}
+
+/**
+ * Adds a post to the queue. A post that is already an article (by address) isn't added twice.
+ * `existed` says which happened.
+ */
+export async function addFeedItem(item: FeedItem): Promise<{ articleId: string; existed: boolean }> {
+  const fresh = await db.feedItems.get(item.id);
+  if (fresh?.articleId) return { articleId: fresh.articleId, existed: true };
+  const key = urlKey(item.link);
+  const match = key ? await db.articles.filter((a) => !a.deletedAt && (urlKey(a.url) === key || urlKey(a.canonicalUrl) === key)).first() : undefined;
+  const articleId = match?.id ?? (await addUrl(item.link, item.title));
+  await db.feedItems.update(item.id, { articleId });
+  return { articleId, existed: !!match };
+}
+
+/** Removes a subscription and its posts. Articles already added stay. Returns the undo. */
+export async function removeFeed(feed: Feed): Promise<() => Promise<void>> {
+  const items = await db.feedItems.where('feedId').equals(feed.id).toArray();
+  await db.transaction('rw', db.feeds, db.feedItems, async () => {
+    await db.feedItems.where('feedId').equals(feed.id).delete();
+    await db.feeds.delete(feed.id);
+  });
+  return async () => {
+    await db.transaction('rw', db.feeds, db.feedItems, async () => {
+      await db.feeds.put(feed);
+      await db.feedItems.bulkPut(items);
+    });
+  };
+}

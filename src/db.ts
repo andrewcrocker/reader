@@ -102,6 +102,35 @@ export interface ArtRow {
   color?: string;
 }
 
+/** A blog the user subscribes to (SPEC §4 "Feed inbox"). Lives on the device like everything else. */
+export interface Feed {
+  id: string;
+  /** The RSS/Atom address we fetch. */
+  feedUrl: string;
+  /** The blog's home page, if the feed says. */
+  siteUrl?: string;
+  title: string;
+  addedAt: number;
+  /** Set after every attempt, good or bad, so a broken feed isn't retried on every launch. */
+  lastCheckedAt?: number;
+  /** One-line reason the last check failed; cleared by the next good one. */
+  lastError?: string;
+}
+
+/** One post from a feed. `id` is a stable hash of the feed id and the post's guid or link. */
+export interface FeedItem {
+  id: string;
+  feedId: string;
+  link: string;
+  title: string;
+  publishedAt?: number;
+  firstSeenAt: number;
+  /** null until the user has looked at it: that is what lights the dot on the Subscriptions tab. */
+  seenAt: number | null;
+  /** The queue article made from this post, once the user added it. */
+  articleId?: string;
+}
+
 export type EnginePref = 'auto' | 'webgpu' | 'wasm';
 export type VoiceQuality = 'high' | 'standard';
 export type EngineKind = 'server' | 'device';
@@ -161,6 +190,8 @@ class ReaderDb extends Dexie {
   audio!: Table<AudioBlobRow, string>;
   art!: Table<ArtRow, string>;
   settings!: Table<Settings, string>;
+  feeds!: Table<Feed, string>;
+  feedItems!: Table<FeedItem, string>;
 
   constructor() {
     super('reader');
@@ -216,6 +247,11 @@ class ReaderDb extends Dexie {
       await tx.table('settings').toCollection().modify((s: Record<string, unknown>) => {
         s.engineKind = 'server';
       });
+    });
+    // The Subscriptions inbox. `seenAt` is null for unseen posts, which IndexedDB can't index, so unseen is found in memory.
+    this.version(5).stores({
+      feeds: 'id, feedUrl',
+      feedItems: 'id, feedId',
     });
   }
 }
