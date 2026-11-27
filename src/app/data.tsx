@@ -10,7 +10,7 @@ interface AppData {
   articles: Article[];
   /** Up next in queue order (not archived or deleted). */
   upNext: Article[];
-  /** The Archive view, most recently played first. */
+  /** Archive section, most recently played first. */
   archive: Article[];
   feeds: Feed[];
   /** Posts from every feed, newest first. */

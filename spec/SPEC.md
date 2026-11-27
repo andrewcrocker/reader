@@ -369,7 +369,7 @@ interface Article {
   voice?: string;
   positionSec: number;        // resume point
   playedAt?: number;          // finished listening
-  archivedAt?: number;        // in the Archive view
+  archivedAt?: number;        // in the Archive section
   deletedAt?: number;         // soft delete; purge after the undo window
   queueOrder: number;         // fractional index for cheap reordering
 }
@@ -422,7 +422,7 @@ The queue row state in DESIGN.md comes from these fields. First match wins.
 | Display state | Condition |
 |---|---|
 | Deleted (hidden) | `deletedAt` set |
-| Archive view | `archivedAt` set |
+| Archive section | `archivedAt` set |
 | Waiting for connection | `status = "waiting"`, or `"fetching"` while offline |
 | Fetching | `status = "fetching"` |
 | Failed | `status = "failed"` |
@@ -438,11 +438,11 @@ The queue row state in DESIGN.md comes from these fields. First match wins.
 
 ## 10. Queue & CRUD
 
-- **Queue screen** (home): Up next in `queueOrder`. Archived rows are on the **Archive** tab, with the same rows and actions. A bottom tab bar switches between Subscriptions, Up next and Archive (DESIGN.md "Navigation"). The tab isn't saved: the app opens on Up next. Row anatomy and states are in DESIGN.md.
+- **Queue screen** (home): Up next in `queueOrder`, then an **Archive** section. A bottom tab bar switches between Subscriptions and Up next (DESIGN.md "Navigation"). The tab isn't saved: the app opens on Up next. Row anatomy and states are in DESIGN.md.
 - **Gestures:** tap plays immediately; swipe left deletes (undo); swipe right marks played and archives (undo); long-press enters multi-select.
 - **Reorder:** drag handles, shown in multi-select mode.
 - **Multi-select actions:** delete, move to top, mark played, re-render (e.g. after changing voice), retry extraction.
-- **Clear:** "Clear all" in Settings, with confirm. "Clear archive" isn't designed yet; an action on the Archive tab's header is the natural place.
+- **Clear:** "Clear all" in Settings, with confirm. "Clear archive" isn't designed yet; an action on the Archive section header is the natural place.
 - **Storage:** Settings shows total size split into audio, voice model, and art, plus "Delete audio for archived articles" (keeps text; re-renders on replay).
 
 ---

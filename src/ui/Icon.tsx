@@ -10,7 +10,7 @@ type Name =
   | 'prev-sentence' | 'next-sentence' | 'auto-advance' | 'read-along' | 'link' | 'clipboard' | 'share'
   | 'cloud-off' | 'check' | 'arrow-up' | 'trash' | 'move-top' | 'mark-played' | 're-render' | 'retry' | 'drag'
   | 'minus' | 'plus' | 'shield' | 'warn' | 'download' | 'upload' | 'speaker' | 'more' | 'clock'
-  | 'rss' | 'queue' | 'archive' | 'manage';
+  | 'rss' | 'queue' | 'manage';
 
 const P: Record<Name, ReactNode> = {
   add: <path d="M12 5v14M5 12h14" />,
@@ -149,7 +149,7 @@ const P: Record<Name, ReactNode> = {
     </>
   ),
   upload: <path d="M12 16V5M7 10l5-5 5 5M5 20h14" />,
-  // Bottom tab bar: a feed (dot and two arcs), a list with a play mark (Up next), a box with a slot (Archive).
+  // Bottom tab bar: a feed (dot and two arcs), a list with a play mark (Up next).
   rss: (
     <>
       <circle cx="6.5" cy="17.5" r="1.4" fill="currentColor" />
@@ -160,12 +160,6 @@ const P: Record<Name, ReactNode> = {
     <>
       <path d="M4 6h12M4 11h12M4 16h7" />
       <path d="M15 14l5 3-5 3z" fill="currentColor" />
-    </>
-  ),
-  archive: (
-    <>
-      <path d="M4 5h16v4H4z" />
-      <path d="M5.5 9v9a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V9M10 13h4" />
     </>
   ),
   speaker: (

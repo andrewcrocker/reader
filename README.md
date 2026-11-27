@@ -179,7 +179,7 @@ How it was set up the first time:
 | Chunked render with per-chunk persistence, then concatenate + MP3 encode + timings | [src/pipeline/render.ts](src/pipeline/render.ts), [src/audio/](src/audio) |
 | Pipeline loops: fetch and render side by side, resume on launch / `online` / return to the app | [src/pipeline/runner.ts](src/pipeline/runner.ts) |
 | Player: one `<audio>`, streaming while rendering, speed, skip, sentence nav, auto-advance, Media Session, article tint | [src/player/](src/player) |
-| Screens: Queue, Archive, Subscriptions, tab bar, Now Playing, read-along, sheets, Settings, First run, invite screen | [src/screens/](src/screens) |
+| Screens: Queue, Subscriptions, tab bar, Now Playing, read-along, sheets, Settings, First run, invite screen | [src/screens/](src/screens) |
 | Subscriptions (§4b): feed parsing and discovery, new-post diffing, checks | [src/feeds/](src/feeds) |
 | UI state on the history stack (Android back), snackbar, share target, invites, app updates | [src/app/](src/app) |
 | On-device TTS benchmark | [src/pages/Spike.tsx](src/pages/Spike.tsx) |

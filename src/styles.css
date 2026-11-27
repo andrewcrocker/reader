@@ -270,9 +270,9 @@ a { color: var(--accent); }
 .action-bar button.danger { color: var(--error); }
 .action-bar button:disabled { color: var(--input-border); }
 
-/* ---------- Bottom tab bar: Subscriptions, Up next, Archive (DESIGN "Navigation") ---------- */
+/* ---------- Bottom tab bar: Subscriptions, Up next (DESIGN "Navigation") ---------- */
 .tabbar {
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: var(--bg); border-top: 1px solid var(--line);
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); background: var(--bg); border-top: 1px solid var(--line);
   padding: 4px 8px calc(4px + env(safe-area-inset-bottom));
 }
 .tab {

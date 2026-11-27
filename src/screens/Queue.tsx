@@ -30,19 +30,8 @@ export function markPlayedWithUndo(ids: string[]) {
   );
 }
 
-/** Up next, the home view. */
 export function Queue() {
-  return <QueueView view="queue" />;
-}
-
-/** The Archive tab: the same rows and actions, for what's been played. */
-export function Archive() {
-  return <QueueView view="archive" />;
-}
-
-function QueueView({ view }: { view: 'queue' | 'archive' }) {
   const { upNext, archive, settings, online } = useAppData();
-  const archived = view === 'archive';
   const player = usePlayer();
   const { newId } = useUi();
   const wide = useWide();
@@ -55,7 +44,6 @@ function QueueView({ view }: { view: 'queue' | 'archive' }) {
   const selecting = selected !== null;
   const byId = new Map([...upNext, ...archive].map((a) => [a.id, a]));
   const shownUpNext = preview ? preview.map((id) => byId.get(id)!).filter(Boolean) : upNext;
-  const inView = archived ? archive : upNext;
 
   // Share arrival: scroll the new row into view (DESIGN §6).
   useEffect(() => {
@@ -171,7 +159,7 @@ function QueueView({ view }: { view: 'queue' | 'archive' }) {
     );
   };
 
-  const empty = !inView.length;
+  const empty = !upNext.length && !archive.length;
   const chosen = [...(selected ?? [])].map((id) => byId.get(id)!).filter(Boolean);
   const done = () => setSelected(null);
   const ids = chosen.map((a) => a.id);
@@ -184,7 +172,7 @@ function QueueView({ view }: { view: 'queue' | 'archive' }) {
             <Icon name="close" />
           </button>
           <h1 aria-live="polite">{selected.size} selected</h1>
-          <button className="text-btn" onClick={() => setSelected(new Set(inView.map((a) => a.id)))}>
+          <button className="text-btn" onClick={() => setSelected(new Set([...upNext, ...archive].map((a) => a.id)))}>
             Select all
           </button>
         </div>
@@ -193,19 +181,17 @@ function QueueView({ view }: { view: 'queue' | 'archive' }) {
           {/* Buttons sit centered against the title and its summary line together. */}
           <div className="q-header-row">
             <div style={{ minWidth: 0 }}>
-              <h1 className="screen-title">{archived ? 'Archive' : 'Up next'}</h1>
-              {!empty && <p className="q-sub">{archived ? plural(archive.length, 'article') : queueSummary(upNext, ctx)}</p>}
+              <h1 className="screen-title">Up next</h1>
+              {!empty && <p className="q-sub">{queueSummary(upNext, ctx)}</p>}
             </div>
-            {!archived && (
-              <div className="q-actions">
-                <button className="icon-btn" aria-label="Settings" onClick={openSettings}>
-                  <Icon name="settings" />
-                </button>
-                <button className="icon-btn accent" aria-label="Add article" onClick={() => openSheet({ kind: 'add', tab: 'link' })}>
-                  <Icon name="add" stroke={2} />
-                </button>
-              </div>
-            )}
+            <div className="q-actions">
+              <button className="icon-btn" aria-label="Settings" onClick={openSettings}>
+                <Icon name="settings" />
+              </button>
+              <button className="icon-btn accent" aria-label="Add article" onClick={() => openSheet({ kind: 'add', tab: 'link' })}>
+                <Icon name="add" stroke={2} />
+              </button>
+            </div>
           </div>
         </header>
 
@@ -215,21 +201,13 @@ function QueueView({ view }: { view: 'queue' | 'archive' }) {
         <div className="offline-banner" role="status">
           <Icon name="cloud-off" size={18} /> Offline · ready articles still play
         </div>
-      ) : !archived && upNext.some((a) => isBusy(a)) ? (
+      ) : upNext.some((a) => isBusy(a)) ? (
         <div className="offline-banner" role="status">
           <Icon name="clock" size={18} /> Voices are busy right now. Your articles will finish later.
         </div>
       ) : null}
 
-      {empty && archived ? (
-        <div className="empty">
-          <div className="empty-icon">
-            <Icon name="archive" size={36} />
-          </div>
-          <h2>Nothing in the archive</h2>
-          <p>Articles you’ve listened to land here.</p>
-        </div>
-      ) : empty ? (
+      {empty ? (
         <div className="empty">
           <div className="empty-icon">
             <Icon name="share" size={36} />
@@ -241,8 +219,14 @@ function QueueView({ view }: { view: 'queue' | 'archive' }) {
           </button>
         </div>
       ) : (
-        <ul className="q-list" aria-label={archived ? 'Archive' : 'Queue'}>
-          {archived ? archive.map((a) => row(a, true)) : shownUpNext.map((a) => row(a, false))}
+        <ul className="q-list" aria-label="Queue">
+          {shownUpNext.map((a) => row(a, false))}
+          {archive.length > 0 && (
+            <li className="q-section" aria-hidden="true">
+              Archive
+            </li>
+          )}
+          {archive.map((a) => row(a, true))}
         </ul>
       )}
 
@@ -259,7 +243,7 @@ function QueueView({ view }: { view: 'queue' | 'archive' }) {
               <Icon name="move-top" />
               Move to top
             </button>
-            <button disabled={archived} onClick={() => (markPlayedWithUndo(ids), done())}>
+            <button onClick={() => (markPlayedWithUndo(ids), done())}>
               <Icon name="mark-played" />
               Mark played
             </button>

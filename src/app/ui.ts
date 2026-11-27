@@ -25,7 +25,7 @@ export interface Snack {
 export type SettingsPage = 'menu' | 'voice' | 'playback' | 'storage';
 
 /** The bottom tab bar. Up next is the home view; the app always opens on it. */
-export type Tab = 'subscriptions' | 'queue' | 'archive';
+export type Tab = 'subscriptions' | 'queue';
 
 interface UiState {
   tab: Tab;
@@ -80,14 +80,13 @@ function push(patch: Partial<UiState>) {
 }
 
 /**
- * Switches the tab bar. Up next is the bottom of the history stack and the other two sit one entry
- * above it, so Android's back from either returns to Up next, and switching between the two swaps in place.
+ * Switches the tab bar. Up next is the bottom of the history stack and Subscriptions sits one entry
+ * above it, so Android's back from Subscriptions returns to Up next.
  */
 export function setTab(tab: Tab) {
   if (tab === state.tab) return;
   if (tab === 'queue') history.back();
-  else if (state.tab === 'queue') push({ tab });
-  else set({ tab });
+  else push({ tab });
 }
 
 export const openSettings = () => !state.settings && push({ settings: 'menu' });
