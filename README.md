@@ -126,6 +126,12 @@ How it was set up the first time:
    npx wrangler secret put DEEPINFRA_API_KEY --config worker/wrangler.toml
    ```
 
+   Create the bucket for shared reading lists (no expiry; [spec/SHARING.md](spec/SHARING.md)). Without it, publishing a list fails:
+
+   ```bash
+   npx wrangler r2 bucket create reader-lists
+   ```
+
    Create the audio bucket and its 7-day expiry for jobs nobody collected:
 
    ```bash
@@ -173,13 +179,15 @@ How it was set up the first time:
 | Render Workflow (one step per chunk) and the budget counter (Durable Object) | [worker/src/jobs.ts](worker/src/jobs.ts) |
 | App side of server voices: send once, collect chunks, build the file | [src/tts/server.ts](src/tts/server.ts), [src/pipeline/serverRender.ts](src/pipeline/serverRender.ts) |
 | Dexie schema, settings | [src/db.ts](src/db.ts) |
+| Shared reading lists: which stars go in, the card drawn on a canvas, publishing | [src/share/](src/share), [src/screens/ShareSheet.tsx](src/screens/ShareSheet.tsx) |
+| Shared lists on the Worker: `POST /lists`, the public `/l/:id` page and card | [worker/src/lists.ts](worker/src/lists.ts) |
 | Readability extraction via the proxy | [src/pipeline/extract.ts](src/pipeline/extract.ts) |
 | Text prep (§6.1): cleanup, intro, normalization, sentence split, chunking | [src/pipeline/textprep.ts](src/pipeline/textprep.ts) |
 | Kokoro in a Web Worker, WebGPU→WASM fallback with output sanity check | [src/tts/kokoro.worker.ts](src/tts/kokoro.worker.ts), [src/tts/engine.ts](src/tts/engine.ts) |
 | Chunked render with per-chunk persistence, then concatenate + MP3 encode + timings | [src/pipeline/render.ts](src/pipeline/render.ts), [src/audio/](src/audio) |
 | Pipeline loops: fetch and render side by side, resume on launch / `online` / return to the app | [src/pipeline/runner.ts](src/pipeline/runner.ts) |
 | Player: one `<audio>`, streaming while rendering, speed, skip, sentence nav, auto-advance, Media Session, article tint | [src/player/](src/player) |
-| Screens: Queue, Archive, Subscriptions, tab bar, Now Playing, read-along, sheets, Settings, First run, invite screen | [src/screens/](src/screens) |
+| Screens: Queue, Saved, Subscriptions, tab bar, Now Playing, read-along, sheets, Settings, First run, invite screen | [src/screens/](src/screens) |
 | Subscriptions (§4b): feed parsing and discovery, new-post diffing, checks | [src/feeds/](src/feeds) |
 | UI state on the history stack (Android back), snackbar, share target, invites, app updates | [src/app/](src/app) |
 | On-device TTS benchmark | [src/pages/Spike.tsx](src/pages/Spike.tsx) |

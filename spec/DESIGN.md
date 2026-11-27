@@ -18,7 +18,8 @@ Read these first if you've seen the brief.
 | Tap row | Play, or open a preview | **Plays immediately** (or resumes) |
 | Swipe right | Move to top, or mark played | **Mark played**, which moves the row to Archive |
 | Finished articles | Disappear, dim, or Archive | **Move to Archive** (its own tab on the bottom tab bar). Settings keeps "delete instead" as an option |
-| Navigation | Queue as the only hub | **Bottom tab bar:** Subscriptions, Up next, Archive. Up next is home |
+| Navigation | Queue as the only hub | **Bottom tab bar:** Subscriptions, Up next, Saved. Up next is home |
+| Favorites and sharing | Not covered | **Star** an article to keep it (apart from Archive, which only means done). **Saved** (the old Archive tab) lists starred articles first, then the archive. A **Share** button there publishes a list as a link with a preview image (see SHARING.md) |
 | Finding new articles | A feed inbox, not designed yet | **Subscriptions:** pull only. You paste a blog's address on **Your subscriptions** (Manage, from the Subscriptions header), new posts wait in the Subscriptions tab, and nothing joins the queue until you tap Add |
 | Shared text | Not covered | Text (not a URL) shared from another app opens the **Add sheet on the Text tab**, prefilled |
 | Up-next peek | Peek or swipe | **Peek** of the next article at the bottom of Now Playing |
@@ -61,11 +62,11 @@ This is a podcast player for articles. Listening is the main job and reading is 
 
 ## Navigation
 
-A **bottom tab bar** switches between three views: **Subscriptions | Up next | Archive**. Up next is the hub and the home view, in the middle. Now Playing opens from the mini player on any tab. Lyrics view is a mode inside Now Playing. Settings is a pushed screen from the Up next header, and Your subscriptions is a pushed screen from the Subscriptions header. Neither has a tab bar. The Add sheet, speed picker, and Partial explainer are bottom sheets.
+A **bottom tab bar** switches between three views: **Subscriptions | Up next | Saved**. Up next is the hub and the home view, in the middle. Now Playing opens from the mini player on any tab. Lyrics view is a mode inside Now Playing. Settings is a pushed screen from the Up next header, and Your subscriptions is a pushed screen from the Subscriptions header. Neither has a tab bar. The Add sheet, speed picker, Partial explainer, and Share sheet are bottom sheets.
 
 Ways in: app icon → Up next; share sheet → Up next (URL) or Add sheet on Text (text); `#add=` link → Up next; invite link → First run → empty Up next. The app always opens on Up next. The tab isn't remembered between launches.
 
-**Back:** Up next is the bottom of the back stack. Subscriptions and Archive each sit one step above it, so back from either returns to Up next. Switching between those two swaps in place, and tapping Up next does the same as back. Your subscriptions sits one step above Subscriptions, so back from it returns to the inbox. It's a push, the same as Settings from Up next, with the same back arrow and the same back gesture.
+**Back:** Up next is the bottom of the back stack. Subscriptions and Saved each sit one step above it, so back from either returns to Up next. Switching between those two swaps in place, and tapping Up next does the same as back. Your subscriptions sits one step above Subscriptions, so back from it returns to the inbox. It's a push, the same as Settings from Up next, with the same back arrow and the same back gesture.
 
 **Tab bar:**
 - **Layout:** three equal tabs in a 64 tall bar, plus the bottom safe-area inset, on `bg` with a `line` top border. Each tab is an outline icon over a 12 label.
@@ -73,7 +74,7 @@ Ways in: app icon → Up next; share sheet → Up next (URL) or Add sheet on Tex
 - **Dock:** the bar is the last item in the bottom dock. The snackbar and mini player sit above it, and the bar gives way to the multi-select action bar while selecting.
 - **New-post dot:** a 9 dp filled `accent` dot at the top right of the Subscriptions icon, with a 2 dp ring in the background color. The tab's accessible name becomes "Subscriptions, new posts". Posts count as seen when you leave Subscriptions (or the app goes to the background while it's open), and the dot goes with that.
 
-**Wide screens (900 px and up):** two panes. The Up next, Subscriptions, Archive, Settings, or Your subscriptions view is a column on the left, at most 440 wide, with the tab bar at the bottom of that column. Now Playing (or Lyrics view) stays open on the right. There's no mini player, collapse control, or swipe-down, and the Up next peek isn't a link because the queue is already beside it. The cover shrinks to fit the screen height. Sheets stay bottom sheets.
+**Wide screens (900 px and up):** two panes. The Up next, Subscriptions, Saved, Settings, or Your subscriptions view is a column on the left, at most 440 wide, with the tab bar at the bottom of that column. Now Playing (or Lyrics view) stays open on the right. There's no mini player, collapse control, or swipe-down, and the Up next peek isn't a link because the queue is already beside it. The cover shrinks to fit the screen height. Sheets stay bottom sheets.
 
 
 ## Design tokens
@@ -184,6 +185,8 @@ Two families: **Literata** (serif, for content and titles) and **IBM Plex Sans**
 
 One outline set, 1.8 stroke, round caps (Material Symbols Outlined is fine). Play/pause and the status glyphs below are filled where noted. Never use color alone to carry state.
 
+**Star:** a five-point outline star, `muted`, when an article isn't starred. Starred is the same shape filled and in `accent`, so the shape changes as well as the color. It's an app action, not playback, so it uses `accent` and never the article tint.
+
 ## Article states
 
 Every row shows a 16 dp status glyph at the start of its meta line, then text. Each glyph has a distinct shape, so states read in grayscale.
@@ -199,7 +202,7 @@ Every row shows a 16 dp status glyph at the start of its meta line, then text. E
 | Partial | Half-filled circle | "**Partial** · 6 m found · Site" | `warn` | Yes, what was found |
 | Failed | Triangle with ! | "**Couldn't load the page**" + Retry button | `error` | No |
 | Waiting for connection | Cloud with slash | "Will fetch when online" | `muted` | No |
-| Played (Archive) | Check | "Played · Site" | Title and art dimmed (`muted`, art 60% opacity) | Yes, if audio kept |
+| Played (Archive) | Check | "Played · Site" | Title and art dimmed (`muted`, art 60% opacity), except under Starred on Saved, which stays bright | Yes, if audio kept |
 
 - Fetching, Failed, and Waiting rows show the URL (domain + path) as the title until a real title arrives, with a link glyph on `fill` as placeholder art.
 - Durations are estimated at the current speed and update when speed changes.
@@ -212,7 +215,8 @@ Every row shows a 16 dp status glyph at the start of its meta line, then text. E
 
 - **Header:** "Up next" (Literata 30), then a line with count and total time at speed ("8 articles · 2 h 46 m at 1.4×"). Settings (sliders icon) and Add (filled `accent` circle, 48) on the right.
 - **List:**
-  - Up next rows in order. Archived rows are on the Archive tab.
+  - Up next rows in order. Archived rows are on the Saved tab.
+  - Each row ends with a **star** button (48 touch target, 22 icon). Tapping it stars or unstars without playing. It's hidden in multi-select and on Failed rows (which have Retry). Unstarring has no snackbar: the star's shape is the confirmation.
   - The currently playing row uses `row-playing`.
   - Rows are separated by space, not dividers. One divider sits under the header.
 - **Mini player and tab bar:** pinned at the bottom, the mini player above the tab bar (see 2 and Navigation).
@@ -246,7 +250,7 @@ Top to bottom:
      - Site name in caps (top left) and the site mark (top right).
      - A short rule, then the title in Literata 33, bottom-aligned.
      - Text in a light tone of the hue.
-3. **Title** (Literata 21/600) and **byline** ("Author · Site").
+3. **Title** (Literata 21/600) and **byline** ("Author · Site"), with the **star** button at the end of the title block, aligned to the 32 gutter. Lyrics view has the same star before the open-original link.
 4. **Scrubber:**
    - 4 dp `track`, `tint` fill, 14 thumb.
    - Elapsed left, remaining right ("−14:05"). Remaining time accounts for speed.
@@ -370,9 +374,25 @@ A pushed screen from **Manage** in the Subscriptions header, built like Settings
 - **List:** one row per blog, newest first, under a `line` divider: the blog's name (Literata 16), then its address and when it was checked ("vitalik.eth.limo · Checked 12 m ago"). The address is where the posts are read: the blog's moved host if it has one, else its site, else its feed address, without `www.`. **Remove** (`.text-btn.danger`, `error` text) sits at the end, with an Undo snackbar ("Removed Vitalik Buterin's website"). A blog that couldn't be checked shows a quiet line under that, with a warning glyph: "Couldn't check. The page wasn't found (404)." There are no banners, and checks try again by themselves.
 - **Empty state:** a `muted` line under the field: "No subscriptions yet. Paste a blog's address above."
 
-### 12. Archive
+### 12. Saved
 
-The last tab. The same rows, gestures, and multi-select as Up next, for articles you've finished. Header: "Archive" and a count ("12 articles"), with no buttons. Swipe left deletes; there's no swipe right. In multi-select, Mark played is disabled. Moving a row to the top returns it to Up next. Empty state: the archive glyph, "Nothing in the archive", "Articles you've listened to land here."
+The last tab. The same rows, gestures, and multi-select as Up next, in two sections. Header: "Saved", a line such as "8 starred · 12 archived", and a **Share** button (outline pill with the share glyph and label, 40 tall, `input-border`; disabled when nothing starred can be shared). Nothing in the header is `accent`-filled.
+
+- **Starred** (section label, caps): every starred article, newest star first, whether or not it's archived. Rows aren't dimmed, so the top of the tab stays bright. With none, a `muted` line: "Tap the star on an article to keep it here. You can share what you star."
+- **Archive** (section label): archived articles that aren't starred. An article that is both is listed once, under Starred. (Showing it twice would make "12 archived" and the list disagree, and the Archive would no longer read as "what's left once the favorites are pulled out".) Hidden when empty.
+- Swipe left deletes; swipe right marks played unless the row is archived. In multi-select, Mark played is disabled if every selected row is archived. Moving a row to the top returns it to Up next. Starring an archived row lifts it into Starred; unstarring drops it back into Archive.
+- **Empty state** (nothing starred or archived): the star glyph, "Nothing saved yet", "Star an article to keep it here, and share your favorites. Articles you've listened to land here too."
+
+### 12a. Share sheet
+
+A bottom sheet from the Saved header's Share button. It publishes an opt-in, unchanging snapshot of your stars as a public link (SHARING.md). Top to bottom:
+
+- **Range:** a two-segment control, **This week** (starred in the last 7 days) and **All time**, each with its count. A range with 0 items is disabled; the sheet opens on This week, or All time if that's empty. A line under it says what the range means.
+- **Preview** of the share image (1200 × 630, always dark teal; see SHARING.md "The card"), drawn live as the name changes.
+- **Your name** (optional, 40 characters, remembered on the device) and **A note** (optional, one line, 140). The headline is "Zach's reading this week" / "Zach's all-time favorites", or "Worth reading this week" / "All-time favorites" with no name.
+- **Share** (primary, full width). It says "Publishing…" while it works and is disabled offline ("Offline", cloud-off glyph). It publishes, then opens the system share sheet with the link; with no share sheet (or if it's blocked) the link is copied and a snackbar says "Link copied. Paste it anywhere." If the share sheet is dismissed, the snackbar says "Your list is published" with **Copy link**. Errors show as a `fill` note in `error` color with a warning glyph and keep the sheet open.
+- A one-line privacy note: anyone with the link can see the list, and it doesn't change when stars do.
+- **Shared before:** the last three lists published from this device, each with its date, count and a **Share again** text button.
 
 ### 13. Settings · artboard "Settings …"
 
@@ -420,7 +440,9 @@ With on-device voices, saved articles stay in "Queued for audio" until the voice
 
 | Interaction | Behavior |
 | --- | --- |
-| Tap a tab | Switch view. Back from Subscriptions or Archive returns to Up next |
+| Tap a tab | Switch view. Back from Subscriptions or Saved returns to Up next |
+| Tap the star (row, Now Playing) | Star or unstar, no snackbar |
+| Tap Share (Saved header) | Open the Share sheet |
 | Tap Manage (Subscriptions header) | Push Your subscriptions. Back returns to the inbox |
 | Tap Subscribe (Your subscriptions) | Looks up the feed; on success clears the field, lists the blog, and shows a "Subscribed to …" snackbar |
 | Tap Remove (Your subscriptions) | Removes the blog and its posts, undo snackbar |

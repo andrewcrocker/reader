@@ -30,13 +30,14 @@ Status: reconciled with DESIGN.md (Oct 28, 2026). DESIGN.md owns screens, states
 5. Optional "lyrics view": article text that highlights and scrolls in sync with the audio.
 6. Full offline playback (airplane mode) for anything already saved.
 7. Basic CRUD: multi-select, delete with undo, archive, clear, reorder.
+7a. **Star and share favorites.** Star what you want to revisit; share a "this week" or "all time" list as a link with a preview image and a public page (§10b, SHARING.md).
 8. Extraction handles most sites well, escalates through fallbacks when it doesn't, and gets past soft paywalls where possible.
 9. **Shareable with friends.** Send someone a URL and they can use it, with no account. Voices run on a server the owner pays for (about 1¢ an article), capped per day so the cost can't run away (§6.3).
 10. **Pocket-style saving.** Share an article and close the app; the audio is waiting the next time it opens.
 
 **Non-goals (for now)**
 
-- Accounts, logins, or sync. Everything lives on the device. The one exception: rendered audio waits on the server (R2) until the app downloads it, then it's deleted (7 days at most).
+- Accounts, logins, or sync. Everything lives on the device. Two exceptions: rendered audio waits on the server (R2) until the app downloads it, then it's deleted (7 days at most); and a reading list the user chooses to share is stored on the server as a public, unchanging snapshot (§10b).
 - Multi-device support. One phone (Pixel 8 / Chrome).
 - Highlights, notes, tags, search. These might come later.
 - A reading mode without audio.
@@ -369,7 +370,8 @@ interface Article {
   voice?: string;
   positionSec: number;        // resume point
   playedAt?: number;          // finished listening
-  archivedAt?: number;        // in the Archive view
+  archivedAt?: number;        // in the Archive section of Saved
+  starredAt?: number;         // starred: worth revisiting or sharing. Independent of archivedAt; not indexed
   deletedAt?: number;         // soft delete; purge after the undo window
   queueOrder: number;         // fractional index for cheap reordering
 }
@@ -410,6 +412,17 @@ interface Settings {
   keepPlayed: "archive" | "delete";   // default "archive"
   lyricsOn: boolean;
   lastPlayingArticleId?: string;  // restored on launch (§11a)
+  shareName?: string;         // "Your name" on the Share sheet (§10b)
+}
+
+/** Receipt for a list the user published (§10b). Dexie v6, indexed by id and createdAt. */
+interface SharedList {
+  id: string;
+  url: string;                // the public link
+  range: "week" | "all";
+  title: string;              // the headline on the card
+  count: number;
+  createdAt: number;
 }
 ```
 
@@ -422,7 +435,7 @@ The queue row state in DESIGN.md comes from these fields. First match wins.
 | Display state | Condition |
 |---|---|
 | Deleted (hidden) | `deletedAt` set |
-| Archive view | `archivedAt` set |
+| Archive section (Saved) | `archivedAt` set. Starred rows are listed under Starred instead, whether or not they're archived |
 | Waiting for connection | `status = "waiting"`, or `"fetching"` while offline |
 | Fetching | `status = "fetching"` |
 | Failed | `status = "failed"` |
@@ -438,11 +451,11 @@ The queue row state in DESIGN.md comes from these fields. First match wins.
 
 ## 10. Queue & CRUD
 
-- **Queue screen** (home): Up next in `queueOrder`. Archived rows are on the **Archive** tab, with the same rows and actions. A bottom tab bar switches between Subscriptions, Up next and Archive (DESIGN.md "Navigation"). The tab isn't saved: the app opens on Up next. Row anatomy and states are in DESIGN.md.
+- **Queue screen** (home): Up next in `queueOrder`. Archived rows are on the **Saved** tab, below the starred ones, with the same rows and actions. Every row has a star toggle (`starredAt`); starred articles are listed first on Saved, newest star first, archived or not, and aren't repeated in its Archive section. A starred article is never auto-deleted by "When an article finishes: Delete": it's archived instead. A bottom tab bar switches between Subscriptions, Up next and Saved (DESIGN.md "Navigation"). The tab isn't saved: the app opens on Up next. Row anatomy and states are in DESIGN.md.
 - **Gestures:** tap plays immediately; swipe left deletes (undo); swipe right marks played and archives (undo); long-press enters multi-select.
 - **Reorder:** drag handles, shown in multi-select mode.
 - **Multi-select actions:** delete, move to top, mark played, re-render (e.g. after changing voice), retry extraction.
-- **Clear:** "Clear all" in Settings, with confirm. "Clear archive" isn't designed yet; an action on the Archive tab's header is the natural place.
+- **Clear:** "Clear all" in Settings, with confirm. "Clear archive" isn't designed yet; an action on the Saved tab's Archive section is the natural place.
 - **Storage:** Settings shows total size split into audio, voice model, and art, plus "Delete audio for archived articles" (keeps text; re-renders on replay).
 
 ---
@@ -461,6 +474,14 @@ Sharing means sharing **the app**, not content. Each person's queue, articles, a
 - **APK route:** only relevant if we go native (§12).
 
 ---
+
+## 10b. Shared reading lists
+
+Star the articles you want to keep (`starredAt`), then share them as a list: **This week** (starred in the last 7 days) or **All time**, from the Saved tab's Share button (DESIGN.md §12a). Full notes, the privacy model and open questions are in [SHARING.md](SHARING.md).
+
+- **Opt-in and unchanging.** Nothing is published until the user taps Share. A list is a snapshot of at most 50 articles (title, link, domain, byline, minutes, color) and a 1200 × 630 PNG the app draws itself. It never changes afterwards, and the app keeps only a receipt (`SharedList`).
+- **Worker.** `POST /lists` (app secret) stores `lists/<id>.json` and `lists/<id>.png` in the `LISTS` R2 bucket (`reader-lists`, no expiry) and returns `{ id, url }`. `GET /l/:id` (the page) and `GET /l/:id/card.png` are **public**: no secret, no origin check. They are the only unauthenticated routes besides CORS preflight, matched by an exact method and path.
+- **Link.** `<PUBLIC_BASE_URL or the Worker's own origin>/l/<id>`; today `https://reader-proxy.<you>.workers.dev/l/<id>`.
 
 ## 11. Offline
 
@@ -481,7 +502,7 @@ Requirement: hard-close the browser or reboot the phone, reopen the app, and pic
 - **Unfinished work resumes.** Any article left in `fetching` or `rendering` restarts its pipeline on launch. Rendered chunks are saved as they finish, so a re-render picks up from the last completed chunk. An interrupted voice-model download resumes too.
 - **Protection against eviction.** Call `navigator.storage.persist()` on first launch. Settings shows whether it was granted ("Storage is protected").
 - **What actually wipes data:** clearing Chrome's site data for the app, or (possibly) uninstalling the PWA.
-- **Export / Import:** "Export queue" downloads a small JSON of URLs (and pasted text), titles, order, positions, and archive state; "Import" restores it. Audio isn't included and re-renders.
+- **Export / Import:** "Export queue" downloads a small JSON of URLs (and pasted text), titles, order, positions, and archive and star state; "Import" restores it. Audio isn't included and re-renders.
 
 ---
 
@@ -500,7 +521,7 @@ Requirement: hard-close the browser or reboot the phone, reopen the app, and pic
 
 ## 13. Worker API
 
-All requests need the header `X-App-Secret: <secret>`. CORS is restricted to the app's origin.
+All requests need the header `X-App-Secret: <secret>`, except the two public list routes at the end. CORS is restricted to the app's origin.
 
 ```
 GET  /fetch?url=<encoded>&profile=default|nocookie|referrer|amp
@@ -522,7 +543,17 @@ GET    /render/:job/:i   → 200 audio/mpeg (one chunk, header frame stripped) +
 DELETE /render/:job      → 204 (deletes the chunks; an R2 lifecycle rule expires leftovers after 7 days)
 ```
 
-Only rendered audio is stored, and only until the app downloads it. No logging of URLs or content beyond Cloudflare's defaults.
+```
+POST /lists    multipart: meta (JSON { title, note?, name?, range: "week"|"all", items: [{ title, url, domain, byline?, minutes?, tint? }] })
+               and card (a PNG, 1 MB at most)           // needs the secret
+  → 201 { id, url }
+  → 400 { error }                                       // bad JSON, not a PNG, >50 items, a non-http(s) url
+  → 413 { error }                                       // card or body too large
+GET /l/:id           → 200 text/html: the public page (Open Graph and Twitter card tags, no scripts, strict CSP)   // public
+GET /l/:id/card.png  → 200 image/png, cached for good                                                              // public
+```
+
+Only rendered audio is stored, and only until the app downloads it; shared lists are the one thing kept longer, and only because the user published them. No logging of URLs or content beyond Cloudflare's defaults.
 
 ---
 
