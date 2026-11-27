@@ -44,7 +44,6 @@ const C = {
   muted: '#bcbab5',
   track: '#373533',
   accent: '#8fd0c3',
-  onAccent: '#0f2420',
   // The app icon: amber play mark on near-black.
   markBg: '#14161a',
   markFg: '#f2b84b',
@@ -276,25 +275,21 @@ function oneLine(ctx: Ctx, text: string, maxW: number): string {
 }
 
 /**
- * The play mark on the "now playing" tile: a round accent badge with a dark triangle, the app's own play button
- * in small. It says "press play" and reads over any art (a white tile included) and at thumbnail size.
+ * The play mark on the "now playing" tile: the tile is dimmed and a light play triangle sits on it, so the
+ * article's own art still shows through. It says "press play" without a separate button.
  */
 function drawPlayMark(ctx: Ctx, x: number, y: number, size: number) {
-  const d = Math.round(size * 0.68);
   const cx = x + size / 2;
   const cy = y + size / 2;
   ctx.save();
   roundRect(ctx, x, y, size, size, Math.round(size * 0.22));
   ctx.clip();
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.38)';
-  ctx.shadowBlur = 14;
-  ctx.shadowOffsetY = 2;
-  ctx.beginPath();
-  ctx.arc(cx, cy, d / 2, 0, Math.PI * 2);
-  ctx.fillStyle = C.accent;
-  ctx.fill();
-  ctx.shadowColor = 'transparent';
-  glyph(ctx, PLAY_PATH, cx, cy, Math.round(d * 0.62), { fill: C.onAccent });
+  ctx.fillStyle = 'rgba(10, 8, 5, 0.46)';
+  ctx.fillRect(x, y, size, size);
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+  ctx.shadowBlur = 10;
+  ctx.shadowOffsetY = 1;
+  glyph(ctx, PLAY_PATH, cx, cy, Math.round(size * 0.56), { fill: C.fg });
   ctx.restore();
 }
 
