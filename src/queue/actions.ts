@@ -37,6 +37,11 @@ export async function markPlayed(ids: string[]): Promise<Undo> {
   };
 }
 
+/** Star or unstar. Starred means "worth revisiting or sharing"; it's independent of Archive, which only means done. */
+export async function setStarred(id: string, starred: boolean): Promise<void> {
+  await db.articles.update(id, { starredAt: starred ? Date.now() : undefined });
+}
+
 /** Move to the top of Up next, keeping the rows' relative order. Archived rows come back out. */
 export async function moveToTop(ids: string[]): Promise<Undo> {
   const rows = (await db.articles.where('id').anyOf(ids).toArray()).sort((a, b) => a.queueOrder - b.queueOrder);
@@ -116,6 +121,7 @@ export interface ExportItem {
   positionSec: number;
   playedAt?: number;
   archivedAt?: number;
+  starredAt?: number;
 }
 
 export interface ExportFile {
@@ -138,6 +144,7 @@ export function toExportItem(a: Article): ExportItem | null {
     positionSec: a.positionSec,
     playedAt: a.playedAt,
     archivedAt: a.archivedAt,
+    starredAt: a.starredAt,
   };
 }
 
@@ -174,7 +181,7 @@ export async function importQueue(json: string): Promise<number> {
   for (const x of items) {
     if (x.source === 'url' && existing.has(x.url!)) continue;
     const id = x.source === 'url' ? await addUrl(x.url!, x.title) : await addText(x.text!, x.title);
-    await db.articles.update(id, { queueOrder: order++, savedAt: x.savedAt, positionSec: x.positionSec ?? 0, playedAt: x.playedAt, archivedAt: x.archivedAt });
+    await db.articles.update(id, { queueOrder: order++, savedAt: x.savedAt, positionSec: x.positionSec ?? 0, playedAt: x.playedAt, archivedAt: x.archivedAt, starredAt: typeof x.starredAt === 'number' ? x.starredAt : undefined });
     added++;
   }
   void kick();

@@ -564,3 +564,34 @@ textarea.input { height: auto; padding: 12px 14px; font: 400 15px/1.5 var(--seri
 
 /* Now Playing before any audio: jump straight into read-along. */
 .np-read-now { display: flex; margin: 12px auto 0; gap: 8px; }
+
+/* ---------- Stars, the Saved tab and sharing (spec/SHARING.md) ---------- */
+/* Starred is a filled accent star; unstarred an outline in muted. The shape changes too, so it never rides on color alone. */
+.star-btn { color: var(--muted); }
+.star-btn.on { color: var(--accent); }
+.np-meta { display: flex; align-items: flex-start; gap: 8px; }
+.np-meta-text { flex: 1; min-width: 0; }
+.np-meta .star-btn { margin: -10px -14px 0 0; }
+.lyrics-head .star-btn { width: 44px; }
+
+.q-sections { flex: 1; }
+.q-list.under { border-top: 0; flex: none; }
+.q-hint { margin: 0; padding: 14px 20px 24px; font-size: 14.5px; line-height: 1.5; color: var(--muted); }
+.share-btn {
+  height: 40px; margin-right: 12px; padding: 0 16px 0 12px; border: 1.5px solid var(--input-border); border-radius: 20px; background: transparent;
+  color: var(--fg); display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px;
+}
+.share-btn:disabled { color: var(--input-border); border-color: var(--line); }
+
+.seg button .seg-n { margin-left: 8px; color: var(--muted); font-weight: 500; }
+.seg button:disabled, .seg button:disabled .seg-n { color: var(--input-border); cursor: default; }
+.share-hint { margin-top: -6px; }
+/* A tall sheet scrolls rather than squeezing its buttons and fields. */
+.sheet > * { flex-shrink: 0; }
+/* The card is always dark (it's drawn that way), so give it a dark ground while it loads. */
+.card-preview { display: block; width: 100%; height: auto; aspect-ratio: 1200 / 630; border-radius: 14px; border: 1px solid var(--line); background: #151413; flex: none; }
+.status-note.error { color: var(--error); }
+.shared-list { list-style: none; margin: 0; padding: 0; }
+.shared-row { display: flex; align-items: center; gap: 8px; padding: 6px 0 6px; border-top: 1px solid var(--line); }
+.shared-row .t { margin: 0; font-family: var(--serif); font-size: 15px; font-weight: 500; line-height: 1.3; }
+.shared-row .m { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }

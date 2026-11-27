@@ -246,7 +246,7 @@ const safeHref = (u: string): string | undefined => httpUrl(u);
 
 function initials(domain: string): string {
   const words = domain.replace(/^www\./, '').replace(/\.(com|org|net|io|co|dev|blog|news|me|limo)$/i, '').split(/[\s.\-_]+/).filter((w) => /^[A-Za-z0-9]/.test(w));
-  const mark = words.length >= 2 ? words[0][0] + words[1][0] : (words[0]?.slice(0, 2) ?? '·');
+  const mark = words.length >= 2 ? words[0][0] + words[1][0] : (words[0]?.[0] ?? '·');
   return mark.toUpperCase();
 }
 
@@ -283,7 +283,10 @@ main{max-width:640px;margin:0 auto;padding:max(20px,env(safe-area-inset-top)) 20
 a{color:var(--accent)}
 :focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
 .brand{display:inline-flex;align-items:center;gap:10px;color:var(--muted);font-weight:600;font-size:15px;text-decoration:none}
-.mark{width:30px;height:30px;border-radius:9px;background:#14161a;display:grid;place-items:center}
+.mark{width:30px;height:30px;border-radius:9px;background:#14161a;box-shadow:0 0 0 1px var(--line);display:grid;place-items:center}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.get{padding:8px 16px;border:1.5px solid var(--line);border-radius:20px;color:var(--fg);font-size:14px;font-weight:600;text-decoration:none}
+.get:hover{border-color:var(--muted)}
 .eyebrow{margin:40px 0 12px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
 h1{margin:0;font:500 clamp(36px,10vw,56px)/1.06 var(--serif);letter-spacing:-.015em;text-wrap:balance}
 .note{margin:22px 0 0;padding-left:16px;border-left:3px solid var(--accent);font:italic 400 19px/1.5 var(--serif);color:var(--muted)}
@@ -388,7 +391,7 @@ export function renderListPage(list: StoredList, o: PageOptions): string {
 
   const eyebrow = `${RANGE_LABEL[list.range]} · ${plural(list.items.length, 'article')}`;
   const body = `<main>
-<a class="brand" href="${esc(cta ?? pageUrl)}"><span class="mark">${MARK}</span>Reader</a>
+<div class="top"><a class="brand" href="${esc(cta ?? pageUrl)}"><span class="mark">${MARK}</span>Reader</a>${cta ? `<a class="get" href="${esc(cta)}">Get Reader</a>` : ''}</div>
 <p class="eyebrow">${esc(eyebrow)}</p>
 <h1>${esc(headline)}</h1>
 ${list.note ? `<p class="note">${esc(list.note)}</p>` : ''}

@@ -246,7 +246,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (!done) return;
     const next = s.autoAdvance ? neighbor(list, done, 1) : undefined;
     const now = Date.now();
-    if (s.keepPlayed === 'delete') await purgeArticle(done.id);
+    // A starred article is one the user wants to keep, so "delete when finished" archives it instead.
+    if (s.keepPlayed === 'delete' && !done.starredAt) await purgeArticle(done.id);
     else await db.articles.update(done.id, { playedAt: now, archivedAt: done.archivedAt ?? now, positionSec: 0 });
     // Replaying from the Archive starts over.
     if (audioRef.current) audioRef.current.currentTime = 0;

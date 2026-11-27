@@ -6,6 +6,7 @@ import { useSyncExternalStore } from 'react';
 export type Sheet =
   | { kind: 'add'; tab: 'link' | 'text'; text?: string; title?: string; shared?: boolean; replaceId?: string }
   | { kind: 'speed' }
+  | { kind: 'share' }
   | { kind: 'explain'; id: string };
 
 export interface SnackAction {
@@ -25,7 +26,7 @@ export interface Snack {
 export type SettingsPage = 'menu' | 'voice' | 'playback' | 'storage';
 
 /** The bottom tab bar. Up next is the home view; the app always opens on it. */
-export type Tab = 'subscriptions' | 'queue' | 'archive';
+export type Tab = 'subscriptions' | 'queue' | 'saved';
 
 interface UiState {
   tab: Tab;

@@ -7,11 +7,11 @@ import { MiniPlayer } from './MiniPlayer';
 const TABS: { tab: Tab; label: string; icon: IconName }[] = [
   { tab: 'subscriptions', label: 'Subscriptions', icon: 'rss' },
   { tab: 'queue', label: 'Up next', icon: 'queue' },
-  { tab: 'archive', label: 'Archive', icon: 'archive' },
+  { tab: 'saved', label: 'Saved', icon: 'star' },
 ];
 
 /**
- * DESIGN "Navigation": Subscriptions, Up next, Archive. The only indicator is one small accent dot
+ * DESIGN "Navigation": Subscriptions, Up next, Saved. The only indicator is one small accent dot
  * on Subscriptions when there are new posts. It's a shape, and the tab's name says it too.
  */
 export function TabBar() {

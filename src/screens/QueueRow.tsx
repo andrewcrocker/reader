@@ -4,6 +4,7 @@ import { hasRealTitle, urlTitle, type RowMeta } from '../queue/display';
 import { Art } from '../ui/Art';
 import { Icon, StatusGlyph } from '../ui/Icon';
 import { MenuButton, type MenuItem } from '../ui/Menu';
+import { StarButton } from '../ui/StarButton';
 
 const LONG_PRESS_MS = 500;
 const SLOP = 10;
@@ -23,6 +24,8 @@ export interface RowProps {
   onSwipe?: (dir: 'left' | 'right') => void;
   onStatus?: () => void;
   onRetry?: () => void;
+  /** Star or unstar. Omitted where starring makes no sense. */
+  onToggleStar?: () => void;
   onHandleDown?: (e: RPointerEvent) => void;
   rowRef?: (el: HTMLElement | null) => void;
   /** "More actions" menu, for pointers that can't swipe (the wide layout). */
@@ -40,7 +43,7 @@ export function QueueRow(p: RowProps) {
   const partial = p.meta.glyph === 'partial';
 
   const down = (e: RPointerEvent) => {
-    if ((e.target as HTMLElement).closest('.drag-handle, .row-action, .meta-btn')) return;
+    if ((e.target as HTMLElement).closest('.drag-handle, .row-action, .meta-btn, .star-btn')) return;
     const s = g.current;
     s.x = e.clientX;
     s.y = e.clientY;
@@ -86,7 +89,7 @@ export function QueueRow(p: RowProps) {
     s.down = false;
   };
 
-  const cls = ['row', p.playing && 'playing', p.played && 'played', (p.selected || p.isNew) && (p.selected ? 'selected' : 'is-new'), p.selecting && 'selecting', (failed || p.onRetry || p.menu) && !p.selecting && 'has-action', p.dragging && 'dragging']
+  const cls = ['row', p.playing && 'playing', p.played && 'played', (p.selected || p.isNew) && (p.selected ? 'selected' : 'is-new'), p.selecting && 'selecting', (failed || p.onRetry || p.menu || p.onToggleStar) && !p.selecting && 'has-action', p.dragging && 'dragging']
     .filter(Boolean)
     .join(' ');
 
@@ -184,6 +187,7 @@ export function QueueRow(p: RowProps) {
             {!p.online && <Icon name="cloud-off" size={18} />}Retry
           </button>
         )}
+        {!p.selecting && !p.onRetry && p.onToggleStar && <StarButton starred={!!a.starredAt} title={hasRealTitle(a) ? a.title : urlTitle(a.url)} onToggle={p.onToggleStar} />}
         {!p.selecting && p.menu && <MenuButton label={`More actions for ${hasRealTitle(a) ? a.title : urlTitle(a.url)}`} items={p.menu} />}
         {p.selecting && p.onHandleDown && (
 

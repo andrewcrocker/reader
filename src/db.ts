@@ -76,6 +76,8 @@ export interface Article {
   positionSec: number;
   playedAt?: number;
   archivedAt?: number;
+  /** When the user starred it: something to revisit or share, apart from archived, which only means done. Unset = not starred. */
+  starredAt?: number;
   /** Soft delete for undo; purged after the snackbar window. */
   deletedAt?: number;
   queueOrder: number;
@@ -138,6 +140,18 @@ export interface FeedItem {
   articleId?: string;
 }
 
+/** A reading list the user published (spec/SHARING.md). The list itself is a snapshot on the server; this is the receipt. */
+export interface SharedList {
+  id: string;
+  /** The public link. */
+  url: string;
+  range: 'week' | 'all';
+  /** The headline on the card, e.g. "Zach's reading this week". */
+  title: string;
+  count: number;
+  createdAt: number;
+}
+
 export type EnginePref = 'auto' | 'webgpu' | 'wasm';
 export type VoiceQuality = 'high' | 'standard';
 export type EngineKind = 'server' | 'device';
@@ -172,6 +186,8 @@ export interface Settings {
   persistRequested?: boolean;
   /** First run finished (or skipped). */
   onboarded?: boolean;
+  /** "Your name" on the share sheet, remembered for the next list. */
+  shareName?: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -199,6 +215,7 @@ class ReaderDb extends Dexie {
   settings!: Table<Settings, string>;
   feeds!: Table<Feed, string>;
   feedItems!: Table<FeedItem, string>;
+  sharedLists!: Table<SharedList, string>;
 
   constructor() {
     super('reader');
@@ -259,6 +276,10 @@ class ReaderDb extends Dexie {
     this.version(5).stores({
       feeds: 'id, feedUrl',
       feedItems: 'id, feedId',
+    });
+    // Receipts for published reading lists. (Starring adds `starredAt` to articles without an index, so it needs no version.)
+    this.version(6).stores({
+      sharedLists: 'id, createdAt',
     });
   }
 }

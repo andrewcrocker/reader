@@ -369,6 +369,7 @@ describe('the public page', () => {
     expect(html.match(/Open in Reader<\/a>/g)).toHaveLength(3);
     // The call to action goes where the owner pointed it.
     expect(html).toContain('<a class="btn" href="https://about.example/reader">Get Reader</a>');
+    expect(html).toContain('<a class="get" href="https://about.example/reader">Get Reader</a>');
   });
 
   it('leaves out what it has no target for, and never carries a secret', () => {

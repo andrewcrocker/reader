@@ -4,10 +4,11 @@ import { useAppData } from '../app/data';
 import { openNowPlaying, openSettings, openSheet, showSnack, useUi, useWide } from '../app/ui';
 import { isPlayable, usePlayer } from '../player/PlayerProvider';
 import { displayState, isBusy, queueSummary, rowMeta, voiceReady, type Ctx } from '../queue/display';
-import { isRenderable, markPlayed, moveToTop, purgeDeleted, rerenderMany, retryMany, reorder, softDelete } from '../queue/actions';
+import { isRenderable, markPlayed, moveToTop, purgeDeleted, rerenderMany, retryMany, reorder, setStarred, softDelete } from '../queue/actions';
 import { retryArticle } from '../pipeline/runner';
 import { Icon } from '../ui/Icon';
 import { Snackbar } from '../ui/Snackbar';
+import { isShareable } from '../share/lists';
 import { MiniPlayer } from './MiniPlayer';
 import { QueueRow } from './QueueRow';
 import { TabBar } from './TabBar';
@@ -35,14 +36,16 @@ export function Queue() {
   return <QueueView view="queue" />;
 }
 
-/** The Archive tab: the same rows and actions, for what's been played. */
-export function Archive() {
-  return <QueueView view="archive" />;
+/** The Saved tab: what you starred, pinned at the top, and below it what you've finished. Same rows and actions as Up next. */
+export function Saved() {
+  return <QueueView view="saved" />;
 }
 
-function QueueView({ view }: { view: 'queue' | 'archive' }) {
-  const { upNext, archive, settings, online } = useAppData();
-  const archived = view === 'archive';
+function QueueView({ view }: { view: 'queue' | 'saved' }) {
+  const { upNext, archive, starred, settings, online } = useAppData();
+  const saved = view === 'saved';
+  // An article that's both starred and archived is listed once, under Starred.
+  const archiveRest = archive.filter((a) => !a.starredAt);
   const player = usePlayer();
   const { newId } = useUi();
   const wide = useWide();
@@ -53,9 +56,10 @@ function QueueView({ view }: { view: 'queue' | 'archive' }) {
 
   const ctx: Ctx = { online, currentId: player.current?.id, voiceReady: voiceReady(settings), speed: player.speed };
   const selecting = selected !== null;
-  const byId = new Map([...upNext, ...archive].map((a) => [a.id, a]));
+  const byId = new Map([...upNext, ...archive, ...starred].map((a) => [a.id, a]));
   const shownUpNext = preview ? preview.map((id) => byId.get(id)!).filter(Boolean) : upNext;
-  const inView = archived ? archive : upNext;
+  const inView = saved ? [...starred, ...archiveRest] : upNext;
+  const canShare = starred.some(isShareable);
 
   // Share arrival: scroll the new row into view (DESIGN §6).
   useEffect(() => {
@@ -135,7 +139,8 @@ function QueueView({ view }: { view: 'queue' | 'archive' }) {
     target.addEventListener('pointercancel', onUp);
   };
 
-  const row = (a: Article, inArchive: boolean) => {
+  // `inArchive`: the row is archived (no swipe to mark played). `dim`: draw it as played. Starred rows aren't dimmed, so the top of Saved stays bright.
+  const row = (a: Article, inArchive: boolean, dim = inArchive) => {
     const state = displayState(a, ctx);
     const isNew = a.id === newId;
     const meta = rowMeta(a, state, { ...ctx, isNew });
@@ -145,7 +150,7 @@ function QueueView({ view }: { view: 'queue' | 'archive' }) {
         article={a}
         meta={meta}
         playing={a.id === player.current?.id}
-        played={inArchive}
+        played={dim}
         isNew={isNew}
         online={online}
         selecting={selecting}
@@ -156,7 +161,8 @@ function QueueView({ view }: { view: 'queue' | 'archive' }) {
         onSwipe={(dir) => (dir === 'left' ? deleteWithUndo([a.id]) : !inArchive && markPlayedWithUndo([a.id]))}
         onStatus={() => openSheet({ kind: 'explain', id: a.id })}
         onRetry={state === 'failed' ? () => void retryArticle(a.id) : undefined}
-        onHandleDown={inArchive ? undefined : handleDown(a.id)}
+        onToggleStar={() => void setStarred(a.id, !a.starredAt)}
+        onHandleDown={saved || inArchive ? undefined : handleDown(a.id)}
         menu={
           wide
             ? [
@@ -193,10 +199,17 @@ function QueueView({ view }: { view: 'queue' | 'archive' }) {
           {/* Buttons sit centered against the title and its summary line together. */}
           <div className="q-header-row">
             <div style={{ minWidth: 0 }}>
-              <h1 className="screen-title">{archived ? 'Archive' : 'Up next'}</h1>
-              {!empty && <p className="q-sub">{archived ? plural(archive.length, 'article') : queueSummary(upNext, ctx)}</p>}
+              <h1 className="screen-title">{saved ? 'Saved' : 'Up next'}</h1>
+              {!empty && <p className="q-sub">{saved ? [starred.length ? `${starred.length} starred` : '', archiveRest.length ? `${archiveRest.length} archived` : ''].filter(Boolean).join(' · ') : queueSummary(upNext, ctx)}</p>}
             </div>
-            {!archived && (
+            {saved ? (
+              <div className="q-actions">
+                <button className="share-btn" disabled={!canShare} onClick={() => openSheet({ kind: 'share' })} aria-label={canShare ? 'Share a list' : 'Share a list, star an article first'}>
+                  <Icon name="share" size={20} />
+                  Share
+                </button>
+              </div>
+            ) : (
               <div className="q-actions">
                 <button className="icon-btn" aria-label="Settings" onClick={openSettings}>
                   <Icon name="settings" />
@@ -208,26 +221,25 @@ function QueueView({ view }: { view: 'queue' | 'archive' }) {
             )}
           </div>
         </header>
-
       )}
 
       {!online ? (
         <div className="offline-banner" role="status">
           <Icon name="cloud-off" size={18} /> Offline · ready articles still play
         </div>
-      ) : !archived && upNext.some((a) => isBusy(a)) ? (
+      ) : !saved && upNext.some((a) => isBusy(a)) ? (
         <div className="offline-banner" role="status">
           <Icon name="clock" size={18} /> Voices are busy right now. Your articles will finish later.
         </div>
       ) : null}
 
-      {empty && archived ? (
+      {empty && saved ? (
         <div className="empty">
           <div className="empty-icon">
-            <Icon name="archive" size={36} />
+            <Icon name="star" size={36} />
           </div>
-          <h2>Nothing in the archive</h2>
-          <p>Articles you’ve listened to land here.</p>
+          <h2>Nothing saved yet</h2>
+          <p>Star an article to keep it here, and share your favorites. Articles you’ve listened to land here too.</p>
         </div>
       ) : empty ? (
         <div className="empty">
@@ -240,9 +252,35 @@ function QueueView({ view }: { view: 'queue' | 'archive' }) {
             or paste a link
           </button>
         </div>
+      ) : saved ? (
+        <div className="q-sections">
+          {/* Starred first, newest star first, archived or not. Then the archive, minus what's starred, so nothing shows twice. */}
+          <section aria-labelledby="starred-h">
+            <h2 className="q-section" id="starred-h">
+              Starred
+            </h2>
+            {starred.length ? (
+              <ul className="q-list under" aria-label="Starred">
+                {starred.map((a) => row(a, !!a.archivedAt, false))}
+              </ul>
+            ) : (
+              <p className="q-hint">Tap the star on an article to keep it here. You can share what you star.</p>
+            )}
+          </section>
+          {archiveRest.length > 0 && (
+            <section aria-labelledby="archive-h">
+              <h2 className="q-section" id="archive-h">
+                Archive
+              </h2>
+              <ul className="q-list under" aria-label="Archive">
+                {archiveRest.map((a) => row(a, true))}
+              </ul>
+            </section>
+          )}
+        </div>
       ) : (
-        <ul className="q-list" aria-label={archived ? 'Archive' : 'Queue'}>
-          {archived ? archive.map((a) => row(a, true)) : shownUpNext.map((a) => row(a, false))}
+        <ul className="q-list" aria-label="Queue">
+          {shownUpNext.map((a) => row(a, false))}
         </ul>
       )}
 
@@ -259,7 +297,7 @@ function QueueView({ view }: { view: 'queue' | 'archive' }) {
               <Icon name="move-top" />
               Move to top
             </button>
-            <button disabled={archived} onClick={() => (markPlayedWithUndo(ids), done())}>
+            <button disabled={chosen.every((a) => a.archivedAt)} onClick={() => (markPlayedWithUndo(chosen.filter((a) => !a.archivedAt).map((a) => a.id)), done())}>
               <Icon name="mark-played" />
               Mark played
             </button>
