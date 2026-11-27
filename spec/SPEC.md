@@ -188,7 +188,17 @@ The feed is stored under the address it ended up at, so `http://` and `https://`
 
 **Manage.** The Subscriptions header has a quiet **Manage** button (a list icon, `aria-label` "Manage subscriptions") next to Check now. It pushes **Your subscriptions**, a full screen like Settings: same back arrow, one history entry, and the same back-gesture behavior (back returns to the inbox). It holds everything about the blogs themselves: the Subscribe field (a text input, so a bare domain works; the validation, errors, loading state and wording above), and one row per blog, newest first, with its title, its host for display (`feedHost()` in `feeds/format.ts`: the feed's `linkBase` host if set, else `siteUrl`, else the feed address; without `www.`), "Checked … ago", any `lastError` ("Couldn't check. …"), and **Remove** with an Undo snackbar. After a successful subscribe the field clears, the blog appears in the list, and a snackbar says "Subscribed to …". The inbox itself shows only posts, plus one muted line "N blog(s) couldn't be checked" that opens Manage when any feed has a `lastError`. With no subscriptions the inbox shows a short line and an "Add a blog" button that opens Manage.
 
-**Check (pull).** `checkFeeds()` runs on launch and whenever the app becomes visible. A feed checked in the last 30 minutes is skipped; "Check now" in Subscriptions ignores that. It does nothing offline or without an invite. For each feed it fetches and parses, and stores only posts not stored yet, as unseen. Only a feed's newest 20 posts are ever considered, so a long feed doesn't flood the inbox on its first check, and stored posts are trimmed to the newest 40 per feed. A feed that fails records a one-line `lastError` (cleared by the next good check) and its check time, so it isn't retried on every launch. There are no banners, and nothing is retried in the background.
+**Check (pull).** `checkFeeds()` runs on launch and whenever the app becomes visible. A feed checked in the last 30 minutes is skipped; "Check now" in Subscriptions ignores that. It does nothing offline or without an invite. For each feed it fetches and parses, and stores only posts not stored yet, as unseen. Only a feed's newest 20 posts are ever considered, so a long feed doesn't flood the inbox on its first check, and stored posts are trimmed to the newest 40 per feed. A feed that fails records a one-line `lastError` (cleared by the next good check) and its check time, so it isn't retried on every launch. A good check also refreshes the feed's title and site address, so a blog that renames itself follows. There are no banners, and nothing is retried in the background.
+
+A check that is already running covers a later one (launch and "back in front" can land together), except "Check now": it waits for that run to end and then checks every feed, so a tap never comes back "No new posts" because of what an earlier, narrower run skipped.
+
+**Moved hosts.** Some blogs move but keep serving their feed from the new host, so the links in it point at a host that no longer answers (Vitalik's feed is on `vitalik.eth.limo` and links to `vitalik.ca`). To read those posts, the feed gets a `linkBase`: the feed's own origin, which post links are rebased onto (same path, query and hash; `rebaseLink()` in `feeds/diff.ts`). It's worked out once, from the newest post only (`probeLinkBase()` in `feeds/discover.ts`), when subscribing, or on the first check of a feed saved before the field existed:
+- If that post's link is already on the feed's own host, or the original link answers: `linkBase = null`, keep the links.
+- If the original fails and the same path and query on the feed's host answers: `linkBase` is that host's origin.
+- If both fail: `null` too. The feed's own host just answered, so it isn't the network.
+- If the feed has no posts to judge by: left unset, and looked at again on the next check.
+
+A page the Worker declines to return (too large, not HTML) still counts as answering, since the site did. Rebasing changes only the stored link: a post's id still hashes the guid or link as the feed gave it, so ids don't move when `linkBase` is set. Posts stored before it was set are rebased when they're added to the queue (Add), and the Your subscriptions row shows the host the posts are read from.
 
 **New-post indicator.** A single dot on the Subscriptions tab while any stored post has `seenAt = null`. Posts are marked seen when the user leaves the Subscriptions tab, or when the app goes to the background while that tab is open. Marking them on arrival would clear the per-post markers before anyone could read them.
 
@@ -379,10 +389,11 @@ interface Feed {
   id: string;
   feedUrl: string;            // the RSS/Atom address, after redirects
   siteUrl?: string;
-  title: string;
+  title: string;              // refreshed by every good check, so a renamed blog follows
   addedAt: number;
   lastCheckedAt?: number;     // set after every attempt, good or bad
   lastError?: string;         // one line; cleared by the next good check
+  linkBase?: string | null;   // the blog's moved host (an origin) that post links are rebased onto; null = checked, keep links; unset = not checked yet
 }
 
 /** One post from a feed. */
@@ -439,7 +450,7 @@ The queue row state in DESIGN.md comes from these fields. First match wins.
 ## 10. Queue & CRUD
 
 - **Queue screen** (home): Up next in `queueOrder`, then an **Archive** section. A bottom tab bar switches between Subscriptions and Up next (DESIGN.md "Navigation"). The tab isn't saved: the app opens on Up next. Row anatomy and states are in DESIGN.md.
-- **Gestures:** tap plays immediately; swipe left deletes (undo); swipe right marks played and archives (undo); long-press enters multi-select.
+- **Gestures:** tap plays immediately; swipe left deletes (undo); swipe right marks played and archives (undo), except on archived rows, which only swipe left; long-press enters multi-select.
 - **Reorder:** drag handles, shown in multi-select mode.
 - **Multi-select actions:** delete, move to top, mark played, re-render (e.g. after changing voice), retry extraction.
 - **Clear:** "Clear all" in Settings, with confirm. "Clear archive" isn't designed yet; an action on the Archive section header is the natural place.

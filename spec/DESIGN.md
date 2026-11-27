@@ -323,7 +323,7 @@ Bottom sheet on `surface-sheet`, scrim behind. Header: "Add to queue" and close.
   - Disable Re-render if nothing renderable is selected.
 - **Delete:** exits selection and shows the "N articles deleted · Undo" snackbar for 6 s.
 - **Swipe left on a row:** delete, with the same snackbar.
-- **Swipe right:** mark played, with a "Moved to Archive · Undo" snackbar.
+- **Swipe right:** mark played, with a "Moved to Archive · Undo" snackbar. Archived rows are already played, so they only swipe left.
 - **"Clear all"** (Settings only) is the one action with a confirmation dialog.
 
 ### 8. Speed picker · artboard "Speed picker / …"
