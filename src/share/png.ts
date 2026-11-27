@@ -1,8 +1,8 @@
-// A small PNG encoder. The browser's canvas.toBlob writes a 1200x630 card with soft gradients at
-// about 530 KB, because it barely compresses them. Filtering each row against the pixel to its left
-// first (PNG's "Sub" filter) turns a smooth gradient into runs of 0 and 1 that deflate to a fraction
-// of that, and some chat apps drop link-preview images over a few hundred KB. `renderCardBlob` falls
-// back to canvas.toBlob where CompressionStream isn't there.
+// A small PNG encoder. The browser's canvas.toBlob writes the 1200x630 share card, with its soft gradients,
+// at about 515 KB, because it barely compresses them. Filtering each row against the pixel to its left
+// first (PNG's "Sub" filter) turns a smooth gradient into runs of 0 and 1 that deflate to about half of
+// that, which is less to attach to a message and to save. `canvasToPng` falls back to canvas.toBlob where
+// CompressionStream isn't there.
 
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);

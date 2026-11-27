@@ -33,7 +33,13 @@ export function itemId(feedId: string, item: Pick<ParsedItem, 'guid' | 'link'>):
 export function newestFirst<T extends { publishedAt?: number }>(items: T[]): T[] {
   return items
     .map((item, i) => ({ item, i }))
-    .sort((a, b) => (b.item.publishedAt ?? -Infinity) - (a.item.publishedAt ?? -Infinity) || a.i - b.i)
+    .sort((a, b) => {
+      // An undated post counts as older than any dated one. Compare with < and > rather than
+      // subtracting: -Infinity minus -Infinity is NaN.
+      const pa = a.item.publishedAt ?? -Infinity;
+      const pb = b.item.publishedAt ?? -Infinity;
+      return pa === pb ? a.i - b.i : pb > pa ? 1 : -1;
+    })
     .map((x) => x.item);
 }
 

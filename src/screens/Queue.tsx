@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState, type PointerEvent as RPointerEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import type { Article } from '../db';
 import { useAppData } from '../app/data';
+import { plural } from '../format';
 import { openNowPlaying, openSettings, openSheet, showSnack, useUi, useWide } from '../app/ui';
 import { isPlayable, usePlayer } from '../player/PlayerProvider';
 import { displayState, isBusy, queueSummary, rowMeta, voiceReady, type Ctx } from '../queue/display';
-import { isRenderable, markPlayed, moveToTop, purgeDeleted, rerenderMany, retryMany, reorder, setLoved, softDelete } from '../queue/actions';
+import { isRenderable, markPlayed, moveBy, moveToTop, placeAt, purgeDeleted, rerenderMany, retryMany, reorder, setLoved, softDelete } from '../queue/actions';
 import { retryArticle } from '../pipeline/runner';
 import { Icon } from '../ui/Icon';
 import { Snackbar } from '../ui/Snackbar';
@@ -12,8 +14,7 @@ import { isShareable } from '../share/lists';
 import { MiniPlayer } from './MiniPlayer';
 import { QueueRow } from './QueueRow';
 import { TabBar } from './TabBar';
-
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+import { useDragReorder } from './useDragReorder';
 
 export function deleteWithUndo(ids: string[]) {
   void softDelete(ids).then((undo) =>
@@ -31,12 +32,11 @@ export function markPlayedWithUndo(ids: string[]) {
   );
 }
 
-/** Up next, the home view. */
 export function Queue() {
   return <QueueView view="queue" />;
 }
 
-/** The Saved tab: what you loved, pinned at the top, and below it what you've finished. Same rows and actions as Up next. */
+/** The Saved tab: what you loved, pinned at the top, and below it what you've finished. Same rows and actions as Up next, minus reordering. */
 export function Saved() {
   return <QueueView view="saved" />;
 }
@@ -51,13 +51,14 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
   const wide = useWide();
   const [selected, setSelected] = useState<Set<string> | null>(null);
   const [preview, setPreview] = useState<string[] | null>(null);
-  const [draggingId, setDraggingId] = useState<string | null>(null);
   const rowEls = useRef(new Map<string, HTMLElement>());
+  const listRef = useRef<HTMLUListElement>(null);
 
   const ctx: Ctx = { online, currentId: player.current?.id, voiceReady: voiceReady(settings), speed: player.speed };
   const selecting = selected !== null;
-  const byId = new Map([...upNext, ...archive, ...loved].map((a) => [a.id, a]));
+  const byId = new Map([...upNext, ...archive].map((a) => [a.id, a]));
   const shownUpNext = preview ? preview.map((id) => byId.get(id)!).filter(Boolean) : upNext;
+  // What this tab lists, top to bottom: the rows Select all and Share as list work on.
   const inView = saved ? [...loved, ...archiveRest] : upNext;
   const canShare = loved.some(isShareable);
 
@@ -99,48 +100,26 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
     if (why) showSnack({ text: why });
   };
 
-  // ---- Drag reorder (multi-select only): the row swaps with a neighbor as the pointer passes its middle ----
-  const handleDown = (id: string) => (e: RPointerEvent) => {
-    e.preventDefault();
-    try {
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    } catch {
-      /* pointer already gone */
-    }
-
-    let order = upNext.map((a) => a.id);
-    setPreview(order);
-    setDraggingId(id);
-    const target = e.currentTarget as HTMLElement;
-    const onMove = (ev: PointerEvent) => {
-      const i = order.indexOf(id);
-      const mid = (k: string | undefined) => {
-        const r = k ? rowEls.current.get(k)?.getBoundingClientRect() : undefined;
-        return r ? r.top + r.height / 2 : undefined;
-      };
-      const up = mid(order[i - 1]);
-      const down = mid(order[i + 1]);
-      if (up !== undefined && ev.clientY < up) order = [...order.slice(0, i - 1), id, order[i - 1], ...order.slice(i + 1)];
-      else if (down !== undefined && ev.clientY > down) order = [...order.slice(0, i), order[i + 1], id, ...order.slice(i + 2)];
-      else return;
-      setPreview(order);
-    };
-    const onUp = () => {
-      target.removeEventListener('pointermove', onMove);
-      target.removeEventListener('pointerup', onUp);
-      target.removeEventListener('pointercancel', onUp);
-      const i = order.indexOf(id);
-      if (order.join() !== upNext.map((a) => a.id).join()) void reorder(id, order[i - 1], order[i + 1]).then(() => setPreview(null));
-      else setPreview(null);
-      setDraggingId(null);
-    };
-    target.addEventListener('pointermove', onMove);
-    target.addEventListener('pointerup', onUp);
-    target.addEventListener('pointercancel', onUp);
-  };
+  // ---- Reorder: hold a row (or drag its handle in multi-select) and move it; or Move up/down ----
+  const upIds = upNext.map((a) => a.id);
+  const drag = useDragReorder({
+    ids: upIds,
+    rowEls,
+    listRef,
+    onDrop: (id, to) => {
+      const { order, before, after } = placeAt(upIds, id, to);
+      // Show the new order now; the live query catches up once it's saved.
+      flushSync(() => setPreview(order));
+      return reorder(id, before, after).finally(() => setPreview(null));
+    },
+    onHoldRelease: (id) => setSelected((s) => new Set(s).add(id)),
+  });
+  const move = (id: string, delta: number) => void moveBy(upIds, id, delta);
 
   // `inArchive`: the row is archived (no swipe to mark played). `dim`: draw it as played. Loved rows aren't dimmed, so the top of Saved stays bright.
+  // Only Up next rows can be reordered; in Saved a hold goes straight to multi-select.
   const row = (a: Article, inArchive: boolean, dim = inArchive) => {
+    const reorderable = !saved && !inArchive;
     const state = displayState(a, ctx);
     const isNew = a.id === newId;
     const meta = rowMeta(a, state, { ...ctx, isNew });
@@ -155,17 +134,21 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
         online={online}
         selecting={selecting}
         selected={!!selected?.has(a.id)}
-        dragging={draggingId === a.id}
+        lifted={drag.liftedId === a.id}
         onTap={() => tap(a)}
         onLongPress={() => setSelected((s) => new Set(s).add(a.id))}
         onSwipe={(dir) => (dir === 'left' ? deleteWithUndo([a.id]) : !inArchive && markPlayedWithUndo([a.id]))}
+        canMarkPlayed={!inArchive}
         onStatus={() => openSheet({ kind: 'explain', id: a.id })}
         onRetry={state === 'failed' ? () => void retryArticle(a.id) : undefined}
         onToggleLove={() => void setLoved(a.id, !a.lovedAt)}
-        onHandleDown={saved || inArchive ? undefined : handleDown(a.id)}
+        onGrab={reorderable ? (p, phase) => drag.grab(a.id, p, phase) : undefined}
+        onMove={reorderable ? (delta) => move(a.id, delta) : undefined}
         menu={
           wide
             ? [
+                ...(!reorderable || a.id === upIds[0] ? [] : [{ label: 'Move up', icon: 'arrow-up' as const, run: () => move(a.id, -1) }]),
+                ...(!reorderable || a.id === upIds[upIds.length - 1] ? [] : [{ label: 'Move down', icon: 'arrow-down' as const, run: () => move(a.id, 1) }]),
                 ...(inArchive ? [] : [{ label: 'Mark played', icon: 'mark-played' as const, run: () => markPlayedWithUndo([a.id]) }]),
                 { label: 'Delete', icon: 'trash' as const, danger: true, run: () => deleteWithUndo([a.id]) },
               ]
@@ -177,7 +160,8 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
     );
   };
 
-  const empty = !inView.length;
+  // Archive isn't listed in Up next, so an Up next with only finished articles is empty; Saved is empty when nothing is loved or archived.
+  const empty = saved ? !loved.length && !archive.length : !upNext.length;
   const chosen = [...(selected ?? [])].map((id) => byId.get(id)!).filter(Boolean);
   const done = () => setSelected(null);
   const ids = chosen.map((a) => a.id);
@@ -190,6 +174,9 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
             <Icon name="close" />
           </button>
           <h1 aria-live="polite">{selected.size} selected</h1>
+          <button className="icon-btn" aria-label="Share as list" title="Share as list" onClick={() => openSheet({ kind: 'share-list', ids: inView.filter((a) => selected.has(a.id)).map((a) => a.id), onShared: done })}>
+            <Icon name="share" />
+          </button>
           <button className="text-btn" onClick={() => setSelected(new Set(inView.map((a) => a.id)))}>
             Select all
           </button>
@@ -204,7 +191,7 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
             </div>
             {saved ? (
               <div className="q-actions">
-                <button className="share-btn" disabled={!canShare} onClick={() => openSheet({ kind: 'share' })} aria-label={canShare ? 'Share a list' : 'Share a list, love an article first'}>
+                <button className="share-btn" disabled={!canShare} onClick={() => openSheet({ kind: 'share-saved' })} aria-label={canShare ? 'Share loved articles' : 'Share loved articles, love an article first'}>
                   <Icon name="share" size={20} />
                   Share
                 </button>
@@ -279,7 +266,7 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
           )}
         </div>
       ) : (
-        <ul className="q-list" aria-label="Queue">
+        <ul className="q-list" aria-label="Queue" ref={listRef}>
           {shownUpNext.map((a) => row(a, false))}
         </ul>
       )}

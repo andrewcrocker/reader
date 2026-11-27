@@ -1,13 +1,19 @@
 import { useSyncExternalStore } from 'react';
+import type { ReadingList } from './share';
 
 // App-wide UI state: which overlay is open and the one snackbar. Overlays push a history entry so
 // Android's back gesture closes the top one (sheet, then Now Playing, then Settings or Your subscriptions).
 
 export type Sheet =
-  | { kind: 'add'; tab: 'link' | 'text'; text?: string; title?: string; shared?: boolean; replaceId?: string }
+  | { kind: 'add'; tab: 'link' | 'text' | 'pdf'; text?: string; title?: string; shared?: boolean; replaceId?: string }
   | { kind: 'speed' }
-  | { kind: 'share' }
-  | { kind: 'explain'; id: string };
+  | { kind: 'explain'; id: string }
+  /** Share the chosen articles as a reading-list link (from multi-select). */
+  | { kind: 'share-list'; ids: string[]; onShared?: () => void }
+  /** Share what you've loved (this week or all time) from the Saved tab. */
+  | { kind: 'share-saved' }
+  /** A reading list arrived in a `#list=` link. */
+  | { kind: 'list'; list: ReadingList };
 
 export interface SnackAction {
   label: string;

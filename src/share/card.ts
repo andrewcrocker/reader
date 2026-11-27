@@ -1,11 +1,11 @@
+import { plural } from '../format';
 import { coverInk } from '../theme/color';
 import { HEART_PATH } from '../ui/heart';
 import { encodePng } from './png';
 
-// The share card (spec/SHARING.md): a 1200x630 PNG drawn on a <canvas> in the app, so the Worker needs
-// no image rendering. It's what shows when the link is pasted into iMessage, Slack, X or Discord, so
-// the headline and the play button are big enough to read as a thumbnail and everything else is detail
-// for the full size. It reads as "a playlist you can press play on": Reader's teal on the left with the
+// The share card (SPEC §4 "Sharing a reading list"): a 1200x630 PNG drawn on a <canvas> in the app. It's the
+// preview in the share sheet and the image attached to the link, so it has to read as a small thumbnail in a
+// chat: the headline and the play button are big, and everything else is detail for the full size. It reads as "a playlist you can press play on": Reader's teal on the left with the
 // headline, and on the right Reader's own player (the mini player's dark surface, Now Playing's cover,
 // scrubber and round play button) holding the first article, the next few, and the total time.
 
@@ -339,7 +339,7 @@ export function drawCard(ctx: Ctx, spec: CardSpec): void {
 
 /** The eyebrow and headline: the largest size where no word is broken, nothing is cut, and it clears the brand and the foot of the card. */
 function drawHeadline(ctx: Ctx, spec: CardSpec) {
-  const eyebrow = `${spec.rangeLabel} · ${spec.total} ${spec.total === 1 ? 'article' : 'articles'}`.toUpperCase();
+  const eyebrow = `${spec.rangeLabel} · ${plural(spec.total, 'article')}`.toUpperCase();
   const floor = 52;
   let size = 92;
   let lines: string[] = [];
@@ -509,17 +509,12 @@ function drawPlayer(ctx: Ctx, spec: CardSpec) {
   }
 }
 
-/** Renders the card to a PNG: our own small encoding where the browser can do it, canvas.toBlob otherwise. */
-export async function renderCardBlob(spec: CardSpec): Promise<Blob> {
-  await loadCardFonts(`${spec.headline} ${spec.items.map((i) => i.title).join(' ')}`);
-  const canvas = document.createElement('canvas');
-  canvas.width = CARD_W;
-  canvas.height = CARD_H;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
-  drawCard(ctx, spec);
+/** The card as a PNG, from the canvas it was drawn on: our own small encoding where the browser can do it, canvas.toBlob otherwise. */
+export async function canvasToPng(canvas: HTMLCanvasElement): Promise<Blob> {
   try {
-    if (typeof CompressionStream === 'function') {
-      return new Blob([await encodePng(ctx.getImageData(0, 0, CARD_W, CARD_H).data, CARD_W, CARD_H)], { type: 'image/png' });
+    const ctx = canvas.getContext('2d');
+    if (ctx && typeof CompressionStream === 'function') {
+      return new Blob([await encodePng(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height)], { type: 'image/png' });
     }
   } catch {
     /* fall through to the browser's encoder */

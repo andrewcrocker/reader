@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import type { Article } from '../db';
-import { headline, lovedArticles, listArticles, nextWeekStart, possessive, publishRequest, rangeCounts, toShareItem, weekStart } from './lists';
+import { cardFileName, headline, lovedArticles, listArticles, listSignature, nextWeekStart, possessive, rangeCounts, toShareItem, weekStart } from './lists';
 
 // "This week" is the calendar week in local time, so these tests pin the time zone: Pacific, where daylight
 // saving ended on Sunday 1 Nov 2026 (a 25-hour day) and began on Sunday 8 Mar 2026 (a 23-hour one).
@@ -146,8 +146,8 @@ describe('headline', () => {
   });
 });
 
-describe('what is published', () => {
-  it('describes an article for the page and the card', () => {
+describe('what the card shows', () => {
+  it('describes an article for the card', () => {
     const item = toShareItem(art('a', { byline: 'Someone', durationSec: 12 * 60, tintSource: '#2E4057' }));
     expect(item).toEqual({ title: 'Title a', url: 'https://example.com/a', domain: 'example.com', byline: 'Someone', minutes: 12, tint: '#2e4057' });
   });
@@ -159,19 +159,56 @@ describe('what is published', () => {
     expect(item).not.toHaveProperty('byline');
     expect(item).not.toHaveProperty('minutes');
   });
+});
 
-  it('builds the request: headline, trimmed name and note, newest first, capped at 50', () => {
-    const many = Array.from({ length: 60 }, (_, i) => art(`n${i}`, { lovedAt: NOW - i * 1000 }));
-    const req = publishRequest(many, 'all', '  Zach  ', '  Start   here.  ', NOW);
-    expect(req).toMatchObject({ title: 'Zach’s all-time favorites', name: 'Zach', note: 'Start here.', range: 'all' });
-    expect(req.items).toHaveLength(50);
-    expect(req.items[0].title).toBe('Title n0');
+describe('the signature of a list', () => {
+  const list = () => [art('a', { lovedAt: 5, durationSec: 600, tintSource: '#112233', siteArtKey: 'site-a' }), art('b', { lovedAt: 4 })];
+  const sig = listSignature(list());
+
+  it('is the same for the same list, and ignores what the card does not show', () => {
+    expect(listSignature(list())).toBe(sig);
+    // Playing, being loved at another time, being archived: none of it changes a pixel.
+    const [a, b] = list();
+    expect(listSignature([{ ...a, positionSec: 300, archivedAt: 9, lovedAt: 99 }, b])).toBe(sig);
   });
 
-  it('omits an empty name and note', () => {
-    const req = publishRequest([art('a', { lovedAt: NOW })], 'week', ' ', '', NOW);
-    expect(req).not.toHaveProperty('name');
-    expect(req).not.toHaveProperty('note');
-    expect(req.title).toBe('Worth reading this week');
+  it('changes when the order or the articles change', () => {
+    const [a, b] = list();
+    expect(listSignature([b, a])).not.toBe(sig);
+    expect(listSignature([a])).not.toBe(sig);
+  });
+
+  it('changes when anything the card draws changes, though the ids stay the same', () => {
+    const [a, b] = list();
+    const changed: Partial<Article>[] = [
+      { title: 'The real title, once extraction finished' },
+      { domain: 'other.example' },
+      { tintSource: '#445566' },
+      { articleArtKey: 'art-a' },
+      { siteArtKey: 'site-a2' },
+      { durationSec: 900 },
+      { siteName: 'Example Times' },
+    ];
+    for (const patch of changed) expect(listSignature([{ ...a, ...patch }, b]), JSON.stringify(patch)).not.toBe(sig);
+  });
+
+  it('notices a URL title being replaced by the real one', () => {
+    const url = 'https://example.com/a';
+    const before = listSignature([art('a', { title: url })]);
+    expect(listSignature([art('a', { title: 'A Real Headline' })])).not.toBe(before);
+  });
+});
+
+describe('the file name of the card', () => {
+  it('is the headline, lowercased and joined with hyphens', () => {
+    expect(cardFileName('Zach’s reading this week')).toBe('zachs-reading-this-week.png');
+    expect(cardFileName('All-time favorites')).toBe('all-time-favorites.png');
+    expect(cardFileName('James’ all-time favorites')).toBe('james-all-time-favorites.png');
+  });
+
+  it('copes with a name that has nothing a file name can hold', () => {
+    expect(cardFileName('???')).toBe('reader-list.png');
+    expect(cardFileName('')).toBe('reader-list.png');
+    expect(cardFileName('x'.repeat(200)).length).toBeLessThanOrEqual(64);
   });
 });

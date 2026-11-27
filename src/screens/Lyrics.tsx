@@ -122,7 +122,7 @@ export function Lyrics({ embedded }: { embedded?: boolean }) {
             <p className="t">{a.title}</p>
             {byline && <p className="b">{byline}</p>}
           </div>
-          <LoveButton loved={!!a.lovedAt} onToggle={() => void setLoved(a.id, !a.lovedAt)} />
+          <LoveButton loved={!!a.lovedAt} title={a.title} onToggle={() => void setLoved(a.id, !a.lovedAt)} />
           {a.url && (
             <a className="icon-btn" href={a.url} target="_blank" rel="noreferrer" aria-label="Open original article">
               <Icon name="external" />

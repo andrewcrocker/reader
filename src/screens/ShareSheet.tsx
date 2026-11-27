@@ -1,95 +1,135 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
 import { useAppData } from '../app/data';
+import { fitList, MAX_NOTE } from '../app/share';
+import { copyLink, sendLink } from '../app/sendLink';
 import { back, showSnack } from '../app/ui';
-import { db, updateSettings } from '../db';
-import { CARD_H, CARD_W, drawCard, loadCardFonts, renderCardBlob, type CardSpec } from '../share/card';
-import { headline, listArticles, MAX_ITEMS, MAX_NAME, MAX_NOTE, plural, rangeCounts, RANGE_LABEL, type ShareRange } from '../share/lists';
-import { cardSpec, copyLink, publishList, PublishError, shareLink, type ShareOutcome } from '../share/publish';
+import { updateSettings } from '../db';
+import { plural } from '../format';
+import { CARD_H, CARD_W, canvasToPng, drawCard, loadCardFonts } from '../share/card';
+import { cardSpec } from '../share/cardSpec';
+import { cardFileName, headline, listArticles, listSignature, MAX_NAME, rangeCounts, RANGE_LABEL, type ShareRange } from '../share/lists';
 import { Icon } from '../ui/Icon';
 import { Sheet } from '../ui/Sheet';
+import { toItem } from './listSheets';
 
 const RANGES: ShareRange[] = ['week', 'all'];
 const HINT: Record<ShareRange, string> = { week: 'Articles you’ve loved since Monday.', all: 'Everything you’ve loved.' };
-
-/** Tells the user how the share went, quietly. */
-function announce(outcome: ShareOutcome, url: string) {
-  if (outcome === 'shared') return;
-  if (outcome === 'copied') return showSnack({ text: 'Link copied. Paste it anywhere.' });
-  if (outcome === 'cancelled') {
-    return showSnack({
-      text: 'Your list is published',
-      actions: [{ label: 'Copy link', run: () => copyLink(url).then((r) => showSnack({ text: r === 'copied' ? 'Link copied' : url })) }],
-    });
-  }
-  showSnack({ text: `Your list is published: ${url}` });
-}
+/** Typing settles this long before the card is turned into a PNG. */
+const SETTLE_MS = 150;
 
 /**
- * Share a reading list (spec/SHARING.md). Pick "This week" or "All time", add a name and a note, see
- * the card people will see, then publish: the Worker stores a snapshot and the link goes to the share sheet.
+ * Share what you've loved (SPEC §4 "Sharing a reading list"): pick This week or All time, add a name and a
+ * note, see the card, then Share. The list travels as a `#list=` link (the same as Share as list) with the
+ * card attached as an image where the device can share files. Nothing is uploaded.
  */
-export function ShareSheet() {
-  const { articles, settings, online } = useAppData();
+export function ShareSavedSheet() {
+  const { articles, settings } = useAppData();
   const counts = useMemo(() => rangeCounts(articles), [articles]);
   const [range, setRange] = useState<ShareRange>(counts.week ? 'week' : 'all');
   const [name, setName] = useState(settings.shareName ?? '');
   const [note, setNote] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // What the quiet buttons just did, shown in place of their label for a moment.
+  const [flash, setFlash] = useState<'copied' | 'copy-failed' | 'saved' | ''>('');
+  // undefined: the image is still being made. null: it couldn't be, so Share sends the link alone.
+  const [png, setPng] = useState<File | null | undefined>(undefined);
+  const [fit, setFit] = useState<{ key: string; url: string; kept: number; dropped: number; tooLong: boolean } | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const count = counts[range];
-  const shown = Math.min(count, MAX_ITEMS);
-
-  // The artwork loads when the range changes; the headline redraws as the name is typed.
-  const list = useMemo(() => listArticles(articles, range), [articles, range]);
-  const key = list.map((a) => a.id).join(',');
-  const [base, setBase] = useState<Omit<CardSpec, 'headline'> | null>(null);
-  useEffect(() => {
-    let live = true;
-    void cardSpec(articles, range, '').then(({ headline: _unused, ...rest }) => live && setBase(rest));
-    return () => {
-      live = false;
-    };
-    // `key` stands for the articles in the range: `articles` itself changes whenever anything is playing or rendering.
-  }, [key, range]);
 
   const title = headline(name.trim().slice(0, MAX_NAME), range);
+  const line = note.trim();
+  const list = useMemo(() => listArticles(articles, range), [articles, range]);
+  // `articles` changes whenever anything is playing or rendering; the link and the card depend on what they show, not on that.
+  const key = `${title}\n${line}\n${listSignature(list)}`;
+
+  // The link: as many of the newest loved as fit in one (SPEC §4), so a long list is trimmed rather than cut off by an app.
   useEffect(() => {
-    const el = canvas.current;
-    if (!base || !el) return;
     let live = true;
-    const spec: CardSpec = { ...base, headline: title };
-    void loadCardFonts(`${title} ${base.items.map((i) => i.title).join(' ')}`).then(() => live && drawCard(el.getContext('2d')!, spec));
+    if (!list.length) return setFit(null);
+    void fitList(location.origin, { name: title, note: line, items: list.map(toItem) }).then((f) => live && setFit({ key, url: f.url, kept: f.list.items.length, dropped: f.dropped, tooLong: f.tooLong }));
     return () => {
       live = false;
     };
-  }, [base, title]);
+  }, [key]);
 
-  const past = useLiveQuery(() => db.sharedLists.orderBy('createdAt').reverse().limit(3).toArray(), []);
+  const ready = fit?.key === key ? fit : null;
+  const kept = ready ? list.slice(0, ready.kept) : [];
+  // The card shows what the link holds, so it redraws when any of those articles' title, tint, art or length changes, not just which ones they are.
+  const cardKey = ready ? `${range}\n${title}\n${listSignature(kept)}` : '';
 
-  const publish = async () => {
-    if (busy || !count) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await updateSettings({ shareName: name.trim().slice(0, MAX_NAME) });
-      let png = await renderCardBlob(await cardSpec(articles, range, name));
-      // The Worker takes 1 MB. A card with five photos stays well under it, but if one doesn't, send it without the art.
-      if (png.size > 900_000) png = await renderCardBlob(await cardSpec(articles, range, name, false));
-      const rec = await publishList(articles, range, name, note, png);
-      const outcome = await shareLink(rec.url, rec.title);
-      back();
-      announce(outcome, rec.url);
-    } catch (e) {
-      setError(e instanceof PublishError ? e.message : 'Something went wrong. Try again.');
-    } finally {
-      setBusy(false);
-    }
+  useEffect(() => {
+    const el = canvas.current;
+    if (!cardKey || !el) return;
+    let live = true;
+    setPng(undefined);
+    void (async () => {
+      const spec = await cardSpec(kept, title, range);
+      await loadCardFonts(`${title} ${spec.items.map((i) => i.title).join(' ')}`);
+      if (!live) return;
+      drawCard(el.getContext('2d')!, spec);
+      // The image is made ahead of the tap: the share sheet has to open straight from it.
+      await new Promise((r) => setTimeout(r, SETTLE_MS));
+      if (!live) return;
+      try {
+        const blob = await canvasToPng(el);
+        if (live) setPng(new File([blob], cardFileName(title), { type: 'image/png' }));
+      } catch {
+        if (live) setPng(null);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [cardKey]);
+
+  useEffect(() => {
+    if (!flash) return;
+    const t = setTimeout(() => setFlash(''), 2500);
+    return () => clearTimeout(t);
+  }, [flash]);
+
+  /** Remember the name for the next list. */
+  const remember = () => {
+    const n = name.trim().slice(0, MAX_NAME);
+    if (n !== (settings.shareName ?? '')) void updateSettings({ shareName: n });
+  };
+
+  const canShare = !!ready && png !== undefined;
+  const share = async () => {
+    if (!ready || png === undefined) return;
+    remember();
+    // Only the link goes with the image (see sendLink). Closing the share sheet isn't an error; stay here so they can try again.
+    const outcome = await sendLink(ready.url, png ?? undefined);
+    if (outcome === 'cancelled') return;
+    if (outcome === 'failed') return showSnack({ text: 'Couldn’t share or copy the link' });
+    back();
+    showSnack({
+      text: [outcome === 'copied' ? 'Link copied' : 'List shared', ready.dropped ? `The ${ready.kept} most recently loved were included` : '', ready.tooLong ? 'It’s a long link; some apps may cut it off' : ''].filter(Boolean).join('. '),
+    });
+  };
+
+  const copy = async () => {
+    if (!ready) return;
+    remember();
+    setFlash((await copyLink(ready.url)) ? 'copied' : 'copy-failed');
+  };
+
+  const saveImage = () => {
+    if (!png) return;
+    remember();
+    const url = URL.createObjectURL(png);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = png.name;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    setFlash('saved');
   };
 
   return (
-    <Sheet label="Share a list">
+    <Sheet label="Share loved articles">
       <div className="seg" role="radiogroup" aria-label="Which articles">
         {RANGES.map((r) => (
           <button key={r} role="radio" aria-checked={range === r} disabled={!counts[r]} onClick={() => setRange(r)}>
@@ -100,62 +140,41 @@ export function ShareSheet() {
       </div>
       <p className="hint share-hint" aria-live="polite">
         {HINT[range]}
-        {count > MAX_ITEMS ? ` The newest ${MAX_ITEMS} are included.` : ''}
       </p>
 
-      <canvas ref={canvas} className="card-preview" width={CARD_W} height={CARD_H} role="img" aria-label={`Preview of the image people see: ${title}, ${plural(shown, 'article')}`} />
+      <canvas ref={canvas} className="card-preview" width={CARD_W} height={CARD_H} role="img" aria-label={`Preview of the image you’ll share: ${title}, ${plural(ready?.kept ?? count, 'article')}`} />
+
+      {ready && (ready.dropped > 0 || ready.tooLong) && (
+        <p className="status-note" role="status">
+          <Icon name="warn" size={18} />
+          {ready.dropped > 0
+            ? `Only the ${ready.kept} most recently loved fit in one link. The other ${ready.dropped} aren’t included.`
+            : 'This article makes a long link; some apps may cut it off.'}
+        </p>
+      )}
 
       <div className="field">
         <label htmlFor="share-name">Your name (optional)</label>
-        <input id="share-name" className="input" type="text" maxLength={MAX_NAME} placeholder="Shown in the headline" value={name} onChange={(e) => setName(e.target.value)} autoComplete="given-name" enterKeyHint="next" />
+        <input id="share-name" className="input" type="text" maxLength={MAX_NAME} placeholder="Shown in the headline" value={name} onChange={(e) => setName(e.target.value)} onBlur={remember} autoComplete="given-name" enterKeyHint="next" />
       </div>
       <div className="field">
         <label htmlFor="share-note">A note (optional)</label>
         <input id="share-note" className="input" type="text" maxLength={MAX_NOTE} placeholder="One line about why these" value={note} onChange={(e) => setNote(e.target.value)} enterKeyHint="done" />
       </div>
 
-      {error && (
-        <p className="status-note error" role="alert">
-          <Icon name="warn" size={18} />
-          {error}
-        </p>
-      )}
-      <button className="btn primary block" disabled={busy || !count || !online} aria-busy={busy} onClick={() => void publish()}>
-        {!online ? <Icon name="cloud-off" size={18} /> : <Icon name="share" size={20} />}
-        {busy ? 'Publishing…' : !online ? 'Offline' : 'Share'}
+      <button className="btn primary block" disabled={!canShare} onClick={() => void share()}>
+        <Icon name="share" size={20} />
+        Share
       </button>
-      <p className="hint">Anyone with the link can see this list and open its articles. It’s a snapshot: hearts you add or remove later don’t change it.</p>
-
-      {!!past?.length && (
-        <section aria-labelledby="past-h">
-          <h3 className="caps" id="past-h" style={{ margin: '4px 0 6px' }}>
-            Shared before
-          </h3>
-          <ul className="shared-list">
-            {past.map((l) => (
-              <li key={l.id} className="shared-row">
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <p className="t">{l.title}</p>
-                  <p className="m tabular">
-                    {new Date(l.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · {plural(l.count, 'article')}
-                  </p>
-                </div>
-                <button
-                  className="text-btn"
-                  aria-label={`Share “${l.title}” again`}
-                  onClick={() => {
-                    // Close first so a snackbar isn't hidden behind the sheet; sharing stays inside this tap.
-                    back();
-                    void shareLink(l.url, l.title).then((o) => announce(o, l.url));
-                  }}
-                >
-                  Share again
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      <div className="share-quiet" aria-live="polite">
+        <button className="text-btn" disabled={!ready} onClick={() => void copy()}>
+          {flash === 'copied' ? 'Link copied' : flash === 'copy-failed' ? 'Couldn’t copy' : 'Copy link'}
+        </button>
+        <button className="text-btn" disabled={!png} onClick={saveImage}>
+          {flash === 'saved' ? 'Image saved' : 'Save image'}
+        </button>
+      </div>
+      <p className="hint">Sends the card with one link. Whoever opens the link in Reader can add these articles to their own queue. Nothing is uploaded. It’s a snapshot: hearts you add or remove later don’t change it.</p>
     </Sheet>
   );
 }

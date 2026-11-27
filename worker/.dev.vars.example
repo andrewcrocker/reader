@@ -1,3 +1,1 @@
 APP_SECRET=dev-secret
-# Shared lists: the dev app is on :5173, and the public links are served by this Worker.
-APP_URL=http://localhost:5173

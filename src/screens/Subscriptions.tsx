@@ -1,23 +1,24 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { Feed, FeedItem } from '../db';
 import { useAppData } from '../app/data';
 import { openManage, showSnack } from '../app/ui';
+import { plural } from '../format';
 import { recentIds } from '../feeds/diff';
 import { ago, shortDate } from '../feeds/format';
 import { addFeedItem, checkFeeds } from '../feeds/store';
 import { Icon } from '../ui/Icon';
 import { Dock } from './TabBar';
 
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-
 /**
- * The Subscriptions tab (SPEC §4b): new posts from the blogs you follow. Subscribing, the list of
+ * The Subscriptions tab (SPEC §4c): new posts from the blogs you follow. Subscribing, the list of
  * blogs and removing one are on Your subscriptions (Manage). Nothing here is added to the queue until you tap Add.
  */
 export function Subscriptions() {
   const { feeds, feedItems, online } = useAppData();
   const [checking, setChecking] = useState(false);
+  // `adding` disables the buttons; `pending` is what a second tap checks, since state only updates after the render.
   const [adding, setAdding] = useState<ReadonlySet<string>>(new Set());
+  const pending = useRef(new Set<string>());
   const byFeed = new Map(feeds.map((f) => [f.id, f]));
   const recent = useMemo(() => recentIds(feedItems), [feedItems]);
   const lastChecked = Math.max(0, ...feeds.map((f) => f.lastCheckedAt ?? 0));
@@ -31,15 +32,22 @@ export function Subscriptions() {
   };
 
   const add = async (item: FeedItem) => {
-    if (adding.has(item.id)) return;
+    if (pending.current.has(item.id)) return;
+    pending.current.add(item.id);
     setAdding((s) => new Set(s).add(item.id));
-    const { existed } = await addFeedItem(item);
-    setAdding((s) => {
-      const n = new Set(s);
-      n.delete(item.id);
-      return n;
-    });
-    showSnack({ text: existed ? 'Already in your queue' : 'Saved to your queue' });
+    try {
+      const { existed } = await addFeedItem(item);
+      showSnack({ text: existed ? 'Already in your queue' : 'Saved to your queue' });
+    } catch {
+      showSnack({ text: 'Couldn’t add that post. Try again.' });
+    } finally {
+      pending.current.delete(item.id);
+      setAdding((s) => {
+        const n = new Set(s);
+        n.delete(item.id);
+        return n;
+      });
+    }
   };
 
   return (

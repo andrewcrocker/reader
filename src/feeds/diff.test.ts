@@ -40,6 +40,16 @@ describe('newestFirst', () => {
     ] as { id: string; publishedAt?: number }[];
     expect(newestFirst(items).map((i) => i.id)).toEqual(['tie-a', 'tie-b', 'old', 'undated-1', 'undated-2']);
   });
+
+  it('keeps feed order when no post has a date', () => {
+    const items = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }] as { id: string; publishedAt?: number }[];
+    expect(newestFirst(items).map((i) => i.id)).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  it('puts an undated post after a dated one wherever it sits in the feed', () => {
+    const items = [{ id: 'undated' }, { id: 'dated', publishedAt: 0 }] as { id: string; publishedAt?: number }[];
+    expect(newestFirst(items).map((i) => i.id)).toEqual(['dated', 'undated']);
+  });
 });
 
 describe('diffItems', () => {

@@ -30,8 +30,9 @@ export interface LyricBlock {
 
 export interface Article {
   id: string;
-  source: 'url' | 'text';
-  /** Empty for pasted text. */
+  /** `file`: an uploaded or shared PDF (no URL to go back to). */
+  source: 'url' | 'text' | 'file';
+  /** Empty for pasted text and uploaded files. */
   url: string;
   canonicalUrl?: string;
   /** The URL until a real title arrives. */
@@ -91,6 +92,23 @@ export interface RenderedChunk {
   sampleRate: number;
 }
 
+/**
+ * A server chunk's MP3, downloaded while the app was closed (by the service worker, which can't
+ * decode audio). The page decodes these into `renderedChunks` the next time it collects.
+ */
+export interface ServerAudioRow {
+  articleId: string;
+  i: number;
+  mp3: ArrayBuffer;
+}
+
+/** An uploaded or shared file (a PDF), kept only until its text is extracted. Keyed by article id. */
+export interface FileRow {
+  id: string;
+  blob: Blob;
+  name?: string;
+}
+
 export interface AudioBlobRow {
   key: string;
   blob: Blob;
@@ -140,18 +158,6 @@ export interface FeedItem {
   articleId?: string;
 }
 
-/** A reading list the user published (spec/SHARING.md). The list itself is a snapshot on the server; this is the receipt. */
-export interface SharedList {
-  id: string;
-  /** The public link. */
-  url: string;
-  range: 'week' | 'all';
-  /** The headline on the card, e.g. "Zach's reading this week". */
-  title: string;
-  count: number;
-  createdAt: number;
-}
-
 export type EnginePref = 'auto' | 'webgpu' | 'wasm';
 export type VoiceQuality = 'high' | 'standard';
 export type EngineKind = 'server' | 'device';
@@ -180,6 +186,8 @@ export interface Settings {
   speed: number;
   skipSeconds: 10 | 15 | 30;
   autoAdvance: boolean;
+  /** A short chime when an article starts and when it ends. */
+  chimes: boolean;
   keepPlayed: 'archive' | 'delete';
   lyricsOn: boolean;
   lastPlayingArticleId?: string;
@@ -203,6 +211,7 @@ export const DEFAULT_SETTINGS: Settings = {
   speed: 1,
   skipSeconds: 15,
   autoAdvance: true,
+  chimes: true,
   keepPlayed: 'archive',
   lyricsOn: false,
 };
@@ -210,12 +219,13 @@ export const DEFAULT_SETTINGS: Settings = {
 class ReaderDb extends Dexie {
   articles!: Table<Article, string>;
   renderedChunks!: Table<RenderedChunk, [string, number]>;
+  serverAudio!: Table<ServerAudioRow, [string, number]>;
+  files!: Table<FileRow, string>;
   audio!: Table<AudioBlobRow, string>;
   art!: Table<ArtRow, string>;
   settings!: Table<Settings, string>;
   feeds!: Table<Feed, string>;
   feedItems!: Table<FeedItem, string>;
-  sharedLists!: Table<SharedList, string>;
 
   constructor() {
     super('reader');
@@ -272,14 +282,12 @@ class ReaderDb extends Dexie {
         s.engineKind = 'server';
       });
     });
+    // Chunks the service worker downloads in the background, waiting to be decoded; PDFs waiting to be read.
+    this.version(5).stores({ serverAudio: '[articleId+i], articleId', files: 'id' });
     // The Subscriptions inbox. `seenAt` is null for unseen posts, which IndexedDB can't index, so unseen is found in memory.
-    this.version(5).stores({
+    this.version(6).stores({
       feeds: 'id, feedUrl',
       feedItems: 'id, feedId',
-    });
-    // Receipts for published reading lists. (Loving adds `lovedAt` to articles without an index, so it needs no version.)
-    this.version(6).stores({
-      sharedLists: 'id, createdAt',
     });
   }
 }

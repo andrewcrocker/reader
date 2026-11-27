@@ -17,13 +17,13 @@ Read these first if you've seen the brief.
 | Secondary row | Speed, auto-advance, sleep, lyrics | **Speed, auto-advance, read along** (3 pills) |
 | Tap row | Play, or open a preview | **Plays immediately** (or resumes) |
 | Swipe right | Move to top, or mark played | **Mark played**, which moves the row to Archive |
-| Finished articles | Disappear, dim, or Archive | **Move to Archive** (its own tab on the bottom tab bar). Settings keeps "delete instead" as an option |
+| Finished articles | Disappear, dim, or Archive | **Move to Archive** (a section on the Saved tab). Settings keeps "delete instead" as an option, except for loved articles |
 | Navigation | Queue as the only hub | **Bottom tab bar:** Subscriptions, Up next, Saved. Up next is home |
-| Favorites and sharing | Not covered | **Love** an article (a heart) to keep it (apart from Archive, which only means done). **Saved** (the old Archive tab) lists loved articles first, then the archive. A **Share** button there publishes a list as a link with a preview image (see SHARING.md) |
+| Keeping and sharing favorites | Not covered | **Love** an article (a heart) to keep it, apart from Archive, which only means done. **Saved** is the place for what you want to keep: loved articles first, then the archive. It can be shared: a **Share** button there sends a list of what you loved this week or all time, with a card image (see Reading lists) |
 | Finding new articles | A feed inbox, not designed yet | **Subscriptions:** pull only. You paste a blog's address on **Your subscriptions** (Manage, from the Subscriptions header), new posts wait in the Subscriptions tab, and nothing joins the queue until you tap Add |
 | Shared text | Not covered | Text (not a URL) shared from another app opens the **Add sheet on the Text tab**, prefilled |
 | Up-next peek | Peek or swipe | **Peek** of the next article at the bottom of Now Playing |
-| Reorder handles | Always, or edit mode | **Only in multi-select mode** |
+| Reorder | Handles always, or in edit mode | **Hold a row and drag it.** Handles appear only in multi-select |
 | Lyrics dimming | All dimmed text at 4.5:1 | Already-read text drops to about 2.6:1 (see Accessibility) |
 | Voice choice | Global or per-article | **One global voice** from three (Heart, Bella, Michael), picked in Settings. No picker in the player or First run |
 | Voice engine | On-device, with optional cloud | **Online (server Kokoro) only.** No engine or quality choice in Settings or First run |
@@ -62,9 +62,9 @@ This is a podcast player for articles. Listening is the main job and reading is 
 
 ## Navigation
 
-A **bottom tab bar** switches between three views: **Subscriptions | Up next | Saved**. Up next is the hub and the home view, in the middle. Now Playing opens from the mini player on any tab. Lyrics view is a mode inside Now Playing. Settings is a pushed screen from the Up next header, and Your subscriptions is a pushed screen from the Subscriptions header. Neither has a tab bar. The Add sheet, speed picker, Partial explainer, and Share sheet are bottom sheets.
+A **bottom tab bar** switches between three views: **Subscriptions | Up next | Saved**. Up next is the hub and the home view, in the middle. Archive is a section of Saved, not a tab. Now Playing opens from the mini player on any tab. Lyrics view is a mode inside Now Playing. Settings is a pushed screen from the Up next header, and Your subscriptions is a pushed screen from the Subscriptions header. Neither has a tab bar. The Add sheet, speed picker, Partial explainer, and the share sheets are bottom sheets.
 
-Ways in: app icon → Up next; share sheet → Up next (URL) or Add sheet on Text (text); `#add=` link → Up next; invite link → First run → empty Up next. The app always opens on Up next. The tab isn't remembered between launches.
+Ways in: app icon → Up next; share sheet → Up next (URL) or Add sheet on Text (text); `#add=` link → Up next; `#list=` link → Up next, with the reading-list sheet open (see Reading lists); invite link → First run → empty Up next. The app always opens on Up next. The tab isn't remembered between launches.
 
 **Back:** Up next is the bottom of the back stack. Subscriptions and Saved each sit one step above it, so back from either returns to Up next. Switching between those two swaps in place, and tapping Up next does the same as back. Your subscriptions sits one step above Subscriptions, so back from it returns to the inbox. It's a push, the same as Settings from Up next, with the same back arrow and the same back gesture.
 
@@ -216,19 +216,29 @@ Every row shows a 16 dp status glyph at the start of its meta line, then text. E
 - **Header:** "Up next" (Literata 30), then a line with count and total time at speed ("8 articles · 2 h 46 m at 1.4×"). Settings (sliders icon) and Add (filled `accent` circle, 48) on the right.
 - **List:**
   - Up next rows in order. Archived rows are on the Saved tab.
-  - Each row ends with a **heart** button (48 touch target, 22 icon; label "Love this article" or "Remove from loved"). Tapping it loves or unloves without playing. It's hidden in multi-select and on Failed rows (which have Retry). Unloving has no snackbar: the heart's shape is the confirmation.
+  - Each row ends with a **heart** button (48 touch target, 22 icon; label `Love “Title”` or `Remove “Title” from loved`). Tapping it loves or unloves without playing. It's hidden in multi-select and on Failed rows (which have Retry). Unloving has no snackbar: the heart's shape is the confirmation.
   - The currently playing row uses `row-playing`.
   - Rows are separated by space, not dividers. One divider sits under the header.
 - **Mini player and tab bar:** pinned at the bottom, the mini player above the tab bar (see 2 and Navigation).
 - **Empty state** · artboard "Empty queue / …":
-  - Share glyph in a 88 circle, "Nothing queued yet", and "Share an article from any app and it lands here, ready to play."
+  - Share glyph in a 88 circle, "Nothing queued yet", and "Share an article from any app and it lands here, ready to play." It also shows when everything left is archived.
   - Then an "or paste a link" text button that opens the Add sheet.
   - No mini player.
 - **Offline:**
   - A 36 dp banner under the header on `fill`: cloud-slash glyph and "Offline · ready articles still play."
   - Retry buttons are disabled (`input-border` color, cloud-slash glyph) and described by the row note.
   - Nothing else changes.
+- **Reorder** (Up next only): hold a row for about 400 ms. It lifts (a light buzz, a shadow, 2% larger) and follows the finger; the rows it passes slide apart to show where it will land, and the list scrolls when the row nears the top or the mini player. Let go to drop it. Moving more than about 8 px before the hold fires scrolls, swipes, or does nothing, as usual, so a long list never reorders by accident. Holding and letting go without moving enters multi-select, as a long-press always did. With a mouse, press and hold the same way. On wide screens each row's ⋯ menu also has **Move up** and **Move down**. Reduced motion: no lift scale, and the slot opens instantly.
 - **Voices busy** (online voices, daily budget spent): the same banner with a clock glyph and "Voices are busy right now. Your articles will finish later." Affected rows read "Waiting for voices"; they start again on their own after the reset (midnight UTC). Offline wins if both apply.
+
+### 1a. Saved
+
+The last tab. The same rows, gestures, and multi-select as Up next, in two sections, except that rows can't be reordered: a hold goes straight to multi-select. Header: "Saved", a line such as "8 loved · 12 archived", and a **Share** button (outline pill with the share glyph and label, 40 tall, `input-border`; disabled when nothing loved can be shared). Nothing in the header is `accent`-filled.
+
+- **Loved** (section label, caps): every loved article, newest love first, whether or not it's archived. Rows aren't dimmed, so the top of the tab stays bright. With none, a `muted` line: "Tap the heart on an article to keep it here. You can share what you love."
+- **Archive** (section label): archived articles that aren't loved. An article that is both is listed once, under Loved. (Showing it twice would make "12 archived" and the list disagree, and the Archive would no longer read as "what's left once the favorites are pulled out".) Hidden when empty.
+- Swipe left deletes; swipe right marks played unless the row is archived. Multi-select has the same header (including Share as list), Select all and action bar as Up next. Mark played is disabled if every selected row is archived. Move to top returns an archived row to Up next. Loving an archived row lifts it into Loved; unloving drops it back into Archive.
+- **Empty state** (nothing loved or archived): the heart glyph, "Nothing saved yet", "Love an article to keep it here, and share your favorites. Articles you've listened to land here too."
 
 ### 2. Mini player
 
@@ -297,7 +307,7 @@ Toggled by Read along. The cover area and metadata collapse into a compact heade
 
 ### 5. Add sheet · artboard "Add sheet …"
 
-Bottom sheet on `surface-sheet`, scrim behind. Header: "Add to queue" and close. Segmented control: **Link | Text**.
+Bottom sheet on `surface-sheet`, scrim behind. Header: "Add to queue" and close. Segmented control: **Link | Text | PDF**.
 
 - **Link tab:**
   - A large `accent` button (72 tall): clipboard glyph, "Paste link," and a one-line preview of the clipboard URL. It is disabled with "No link on your clipboard" when empty.
@@ -306,8 +316,12 @@ Bottom sheet on `surface-sheet`, scrim behind. Header: "Add to queue" and close.
 - **Text tab:**
   - Title (optional; first line is used if blank), then the article text (Literata 15) with a word count and listen estimate.
   - "Save to queue" (full width, `accent`).
+- **PDF tab:**
+  - The same large `accent` button: upload glyph, "Choose a PDF," "From your files" (or the reason a file was refused: not a PDF, over 50 MB). It opens the system file picker.
+  - Hint: Reader pulls out the text and reads it aloud; Read along shows it. Share › Reader from Files works too, as does a PDF link on the Link tab. Scanned PDFs have no text.
+  - Choosing a file saves it straight away; the row reads "Preparing" while the text is pulled out, then goes on as usual. Its site label is "PDF."
 - **Shared text arrival:** opens on Text, prefilled, with a status row: "Text shared from <app>. Add a title, then save."
-- **After saving:** the sheet closes and the new row appears at the bottom of Up next in its first state (Fetching for links, Queued for audio for text).
+- **After saving:** the sheet closes and the new row appears at the bottom of Up next in its first state (Fetching for links and PDFs, Queued for audio for text).
 
 ### 6. Share-sheet arrival · artboard "Share-sheet arrival …"
 
@@ -319,15 +333,15 @@ Bottom sheet on `surface-sheet`, scrim behind. Header: "Add to queue" and close.
 
 ### 7. Multi-select · artboard "Multi-select …"
 
-- **Enter:** long-press a row.
-- **Header** (on a slightly darker `bg`): close, "N selected," Select all.
-- **Rows:** a checkbox (accent-colored) leads; selected rows use `row-selected`; drag handles appear at the trailing edge.
-- **Bottom action bar** (replaces the mini player): Delete (`error`), Move to top, Mark played, Re-render, Retry. Each has an icon over a label.
+- **Enter:** hold a row and let go without moving it (holding and moving reorders; see Queue). On Saved a hold goes straight to multi-select, since nothing there reorders.
+- **Header** (on a slightly darker `bg`): close, "N selected," Share as list (share glyph; see 14), Select all.
+- **Rows:** a checkbox (accent-colored) leads; selected rows use `row-selected`; drag handles appear at the trailing edge. A focused handle moves its row with the up and down arrow keys.
+- **Bottom action bar** (replaces the mini player and the tab bar): Delete (`error`), Move to top, Mark played, Re-render, Retry. Each has an icon over a label.
   - Disable Retry if no failed row is selected.
   - Disable Re-render if nothing renderable is selected.
 - **Delete:** exits selection and shows the "N articles deleted · Undo" snackbar for 6 s.
 - **Swipe left on a row:** delete, with the same snackbar.
-- **Swipe right:** mark played, with a "Moved to Archive · Undo" snackbar.
+- **Swipe right:** mark played, with a "Moved to Archive · Undo" snackbar. Archived rows are already played, so they only swipe left.
 - **"Clear all"** (Settings only) is the one action with a confirmation dialog.
 
 ### 8. Speed picker · artboard "Speed picker / …"
@@ -374,27 +388,7 @@ A pushed screen from **Manage** in the Subscriptions header, built like Settings
 - **List:** one row per blog, newest first, under a `line` divider: the blog's name (Literata 16), then its address and when it was checked ("vitalik.eth.limo · Checked 12 m ago"). The address is where the posts are read: the blog's moved host if it has one, else its site, else its feed address, without `www.`. **Remove** (`.text-btn.danger`, `error` text) sits at the end, with an Undo snackbar ("Removed Vitalik Buterin's website"). A blog that couldn't be checked shows a quiet line under that, with a warning glyph: "Couldn't check. The page wasn't found (404)." There are no banners, and checks try again by themselves.
 - **Empty state:** a `muted` line under the field: "No subscriptions yet. Paste a blog's address above."
 
-### 12. Saved
-
-The last tab. The same rows, gestures, and multi-select as Up next, in two sections. Header: "Saved", a line such as "8 loved · 12 archived", and a **Share** button (outline pill with the share glyph and label, 40 tall, `input-border`; disabled when nothing loved can be shared). Nothing in the header is `accent`-filled.
-
-- **Loved** (section label, caps): every loved article, newest love first, whether or not it's archived. Rows aren't dimmed, so the top of the tab stays bright. With none, a `muted` line: "Tap the heart on an article to keep it here. You can share what you love."
-- **Archive** (section label): archived articles that aren't loved. An article that is both is listed once, under Loved. (Showing it twice would make "12 archived" and the list disagree, and the Archive would no longer read as "what's left once the favorites are pulled out".) Hidden when empty.
-- Swipe left deletes; swipe right marks played unless the row is archived. In multi-select, Mark played is disabled if every selected row is archived. Moving a row to the top returns it to Up next. Loving an archived row lifts it into Loved; unloving drops it back into Archive.
-- **Empty state** (nothing loved or archived): the heart glyph, "Nothing saved yet", "Love an article to keep it here, and share your favorites. Articles you've listened to land here too."
-
-### 12a. Share sheet
-
-A bottom sheet from the Saved header's Share button. It publishes an opt-in, unchanging snapshot of what you've loved as a public link (SHARING.md). Top to bottom:
-
-- **Range:** a two-segment control, **This week** (the calendar week so far: loved since Monday 00:00, local time, through Sunday 23:59, so the count resets on Monday) and **All time**, each with its count. A range with 0 items is disabled; the sheet opens on This week, or All time if that's empty (as it is on a Monday morning, or until something is loved). A line under it says what the range means.
-- **Preview** of the share image (1200 × 630: Reader's teal with the headline on the left and a dark player card on the right, with the first article, a scrubber, a round play button labelled "Listen on Reader", the next few items and "+N more · 2 h 17 m total"; see SHARING.md "The card"), drawn live as the name changes.
-- **Your name** (optional, 40 characters, remembered on the device) and **A note** (optional, one line, 140). The headline is "Zach's reading this week" / "Zach's all-time favorites", or "Worth reading this week" / "All-time favorites" with no name.
-- **Share** (primary, full width). It says "Publishing…" while it works and is disabled offline ("Offline", cloud-off glyph). It publishes, then opens the system share sheet with the link; with no share sheet (or if it's blocked) the link is copied and a snackbar says "Link copied. Paste it anywhere." If the share sheet is dismissed, the snackbar says "Your list is published" with **Copy link**. Errors show as a `fill` note in `error` color with a warning glyph and keep the sheet open.
-- A one-line privacy note: anyone with the link can see the list, and it doesn't change when hearts do.
-- **Shared before:** the last three lists published from this device, each with its date, count and a **Share again** text button.
-
-### 13. Settings · artboard "Settings …"
+### 12. Settings · artboard "Settings …"
 
 Pushed screen: back arrow and "Settings." The top level is a menu: **Voice**, **Playback**, and **Storage** rows (each with a one-line summary and a chevron), then an outline "Invite a friend" button, and the version at the foot. Each row pushes its own page with a back arrow; back returns to the menu. Pages use caps section labels and `line` dividers. The Voice page is just the three voices.
 
@@ -405,7 +399,8 @@ Pushed screen: back arrow and "Settings." The top level is a menu: **Voice**, **
   - Speed (opens the speed picker; same value as the player).
   - Skip interval (segmented 10s / 15s / 30s).
   - Auto-advance switch.
-  - "When an article finishes": Archive / Delete.
+  - Chimes switch ("A short sound when an article starts and ends").
+  - "When an article finishes": Archive / Delete. The line under it says what the choice does: "Moves to Archive, where you can replay it" or "Deleted with its audio, except loved articles". A loved article is archived instead of deleted, because loving it says you want to keep it.
 - **Storage:**
   - Total used (Literata 28).
   - A stacked bar plus legend (Audio, Voice, Art; legend uses shape and color).
@@ -415,7 +410,7 @@ Pushed screen: back arrow and "Settings." The top level is a menu: **Voice**, **
   - "Clear all articles…" (`error`, confirms).
 - **About:** "Invite a friend" with a Share button (system share of the invite link), and the version.
 
-### 14. First run · artboard "First run …"
+### 13. First run · artboard "First run …"
 
 Two steps with Online voices (the default): Welcome, then Save from anywhere. The voice download step appears only for on-device voices, making three. Progress dots: the active dot is 20 wide, done/active dots are `accent`, and pending dots are `fill`.
 
@@ -436,13 +431,35 @@ Two steps with Online voices (the default): Welcome, then Save from anywhere. Th
 
 With on-device voices, saved articles stay in "Queued for audio" until the voice is ready, with a meta note: "Waiting for voice download."
 
+### 14. Reading lists
+
+A snapshot of some articles, sent as one link (SPEC §4). Nothing is uploaded and nothing stays in sync: the link holds the list. There are two ways to make one: **hand-picked** (Share as list, from multi-select) and **from Saved** (This week or All time). Both make the same link and open the same way.
+
+- **Share as list** (multi-select header, share glyph): a sheet with a line on what it does, an optional **List name** field (placeholder "Reading list"), the articles in queue order (title in Literata, site under it), and **Share N articles** (primary). It opens the system share sheet with just the link (no extra text, so Copy gives a clean URL; the name travels inside the link), or copies the link where there isn't one.
+  - Only links can go in. Pasted text is left out, with a `status-note` in the sheet ("1 pasted article wasn't included: only links can be shared.") and the same note in the snackbar afterwards.
+  - Past about 2,000 characters the note also warns that some apps may cut the link off. The link still works.
+  - Sharing exits selection and shows "Link copied" or "List shared" in the snackbar.
+- **Share from Saved** (the Saved header's Share button): a bottom sheet that builds the list from what you've loved, with the card attached. Top to bottom:
+  - **Range:** a two-segment control, **This week** (the calendar week so far: loved since Monday 00:00, local time, through Sunday 23:59, so the count resets on Monday) and **All time**, each with its count. A range with 0 items is disabled; the sheet opens on This week, or All time if that's empty (as it is on a Monday morning). A line under it says what the range means.
+  - **Preview** of the card (1200 × 630: Reader's teal with the headline on the left and a dark player on the right, with the first article, a scrubber, a round play button, the next few items and "+N more · 2 h 17 m total"). It's drawn live: it changes with the range, the name, and with anything the card shows about an article (title, site, color, art, length) as those arrive. It's an image, not a link preview, and the play button is part of the picture.
+  - **Your name** (optional, 40 characters, remembered on the device) and **A note** (optional, one line, 140). The list is named "Zach's reading this week" / "Zach's all-time favorites", or "Worth reading this week" / "All-time favorites" with no name. The name is the headline on the card and the title of the list when it's opened.
+  - If the range holds more than fits in one link, a `status-note` says so plainly: "Only the 18 most recently loved fit in one link. The other 22 aren't included." The card shows the ones that are included.
+  - **Share** (primary, full width): opens the system share sheet with the card image and the link, and nothing else. Where the device can't share files, or sharing the image fails, it shares the plain link, or copies it. If the share sheet is dismissed the sheet stays open. Done, it closes with "List shared" or "Link copied" in the snackbar.
+  - **Copy link** and **Save image**: two quiet text buttons under Share, for desktop and for apps that drop attachments. Each shows "Link copied" or "Image saved" in place of its label for a moment.
+  - A one-line note: it sends the card with one link, nothing is uploaded, and it's a snapshot, so hearts you add or remove later don't change it.
+- **Opening a list link:** the Queue opens with a sheet titled with the list name (or "Reading list"), then "A reading list someone shared · N articles · M already in your queue."
+  - If the sender added a **note**, it sits under that line as quiet text (`muted`, 14.5, with a `line` rule at its left), above the articles. Links made without one look as they always did.
+  - Each article is a checkbox row: title, then site. All start checked. Articles already in the queue (by URL, Archive included) show unchecked and disabled, with "Already in your queue."
+  - **Add all to Up next** (primary) becomes "Add N to Up next" when some are unchecked. Each one is added like a pasted link, at the end of Up next, and the snackbar says "N articles added to Up next."
+  - A damaged link shows a snackbar instead: "That reading list link is damaged. Ask for it again."
+
 ## Interactions and motion
 
 | Interaction | Behavior |
 | --- | --- |
 | Tap a tab | Switch view. Back from Subscriptions or Saved returns to Up next |
-| Tap the heart (row, Now Playing) | Love or unlove, no snackbar |
-| Tap Share (Saved header) | Open the Share sheet |
+| Tap the heart (row, Now Playing, Lyrics) | Love or unlove, no snackbar |
+| Tap Share (Saved header) | Open the share sheet |
 | Tap Manage (Subscriptions header) | Push Your subscriptions. Back returns to the inbox |
 | Tap Subscribe (Your subscriptions) | Looks up the feed; on success clears the field, lists the blog, and shows a "Subscribed to …" snackbar |
 | Tap Remove (Your subscriptions) | Removes the blog and its posts, undo snackbar |
@@ -450,9 +467,11 @@ With on-device voices, saved articles stay in "Queued for audio" until the voice
 | Tap row | Play (or resume) immediately |
 | Tap Partial/Failed status | Open the explainer sheet |
 | Swipe row left | Delete, undo snackbar |
-| Swipe row right | Mark played → Archive, undo snackbar |
-| Long-press row | Multi-select |
+| Swipe row right | Mark played → Archive, undo snackbar (rows that aren't archived) |
+| Hold row, then drag (Up next) | Reorder |
+| Hold row, then let go (or hold on Saved) | Multi-select |
 | Drag handle (multi-select) | Reorder |
+| Move up / Move down (⋯ menu, wide) | Reorder by one |
 | Tap / swipe up mini player | Expand to Now Playing, shared-element art |
 | Swipe down on Now Playing | Collapse |
 | Long-press back / forward | Previous / next article |
@@ -507,6 +526,6 @@ Target WCAG 2.2 AA.
 - **Sleep timer**, per-article voices
 
 **Still open:**
-- [x] Name: **Reader** (2026-10-28), used in copy, the share target, the page title and link previews. The URL stays `read-aloud-c1w.pages.dev`.
+- [x] Name: **Reader** (2026-10-28), used in copy, the share target, the page title and link previews. The URL is `pocketreader.me` (2026-11-21); `read-aloud-c1w.pages.dev` still works.
 - [ ] Wordmark and icon.
 - [ ] Native later (SPEC.md §12): the arrival snackbar becomes a system toast without opening the app.

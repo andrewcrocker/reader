@@ -78,7 +78,7 @@ export function NowPlaying({ embedded }: { embedded?: boolean }) {
             <h1 className="np-title">{a.title}</h1>
             {byline && <p className="np-byline">{byline}</p>}
           </div>
-          <LoveButton loved={!!a.lovedAt} onToggle={() => void setLoved(a.id, !a.lovedAt)} />
+          <LoveButton loved={!!a.lovedAt} title={a.title} onToggle={() => void setLoved(a.id, !a.lovedAt)} />
         </div>
         <div className="np-scrub">
           <Scrubber time={p.time} duration={p.duration} rendered={rendered} disabled={!p.loaded} onSeek={p.seek} />

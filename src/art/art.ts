@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { db, getSettings, type Article } from '../db';
 import { domainColor, hexToOklch, rgbToHex } from '../theme/color';
 
@@ -136,56 +135,6 @@ export async function purgeArt(a: Article): Promise<void> {
     const others = await db.articles.where('domain').equals(a.domain ?? '').filter((x) => x.id !== a.id).count();
     if (!others) await db.art.delete(a.siteArtKey);
   }
-}
-
-// ---- Object URLs for stored art, shared and ref-counted across components ----
-
-const urls = new Map<string, { url: string; refs: number }>();
-
-export function useArtUrl(key: string | undefined): string | undefined {
-  const [url, setUrl] = useState<string | undefined>(() => (key ? urls.get(key)?.url : undefined));
-  useEffect(() => {
-    if (!key) {
-      setUrl(undefined);
-      return;
-    }
-    let live = true;
-    const cached = urls.get(key);
-    if (cached) {
-      cached.refs++;
-      setUrl(cached.url);
-    } else {
-      void db.art.get(key).then((row) => {
-        if (!live || !row) return;
-        const existing = urls.get(key);
-        if (existing) {
-          existing.refs++;
-          setUrl(existing.url);
-        } else {
-          const u = URL.createObjectURL(row.blob);
-          urls.set(key, { url: u, refs: 1 });
-          setUrl(u);
-        }
-      });
-    }
-    return () => {
-      live = false;
-      const entry = urls.get(key);
-      if (!entry) return;
-      entry.refs--;
-      if (entry.refs <= 0) {
-        // Keep briefly so remounts (row -> mini player -> Now Playing) don't flash.
-        setTimeout(() => {
-          const e = urls.get(key);
-          if (e && e.refs <= 0) {
-            URL.revokeObjectURL(e.url);
-            urls.delete(key);
-          }
-        }, 5000);
-      }
-    };
-  }, [key]);
-  return url;
 }
 
 /** Initials for small generated covers: 1–3 characters (DESIGN "Artwork"). */
