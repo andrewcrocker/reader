@@ -179,7 +179,7 @@ How it was set up the first time:
 | Render Workflow (one step per chunk) and the budget counter (Durable Object) | [worker/src/jobs.ts](worker/src/jobs.ts) |
 | App side of server voices: send once, collect chunks, build the file | [src/tts/server.ts](src/tts/server.ts), [src/pipeline/serverRender.ts](src/pipeline/serverRender.ts) |
 | Dexie schema, settings | [src/db.ts](src/db.ts) |
-| Shared reading lists: which stars go in, the card drawn on a canvas, publishing | [src/share/](src/share), [src/screens/ShareSheet.tsx](src/screens/ShareSheet.tsx) |
+| Shared reading lists: which loved articles go in, the card drawn on a canvas, publishing | [src/share/](src/share), [src/screens/ShareSheet.tsx](src/screens/ShareSheet.tsx) |
 | Shared lists on the Worker: `POST /lists`, the public `/l/:id` page and card | [worker/src/lists.ts](worker/src/lists.ts) |
 | Readability extraction via the proxy | [src/pipeline/extract.ts](src/pipeline/extract.ts) |
 | Text prep (§6.1): cleanup, intro, normalization, sentence split, chunking | [src/pipeline/textprep.ts](src/pipeline/textprep.ts) |

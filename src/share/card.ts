@@ -1,4 +1,5 @@
 import { coverInk } from '../theme/color';
+import { HEART_PATH } from '../ui/heart';
 import { encodePng } from './png';
 
 // The share card (spec/SHARING.md): a 1200x630 PNG drawn on a <canvas> in the app, so the Worker needs
@@ -134,8 +135,6 @@ function tracked(ctx: Ctx, text: string, x: number, y: number, spacing: number) 
   return cx - spacing;
 }
 
-const STAR = 'M12 3.6L14.65 9.16L20.75 9.96L16.28 14.19L17.41 20.24L12 17.3L6.59 20.24L7.72 14.19L3.25 9.96L9.35 9.16z';
-
 /** The app icon's mark, at (x, y) with side `s`. */
 function drawMark(ctx: Ctx, x: number, y: number, s: number) {
   ctx.save();
@@ -250,7 +249,7 @@ export function drawCard(ctx: Ctx, spec: CardSpec): void {
     if ((!lines.at(-1)?.endsWith('…') && top + 56 + lines.length * lh <= pillY - 24) || size <= 52) break;
   }
 
-  const star = new Path2D(STAR);
+  const heart = new Path2D(HEART_PATH);
   ctx.save();
   ctx.translate(PAD - 2, top - 2);
   ctx.scale(1.25, 1.25);
@@ -258,8 +257,8 @@ export function drawCard(ctx: Ctx, spec: CardSpec): void {
   ctx.strokeStyle = C.inkSoft;
   ctx.lineWidth = 1.6;
   ctx.lineJoin = 'round';
-  ctx.fill(star);
-  ctx.stroke(star);
+  ctx.fill(heart);
+  ctx.stroke(heart);
   ctx.restore();
   ctx.fillStyle = C.inkSoft;
   ctx.font = `600 24px ${SANS}`;

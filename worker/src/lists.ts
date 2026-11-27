@@ -1,7 +1,7 @@
 import type { Hono } from 'hono';
 
 // Shared reading lists (spec/SHARING.md). The app publishes an opt-in, immutable snapshot of the
-// articles the user starred: a small JSON file and the 1200x630 card image it drew itself. Anyone
+// articles the user loved: a small JSON file and the 1200x630 card image it drew itself. Anyone
 // with the link can then open a public page (`/l/:id`) and fetch the card (`/l/:id/card.png`).
 //
 // This is the one place the Worker keeps data for longer than a render job, so it lives in its own

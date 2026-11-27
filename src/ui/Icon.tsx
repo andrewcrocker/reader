@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
+import { HEART_PATH } from './heart';
 
 // Outline set, 1.8 stroke, round caps (DESIGN "Icons"). Paths taken from the design canvas.
 
@@ -10,7 +11,7 @@ type Name =
   | 'prev-sentence' | 'next-sentence' | 'auto-advance' | 'read-along' | 'link' | 'clipboard' | 'share'
   | 'cloud-off' | 'check' | 'arrow-up' | 'trash' | 'move-top' | 'mark-played' | 're-render' | 'retry' | 'drag'
   | 'minus' | 'plus' | 'shield' | 'warn' | 'download' | 'upload' | 'speaker' | 'more' | 'clock'
-  | 'rss' | 'queue' | 'archive' | 'manage' | 'star' | 'star-filled';
+  | 'rss' | 'queue' | 'archive' | 'manage' | 'heart' | 'heart-filled';
 
 const P: Record<Name, ReactNode> = {
   add: <path d="M12 5v14M5 12h14" />,
@@ -168,9 +169,9 @@ const P: Record<Name, ReactNode> = {
       <path d="M5.5 9v9a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V9M10 13h4" />
     </>
   ),
-  // Starred is the same shape filled in, so state reads without color too (DESIGN "Icons").
-  star: <path d="M12 3.6L14.65 9.16L20.75 9.96L16.28 14.19L17.41 20.24L12 17.3L6.59 20.24L7.72 14.19L3.25 9.96L9.35 9.16z" />,
-  'star-filled': <path d="M12 3.6L14.65 9.16L20.75 9.96L16.28 14.19L17.41 20.24L12 17.3L6.59 20.24L7.72 14.19L3.25 9.96L9.35 9.16z" fill="currentColor" />,
+  // Loved is the same shape filled in, so state reads without color too (DESIGN "Icons").
+  heart: <path d={HEART_PATH} />,
+  'heart-filled': <path d={HEART_PATH} fill="currentColor" />,
   speaker: (
     <>
       <path d="M4 10v4h4l5 4V6L8 10z" />

@@ -3,12 +3,12 @@ import { back } from '../app/ui';
 import type { Article } from '../db';
 import { usePlayer } from '../player/PlayerProvider';
 import { sentenceAt } from '../player/sentences';
-import { hasRealTitle, siteLabel, urlTitle } from '../queue/display';
-import { setStarred } from '../queue/actions';
+import { siteLabel } from '../queue/display';
+import { setLoved } from '../queue/actions';
 import { Art } from '../ui/Art';
 import { Icon } from '../ui/Icon';
 import { Scrubber, Times } from '../ui/Scrubber';
-import { StarButton } from '../ui/StarButton';
+import { LoveButton } from '../ui/LoveButton';
 import { PlayButton, ReadAlongPill, SkipButton, SpeedPill } from './Transport';
 
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -122,7 +122,7 @@ export function Lyrics({ embedded }: { embedded?: boolean }) {
             <p className="t">{a.title}</p>
             {byline && <p className="b">{byline}</p>}
           </div>
-          <StarButton starred={!!a.starredAt} title={hasRealTitle(a) ? a.title : urlTitle(a.url)} onToggle={() => void setStarred(a.id, !a.starredAt)} />
+          <LoveButton loved={!!a.lovedAt} onToggle={() => void setLoved(a.id, !a.lovedAt)} />
           {a.url && (
             <a className="icon-btn" href={a.url} target="_blank" rel="noreferrer" aria-label="Open original article">
               <Icon name="external" />

@@ -2,12 +2,29 @@ import type { Article } from '../db';
 import { lengthSec } from '../queue/display';
 import { domainColor } from '../theme/color';
 
-// Shareable reading lists (spec/SHARING.md): which starred articles go in a list, what it's called,
+// Shareable reading lists (spec/SHARING.md): which loved articles go in a list, what it's called,
 // and the JSON the Worker stores. Pure functions, so the rules are testable without a browser.
 
 export type ShareRange = 'week' | 'all';
 
-export const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+/**
+ * Midnight at the start of the calendar week that contains `now`: Monday 00:00 in the device's local
+ * time. Built with calendar arithmetic (`setDate`), not by subtracting 24-hour days, so the week that
+ * holds a daylight-saving change still starts at local midnight.
+ */
+export function weekStart(now = Date.now()): number {
+  const d = new Date(now);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return d.getTime();
+}
+
+/** Midnight at the start of the next week (Monday 00:00 local): the first moment that is no longer "this week". */
+export function nextWeekStart(now = Date.now()): number {
+  const d = new Date(weekStart(now));
+  d.setDate(d.getDate() + 7);
+  return d.getTime();
+}
 /** The Worker's cap on a list (worker/src/lists.ts). */
 export const MAX_ITEMS = 50;
 export const MAX_NAME = 40;
@@ -15,18 +32,23 @@ export const MAX_NOTE = 140;
 
 export const RANGE_LABEL: Record<ShareRange, string> = { week: 'This week', all: 'All time' };
 
-/** A starred article with a link other people can open. (Pasted text has none, so it can't be in a shared list.) */
-export const isShareable = (a: Article) => !a.deletedAt && !!a.starredAt && a.source === 'url' && /^https?:\/\//i.test(a.url);
+/** A loved article with a link other people can open. (Pasted text has none, so it can't be in a shared list.) */
+export const isShareable = (a: Article) => !a.deletedAt && !!a.lovedAt && a.source === 'url' && /^https?:\/\//i.test(a.url);
 
-/** Starred articles, newest star first, whether or not they're archived. Pasted text counts here: it's starred, just not shareable. */
-export function starredArticles(articles: Article[]): Article[] {
-  return articles.filter((a) => !a.deletedAt && a.starredAt).sort((a, b) => b.starredAt! - a.starredAt!);
+/** Loved articles, newest love first, whether or not they're archived. Pasted text counts here: it's loved, just not shareable. */
+export function lovedArticles(articles: Article[]): Article[] {
+  return articles.filter((a) => !a.deletedAt && a.lovedAt).sort((a, b) => b.lovedAt! - a.lovedAt!);
 }
 
-/** What a list of this range would hold: shareable starred articles, newest star first. "This week" is the last 7 days by star time. */
+/**
+ * What a list of this range would hold: shareable loved articles, newest love first. "This week" is the
+ * calendar week, Monday 00:00 through Sunday 23:59 local time, by when you loved them: it counts up
+ * through the week and starts again from zero on Monday.
+ */
 export function listArticles(articles: Article[], range: ShareRange, now = Date.now()): Article[] {
-  const since = range === 'week' ? now - WEEK_MS : 0;
-  return starredArticles(articles).filter((a) => isShareable(a) && a.starredAt! >= since);
+  const since = range === 'week' ? weekStart(now) : 0;
+  const until = range === 'week' ? nextWeekStart(now) : Infinity;
+  return lovedArticles(articles).filter((a) => isShareable(a) && a.lovedAt! >= since && a.lovedAt! < until);
 }
 
 export function rangeCounts(articles: Article[], now = Date.now()): Record<ShareRange, number> {

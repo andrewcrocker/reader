@@ -30,7 +30,7 @@ Status: reconciled with DESIGN.md (Oct 28, 2026). DESIGN.md owns screens, states
 5. Optional "lyrics view": article text that highlights and scrolls in sync with the audio.
 6. Full offline playback (airplane mode) for anything already saved.
 7. Basic CRUD: multi-select, delete with undo, archive, clear, reorder.
-7a. **Star and share favorites.** Star what you want to revisit; share a "this week" or "all time" list as a link with a preview image and a public page (§10b, SHARING.md).
+7a. **Love and share favorites.** Heart what you want to revisit; share a "this week" or "all time" list as a link with a preview image and a public page (§10b, SHARING.md).
 8. Extraction handles most sites well, escalates through fallbacks when it doesn't, and gets past soft paywalls where possible.
 9. **Shareable with friends.** Send someone a URL and they can use it, with no account. Voices run on a server the owner pays for (about 1¢ an article), capped per day so the cost can't run away (§6.3).
 10. **Pocket-style saving.** Share an article and close the app; the audio is waiting the next time it opens.
@@ -371,7 +371,7 @@ interface Article {
   positionSec: number;        // resume point
   playedAt?: number;          // finished listening
   archivedAt?: number;        // in the Archive section of Saved
-  starredAt?: number;         // starred: worth revisiting or sharing. Independent of archivedAt; not indexed
+  lovedAt?: number;         // loved (a heart): worth revisiting or sharing. Independent of archivedAt; not indexed
   deletedAt?: number;         // soft delete; purge after the undo window
   queueOrder: number;         // fractional index for cheap reordering
 }
@@ -435,7 +435,7 @@ The queue row state in DESIGN.md comes from these fields. First match wins.
 | Display state | Condition |
 |---|---|
 | Deleted (hidden) | `deletedAt` set |
-| Archive section (Saved) | `archivedAt` set. Starred rows are listed under Starred instead, whether or not they're archived |
+| Archive section (Saved) | `archivedAt` set. Loved rows are listed under Loved instead, whether or not they're archived |
 | Waiting for connection | `status = "waiting"`, or `"fetching"` while offline |
 | Fetching | `status = "fetching"` |
 | Failed | `status = "failed"` |
@@ -451,7 +451,7 @@ The queue row state in DESIGN.md comes from these fields. First match wins.
 
 ## 10. Queue & CRUD
 
-- **Queue screen** (home): Up next in `queueOrder`. Archived rows are on the **Saved** tab, below the starred ones, with the same rows and actions. Every row has a star toggle (`starredAt`); starred articles are listed first on Saved, newest star first, archived or not, and aren't repeated in its Archive section. A starred article is never auto-deleted by "When an article finishes: Delete": it's archived instead. A bottom tab bar switches between Subscriptions, Up next and Saved (DESIGN.md "Navigation"). The tab isn't saved: the app opens on Up next. Row anatomy and states are in DESIGN.md.
+- **Queue screen** (home): Up next in `queueOrder`. Archived rows are on the **Saved** tab, below the loved ones, with the same rows and actions. Every row has a heart toggle (`lovedAt`); loved articles are listed first on Saved, newest love first, archived or not, and aren't repeated in its Archive section. A loved article is never auto-deleted by "When an article finishes: Delete": it's archived instead. A bottom tab bar switches between Subscriptions, Up next and Saved (DESIGN.md "Navigation"). The tab isn't saved: the app opens on Up next. Row anatomy and states are in DESIGN.md.
 - **Gestures:** tap plays immediately; swipe left deletes (undo); swipe right marks played and archives (undo); long-press enters multi-select.
 - **Reorder:** drag handles, shown in multi-select mode.
 - **Multi-select actions:** delete, move to top, mark played, re-render (e.g. after changing voice), retry extraction.
@@ -477,7 +477,7 @@ Sharing means sharing **the app**, not content. Each person's queue, articles, a
 
 ## 10b. Shared reading lists
 
-Star the articles you want to keep (`starredAt`), then share them as a list: **This week** (starred in the last 7 days) or **All time**, from the Saved tab's Share button (DESIGN.md §12a). Full notes, the privacy model and open questions are in [SHARING.md](SHARING.md).
+Love the articles you want to keep (`lovedAt`), then share them as a list: **This week** (loved since Monday: the calendar week, Monday 00:00 to Sunday 23:59 local time, so it resets on Monday) or **All time**, from the Saved tab's Share button (DESIGN.md §12a). Full notes, the privacy model and open questions are in [SHARING.md](SHARING.md).
 
 - **Opt-in and unchanging.** Nothing is published until the user taps Share. A list is a snapshot of at most 50 articles (title, link, domain, byline, minutes, color) and a 1200 × 630 PNG the app draws itself. It never changes afterwards, and the app keeps only a receipt (`SharedList`).
 - **Worker.** `POST /lists` (app secret) stores `lists/<id>.json` and `lists/<id>.png` in the `LISTS` R2 bucket (`reader-lists`, no expiry) and returns `{ id, url }`. `GET /l/:id` (the page) and `GET /l/:id/card.png` are **public**: no secret, no origin check. They are the only unauthenticated routes besides CORS preflight, matched by an exact method and path.
@@ -502,7 +502,7 @@ Requirement: hard-close the browser or reboot the phone, reopen the app, and pic
 - **Unfinished work resumes.** Any article left in `fetching` or `rendering` restarts its pipeline on launch. Rendered chunks are saved as they finish, so a re-render picks up from the last completed chunk. An interrupted voice-model download resumes too.
 - **Protection against eviction.** Call `navigator.storage.persist()` on first launch. Settings shows whether it was granted ("Storage is protected").
 - **What actually wipes data:** clearing Chrome's site data for the app, or (possibly) uninstalling the PWA.
-- **Export / Import:** "Export queue" downloads a small JSON of URLs (and pasted text), titles, order, positions, and archive and star state; "Import" restores it. Audio isn't included and re-renders.
+- **Export / Import:** "Export queue" downloads a small JSON of URLs (and pasted text), titles, order, positions, and archive and loved state; "Import" restores it. Audio isn't included and re-renders.
 
 ---
 

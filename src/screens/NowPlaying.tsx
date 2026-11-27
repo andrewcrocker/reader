@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { useAppData } from '../app/data';
 import { back, getUi } from '../app/ui';
 import { updateSettings, type Article } from '../db';
-import { setStarred } from '../queue/actions';
+import { setLoved } from '../queue/actions';
 
 import { usePlayer } from '../player/PlayerProvider';
 import { displayState, hasRealTitle, rowMeta, siteLabel, urlTitle, voiceReady } from '../queue/display';
@@ -11,7 +11,7 @@ import { Art, Cover } from '../ui/Art';
 import { Icon } from '../ui/Icon';
 import { Scrubber, Times } from '../ui/Scrubber';
 import { Snackbar } from '../ui/Snackbar';
-import { StarButton } from '../ui/StarButton';
+import { LoveButton } from '../ui/LoveButton';
 import { Lyrics } from './Lyrics';
 import { PlayButton, ReadAlongPill, SkipButton, SpeedPill } from './Transport';
 
@@ -78,7 +78,7 @@ export function NowPlaying({ embedded }: { embedded?: boolean }) {
             <h1 className="np-title">{a.title}</h1>
             {byline && <p className="np-byline">{byline}</p>}
           </div>
-          <StarButton starred={!!a.starredAt} title={hasRealTitle(a) ? a.title : urlTitle(a.url)} onToggle={() => void setStarred(a.id, !a.starredAt)} />
+          <LoveButton loved={!!a.lovedAt} onToggle={() => void setLoved(a.id, !a.lovedAt)} />
         </div>
         <div className="np-scrub">
           <Scrubber time={p.time} duration={p.duration} rendered={rendered} disabled={!p.loaded} onSeek={p.seek} />

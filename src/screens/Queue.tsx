@@ -4,7 +4,7 @@ import { useAppData } from '../app/data';
 import { openNowPlaying, openSettings, openSheet, showSnack, useUi, useWide } from '../app/ui';
 import { isPlayable, usePlayer } from '../player/PlayerProvider';
 import { displayState, isBusy, queueSummary, rowMeta, voiceReady, type Ctx } from '../queue/display';
-import { isRenderable, markPlayed, moveToTop, purgeDeleted, rerenderMany, retryMany, reorder, setStarred, softDelete } from '../queue/actions';
+import { isRenderable, markPlayed, moveToTop, purgeDeleted, rerenderMany, retryMany, reorder, setLoved, softDelete } from '../queue/actions';
 import { retryArticle } from '../pipeline/runner';
 import { Icon } from '../ui/Icon';
 import { Snackbar } from '../ui/Snackbar';
@@ -36,16 +36,16 @@ export function Queue() {
   return <QueueView view="queue" />;
 }
 
-/** The Saved tab: what you starred, pinned at the top, and below it what you've finished. Same rows and actions as Up next. */
+/** The Saved tab: what you loved, pinned at the top, and below it what you've finished. Same rows and actions as Up next. */
 export function Saved() {
   return <QueueView view="saved" />;
 }
 
 function QueueView({ view }: { view: 'queue' | 'saved' }) {
-  const { upNext, archive, starred, settings, online } = useAppData();
+  const { upNext, archive, loved, settings, online } = useAppData();
   const saved = view === 'saved';
-  // An article that's both starred and archived is listed once, under Starred.
-  const archiveRest = archive.filter((a) => !a.starredAt);
+  // An article that's both loved and archived is listed once, under Loved.
+  const archiveRest = archive.filter((a) => !a.lovedAt);
   const player = usePlayer();
   const { newId } = useUi();
   const wide = useWide();
@@ -56,10 +56,10 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
 
   const ctx: Ctx = { online, currentId: player.current?.id, voiceReady: voiceReady(settings), speed: player.speed };
   const selecting = selected !== null;
-  const byId = new Map([...upNext, ...archive, ...starred].map((a) => [a.id, a]));
+  const byId = new Map([...upNext, ...archive, ...loved].map((a) => [a.id, a]));
   const shownUpNext = preview ? preview.map((id) => byId.get(id)!).filter(Boolean) : upNext;
-  const inView = saved ? [...starred, ...archiveRest] : upNext;
-  const canShare = starred.some(isShareable);
+  const inView = saved ? [...loved, ...archiveRest] : upNext;
+  const canShare = loved.some(isShareable);
 
   // Share arrival: scroll the new row into view (DESIGN §6).
   useEffect(() => {
@@ -139,7 +139,7 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
     target.addEventListener('pointercancel', onUp);
   };
 
-  // `inArchive`: the row is archived (no swipe to mark played). `dim`: draw it as played. Starred rows aren't dimmed, so the top of Saved stays bright.
+  // `inArchive`: the row is archived (no swipe to mark played). `dim`: draw it as played. Loved rows aren't dimmed, so the top of Saved stays bright.
   const row = (a: Article, inArchive: boolean, dim = inArchive) => {
     const state = displayState(a, ctx);
     const isNew = a.id === newId;
@@ -161,7 +161,7 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
         onSwipe={(dir) => (dir === 'left' ? deleteWithUndo([a.id]) : !inArchive && markPlayedWithUndo([a.id]))}
         onStatus={() => openSheet({ kind: 'explain', id: a.id })}
         onRetry={state === 'failed' ? () => void retryArticle(a.id) : undefined}
-        onToggleStar={() => void setStarred(a.id, !a.starredAt)}
+        onToggleLove={() => void setLoved(a.id, !a.lovedAt)}
         onHandleDown={saved || inArchive ? undefined : handleDown(a.id)}
         menu={
           wide
@@ -200,11 +200,11 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
           <div className="q-header-row">
             <div style={{ minWidth: 0 }}>
               <h1 className="screen-title">{saved ? 'Saved' : 'Up next'}</h1>
-              {!empty && <p className="q-sub">{saved ? [starred.length ? `${starred.length} starred` : '', archiveRest.length ? `${archiveRest.length} archived` : ''].filter(Boolean).join(' · ') : queueSummary(upNext, ctx)}</p>}
+              {!empty && <p className="q-sub">{saved ? [loved.length ? `${loved.length} loved` : '', archiveRest.length ? `${archiveRest.length} archived` : ''].filter(Boolean).join(' · ') : queueSummary(upNext, ctx)}</p>}
             </div>
             {saved ? (
               <div className="q-actions">
-                <button className="share-btn" disabled={!canShare} onClick={() => openSheet({ kind: 'share' })} aria-label={canShare ? 'Share a list' : 'Share a list, star an article first'}>
+                <button className="share-btn" disabled={!canShare} onClick={() => openSheet({ kind: 'share' })} aria-label={canShare ? 'Share a list' : 'Share a list, love an article first'}>
                   <Icon name="share" size={20} />
                   Share
                 </button>
@@ -236,10 +236,10 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
       {empty && saved ? (
         <div className="empty">
           <div className="empty-icon">
-            <Icon name="star" size={36} />
+            <Icon name="heart" size={36} />
           </div>
           <h2>Nothing saved yet</h2>
-          <p>Star an article to keep it here, and share your favorites. Articles you’ve listened to land here too.</p>
+          <p>Love an article to keep it here, and share your favorites. Articles you’ve listened to land here too.</p>
         </div>
       ) : empty ? (
         <div className="empty">
@@ -254,17 +254,17 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
         </div>
       ) : saved ? (
         <div className="q-sections">
-          {/* Starred first, newest star first, archived or not. Then the archive, minus what's starred, so nothing shows twice. */}
-          <section aria-labelledby="starred-h">
-            <h2 className="q-section" id="starred-h">
-              Starred
+          {/* Loved first, newest love first, archived or not. Then the archive, minus what's loved, so nothing shows twice. */}
+          <section aria-labelledby="loved-h">
+            <h2 className="q-section" id="loved-h">
+              Loved
             </h2>
-            {starred.length ? (
-              <ul className="q-list under" aria-label="Starred">
-                {starred.map((a) => row(a, !!a.archivedAt, false))}
+            {loved.length ? (
+              <ul className="q-list under" aria-label="Loved">
+                {loved.map((a) => row(a, !!a.archivedAt, false))}
               </ul>
             ) : (
-              <p className="q-hint">Tap the star on an article to keep it here. You can share what you star.</p>
+              <p className="q-hint">Tap the heart on an article to keep it here. You can share what you love.</p>
             )}
           </section>
           {archiveRest.length > 0 && (

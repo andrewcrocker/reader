@@ -10,7 +10,7 @@ import { Icon } from '../ui/Icon';
 import { Sheet } from '../ui/Sheet';
 
 const RANGES: ShareRange[] = ['week', 'all'];
-const HINT: Record<ShareRange, string> = { week: 'Articles you starred in the last 7 days.', all: 'Everything you’ve starred.' };
+const HINT: Record<ShareRange, string> = { week: 'Articles you’ve loved since Monday.', all: 'Everything you’ve loved.' };
 
 /** Tells the user how the share went, quietly. */
 function announce(outcome: ShareOutcome, url: string) {
@@ -124,7 +124,7 @@ export function ShareSheet() {
         {!online ? <Icon name="cloud-off" size={18} /> : <Icon name="share" size={20} />}
         {busy ? 'Publishing…' : !online ? 'Offline' : 'Share'}
       </button>
-      <p className="hint">Anyone with the link can see this list and open its articles. It’s a snapshot: stars you add or remove later don’t change it.</p>
+      <p className="hint">Anyone with the link can see this list and open its articles. It’s a snapshot: hearts you add or remove later don’t change it.</p>
 
       {!!past?.length && (
         <section aria-labelledby="past-h">

@@ -10,10 +10,10 @@ interface AppData {
   articles: Article[];
   /** Up next in queue order (not archived or deleted). */
   upNext: Article[];
-  /** Everything archived, most recently played first. The Saved tab shows the ones that aren't starred. */
+  /** Everything archived, most recently played first. The Saved tab shows the ones that aren't loved. */
   archive: Article[];
-  /** Starred articles, newest star first, archived or not. The top of the Saved tab. */
-  starred: Article[];
+  /** Loved articles, newest love first, archived or not. The top of the Saved tab. */
+  loved: Article[];
   feeds: Feed[];
   /** Posts from every feed, newest first. */
   feedItems: FeedItem[];
@@ -54,7 +54,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       articles: all,
       upNext: live.filter((a) => !a.archivedAt),
       archive: live.filter((a) => a.archivedAt).sort((a, b) => b.archivedAt! - a.archivedAt!),
-      starred: live.filter((a) => a.starredAt).sort((a, b) => b.starredAt! - a.starredAt!),
+      loved: live.filter((a) => a.lovedAt).sort((a, b) => b.lovedAt! - a.lovedAt!),
       feeds: [...(feeds ?? [])].sort((a, b) => a.addedAt - b.addedAt),
       feedItems: inboxOrder(feedItems ?? []),
       hasNewPosts: (feedItems ?? []).some((i) => i.seenAt === null),

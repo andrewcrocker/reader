@@ -7,7 +7,7 @@ import { MiniPlayer } from './MiniPlayer';
 const TABS: { tab: Tab; label: string; icon: IconName }[] = [
   { tab: 'subscriptions', label: 'Subscriptions', icon: 'rss' },
   { tab: 'queue', label: 'Up next', icon: 'queue' },
-  { tab: 'saved', label: 'Saved', icon: 'star' },
+  { tab: 'saved', label: 'Saved', icon: 'heart' },
 ];
 
 /**

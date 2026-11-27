@@ -76,8 +76,8 @@ export interface Article {
   positionSec: number;
   playedAt?: number;
   archivedAt?: number;
-  /** When the user starred it: something to revisit or share, apart from archived, which only means done. Unset = not starred. */
-  starredAt?: number;
+  /** When the user loved it: something to revisit or share, apart from archived, which only means done. Unset = not loved. */
+  lovedAt?: number;
   /** Soft delete for undo; purged after the snackbar window. */
   deletedAt?: number;
   queueOrder: number;
@@ -277,7 +277,7 @@ class ReaderDb extends Dexie {
       feeds: 'id, feedUrl',
       feedItems: 'id, feedId',
     });
-    // Receipts for published reading lists. (Starring adds `starredAt` to articles without an index, so it needs no version.)
+    // Receipts for published reading lists. (Loving adds `lovedAt` to articles without an index, so it needs no version.)
     this.version(6).stores({
       sharedLists: 'id, createdAt',
     });

@@ -4,9 +4,9 @@ Status: a working spike, built on the Subscriptions and tab bar branch. The beha
 
 ## Concept and flow
 
-You star the things you enjoyed and want to revisit. Starring is not archiving: Archive means "done", a star means "worth coming back to". The **Saved** tab (the old Archive tab) lists starred articles first, then the archive.
+You love (heart) the things you enjoyed and want to revisit. Loving is not archiving: Archive means "done", a heart means "worth coming back to". The **Saved** tab (the old Archive tab) lists loved articles first, then the archive.
 
-To share: **Saved → Share**. Pick **This week** (starred in the last 7 days) or **All time**, optionally add your name and a one-line note, check the preview, tap **Share**. The app draws a 1200 × 630 card on a canvas, uploads it with the list, and hands the link to the system share sheet (or copies it). Whoever gets the link sees a **preview card** in their chat, and a **public page** where they can open every article. If they already use Reader, each item has "Open in Reader", which adds it to their queue through the existing `#add=` link.
+To share: **Saved → Share**. Pick **This week** (loved since Monday: the calendar week, Monday 00:00 to Sunday 23:59 in your local time, so it counts up through the week and starts again from zero on Monday) or **All time**, optionally add your name and a one-line note, check the preview, tap **Share**. The app draws a 1200 × 630 card on a canvas, uploads it with the list, and hands the link to the system share sheet (or copies it). Whoever gets the link sees a **preview card** in their chat, and a **public page** where they can open every article. If they already use Reader, each item has "Open in Reader", which adds it to their queue through the existing `#add=` link.
 
 ## The card
 
@@ -14,7 +14,7 @@ Drawn in the app (`src/share/card.ts`), so the Worker needs no image rendering. 
 
 ## Why snapshots
 
-A list is frozen when you publish it. That keeps the server dumb (two files in a bucket, no database, no sync, nothing to update), keeps the preview image and the page in agreement forever, and means a recipient never sees something you didn't mean to share (for example a star added later, or a title you've since deleted). It also fits the app's model: the app is the source of truth, the server holds a copy you chose to put there. The cost is that a list can't be edited. To update, publish again.
+A list is frozen when you publish it. That keeps the server dumb (two files in a bucket, no database, no sync, nothing to update), keeps the preview image and the page in agreement forever, and means a recipient never sees something you didn't mean to share (for example a heart added later, or a title you've since deleted). It also fits the app's model: the app is the source of truth, the server holds a copy you chose to put there. The cost is that a list can't be edited. To update, publish again.
 
 ## Privacy model
 
@@ -50,7 +50,7 @@ SPEC §1 lists accounts and sync as non-goals ("everything lives on the device")
 - A square or portrait card variant. There is one 1.91:1 image; an app that crops to a square would cut the sides.
 - Per-recipient anything: no view counts, no "N people opened this".
 - Accessibility pass on the page beyond semantic HTML and contrast; no translations; non-Latin titles on the card fall back to system fonts.
-- Pasted-text articles can be starred but not shared (they have no link).
+- Pasted-text articles can be loved but not shared (they have no link).
 - Storage hygiene: nothing is ever deleted, and a failed upload after the card is stored can leave an orphan PNG.
 
 ## Open questions for the owner
@@ -59,7 +59,7 @@ SPEC §1 lists accounts and sync as non-goals ("everything lives on the device")
 2. **Where should links live?** The Worker's host, a custom domain, or the Pages domain through a Pages Function proxying `/l/*`? It changes `PUBLIC_BASE_URL`, and a short branded link helps trust.
 3. **Where does "Get Reader" point?** The app is invite-only (invite link carries the secret), so there is no public landing page to send people to. Set `PUBLIC_CTA_URL`, or build a page with a request-an-invite form.
 4. **Who may publish?** Today anyone with the invite. Is that right, given the Worker hosts the content and the owner is the one answerable for it?
-5. **Is "this week" by star time right?** It uses when you starred, not when you read it. Alternatives: when finished, or a rolling count of your last N stars.
+5. **Is "this week" by love time right?** It uses when you loved it, not when you read it, and it is the calendar week (Monday to Sunday, local time), so on a Monday morning it's empty and "All time" is selected. Alternatives: when finished, or a rolling count of your last N loved articles.
 6. **Listening for recipients:** which of the options above, if any? See also the copyright question.
 7. **Name on the card.** The field is free text. Should it be required, or prefilled from something?
 8. **Does a list need an expiry,** say 90 days, to bound storage and the privacy footprint?
