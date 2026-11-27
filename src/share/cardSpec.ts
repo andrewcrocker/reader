@@ -2,7 +2,7 @@ import { db, type Article } from '../db';
 import type { CardItem, CardSpec } from './card';
 import { RANGE_LABEL, toShareItem, type ShareRange } from './lists';
 
-/** The card shows the first article as "now playing" and a few after it, then "+N more". It lays out as many of these as fit. */
+/** The card shows the first article as "now playing" and up to three after it, then "+ N more". It lays out as many of these as fit. */
 const CARD_ROWS = 4;
 
 /** The site or article art for an article's tile, decoded; undefined when it has none (the tile is then the tint and initials). */
@@ -25,7 +25,5 @@ export async function cardSpec(list: Article[], headline: string, range: ShareRa
       return { title: it.title, domain: it.domain, tint: it.tint ?? '#3f4c4a', minutes: it.minutes, art: await loadArt(a) };
     }),
   );
-  // The whole list's listening time, not just the rows the card has room for.
-  const totalMinutes = list.reduce((sum, a) => sum + (toShareItem(a).minutes ?? 0), 0);
-  return { headline, rangeLabel: RANGE_LABEL[range], total: list.length, totalMinutes: totalMinutes || undefined, items };
+  return { headline, rangeLabel: RANGE_LABEL[range], total: list.length, items };
 }

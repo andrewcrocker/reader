@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fmtClock, fmtTotal, footerText, playlistSplit, widestWord, wrapText, type CardItem, type CardSpec } from './card';
+import { fmtClock, moreText, playlistSplit, rowsThatFit, subline, widestWord, wrapText, type CardItem, type CardSpec } from './card';
 
 // Ten pixels a character keeps the arithmetic obvious: a 100 px line holds ten characters.
 const m = (s: string) => s.length * 10;
@@ -54,20 +54,34 @@ describe('the player', () => {
     expect(fmtClock(1.5)).toBe('1:30');
   });
 
-  it('writes the total listening time in the app\u2019s style', () => {
-    expect(fmtTotal(0.2)).toBe('1 m');
-    expect(fmtTotal(45)).toBe('45 m');
-    expect(fmtTotal(60)).toBe('1 h');
-    expect(fmtTotal(137)).toBe('2 h 17 m');
-    expect(fmtTotal(1260)).toBe('21 h');
+  it('writes the footer: how many more, or nothing when every article is shown', () => {
+    expect(moreText(2)).toBe('+ 2 more');
+    expect(moreText(1)).toBe('+ 1 more');
+    expect(moreText(0)).toBe('');
   });
 
-  it('writes the footer: how many more, and the total time, each only when there is something to say', () => {
-    expect(footerText(2, 137)).toEqual({ more: '+2 more', total: '2 h 17 m total' });
-    expect(footerText(0, 137)).toEqual({ more: '', total: '2 h 17 m total' });
-    expect(footerText(3, undefined)).toEqual({ more: '+3 more', total: '' });
-    expect(footerText(0, undefined)).toEqual({ more: '', total: '' });
-    expect(footerText(0, 0)).toEqual({ more: '', total: '' });
+  it('writes a row\u2019s second line: the site, then the length when it is known', () => {
+    expect(subline(m, 'paulgraham.com', 48, 400)).toBe('paulgraham.com \u00b7 48 min');
+    expect(subline(m, 'paulgraham.com', undefined, 400)).toBe('paulgraham.com');
+  });
+
+  it('cuts a long site with an ellipsis and keeps the length', () => {
+    const line = subline(m, 'a-very-long-subdomain.example.com', 9, 200);
+    expect(line.endsWith('\u2026 \u00b7 9 min')).toBe(true);
+    expect(m(line)).toBeLessThanOrEqual(200);
+    expect(subline(m, 'a-very-long-subdomain.example.com', undefined, 100).endsWith('\u2026')).toBe(true);
+  });
+
+  it('shows as many rows as fit, and makes room for "+ N more" when some are left out', () => {
+    // Three rows of 60 with 20 between them take 220; the footer is 40 more.
+    expect(rowsThatFit([60, 60, 60], 220, 20, 40, 0)).toBe(3);
+    // Articles are left out, so the footer needs its room too: only two rows fit.
+    expect(rowsThatFit([60, 60, 60], 220, 20, 40, 2)).toBe(2);
+    // Taller (wrapped) rows leave fewer.
+    expect(rowsThatFit([90, 90, 60], 260, 20, 40, 0)).toBe(2);
+    expect(rowsThatFit([90, 90, 60], 130, 20, 40, 0)).toBe(1);
+    expect(rowsThatFit([90, 90, 60], 120, 20, 40, 0)).toBe(0);
+    expect(rowsThatFit([], 200, 20, 40, 0)).toBe(0);
   });
 
   it('plays the first article and lists the next few, counting what is left out', () => {
