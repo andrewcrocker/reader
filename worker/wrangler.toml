@@ -7,6 +7,15 @@ preview_urls = false
 [vars]
 # Comma-separated list of origins allowed to call the proxy from a browser.
 ALLOWED_ORIGINS = "https://read-aloud-c1w.pages.dev,http://localhost:5173,http://localhost:4173"
+# The app's own origin: the "Open in Reader" link on a shared list's public page is <APP_URL>/#add=<article>.
+APP_URL = "https://read-aloud-c1w.pages.dev"
+# Shared lists (spec/SHARING.md). Optional; both default sensibly, so leave them unset until you need them.
+#   PUBLIC_BASE_URL  origin of a shared list's public link and og:image. Unset = the host the request arrived on
+#                    (here https://reader-proxy.<you>.workers.dev). Set it if the pages move behind another domain.
+#   PUBLIC_CTA_URL   TODO(owner): where "Get Reader" on the public page points (a landing page). Unset = APP_URL.
+#                    Never the invite link: it carries APP_SECRET and the page is public.
+# PUBLIC_BASE_URL = "https://reader.example.com"
+# PUBLIC_CTA_URL = "https://reader.example.com/about"
 # Characters a day sent to the voice host, across everyone (~$0.33/day at $0.99 per million).
 DAILY_CHAR_CAP = "330000"
 
@@ -21,6 +30,13 @@ DAILY_CHAR_CAP = "330000"
 [[r2_buckets]]
 binding = "AUDIO"
 bucket_name = "reader-audio"
+
+# Shared reading lists: lists/<id>.json and lists/<id>.png, kept for good. Not AUDIO: that bucket expires after 7 days.
+# The owner creates this bucket once (the app can't): wrangler r2 bucket create reader-lists
+# Do not add a lifecycle rule to it. Local `wrangler dev` simulates it without the bucket existing.
+[[r2_buckets]]
+binding = "LISTS"
+bucket_name = "reader-lists"
 
 [[workflows]]
 name = "reader-render"

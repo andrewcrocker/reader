@@ -1,8 +1,9 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { isPublicListRoute, registerListRoutes, type ListsEnv } from './lists';
 import { registerRenderRoutes, type RenderEnv } from './render';
 
-export type Env = RenderEnv & {
+export type Env = RenderEnv & ListsEnv & {
   APP_SECRET: string;
   ALLOWED_ORIGINS: string;
 };
@@ -37,6 +38,9 @@ app.use('*', (c, next) =>
 
 app.use('*', async (c, next) => {
   if (c.req.method === 'OPTIONS') return next();
+  // The one exemption: published reading lists are public by link (lists.ts). The check is exact
+  // (method and path shape), so every other route, and these paths with other methods, still need the secret.
+  if (isPublicListRoute(c.req.method, c.req.path)) return next();
   const origin = c.req.header('Origin');
   if (origin && !allowedOrigins(c.env).includes(origin)) {
     return c.json({ error: 'origin not allowed' }, 403);
@@ -195,6 +199,7 @@ app.get('/asset', async (c) => {
 app.get('/ping', (c) => c.body(null, 204));
 
 registerRenderRoutes(app);
+registerListRoutes(app);
 
 app.notFound((c) => c.json({ error: 'not found' }, 404));
 
