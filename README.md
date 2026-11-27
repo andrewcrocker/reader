@@ -4,12 +4,12 @@
 
 A "listen later" app. Share an article from your phone (or paste a link or text); it's read aloud by a natural voice (Kokoro-82M) and saved on the phone, so it plays later on a walk, a commute, or offline, with a read-along view that follows the audio sentence by sentence.
 
-- **Live:** https://read-aloud-c1w.pages.dev (invite-only; see [Deploy](#deploy))
+- **Live:** https://pocketreader.me (invite-only; see [Deploy](#deploy))
 - **Specs:** engineering in [spec/SPEC.md](spec/SPEC.md), design in [spec/DESIGN.md](spec/DESIGN.md)
 - **Stack:** React + Vite PWA, Dexie (IndexedDB), a Cloudflare Worker for fetching pages and making voices, Cloudflare Pages for the app
 - **Contributing:** see [CONTRIBUTING.md](CONTRIBUTING.md). MIT licensed ([LICENSE](LICENSE)).
 
-**How voices work.** The Worker renders them: the app sends an article's text once, a Cloudflare Workflow sends it to a hosted Kokoro API (DeepInfra) in parts, and the audio waits in R2 until the app collects it, so articles finish even with the app closed. It costs about 1¢ per article, capped at about $10 a month. On-device Kokoro (WebGPU/WASM) was the original plan and its engine is still in the code (the `/spike` page uses it), but it struggled on a Pixel 8 (memory, background limits, heat), so the app no longer offers it.
+**How voices work.** The Worker renders them: the app sends an article's text once, a Cloudflare Workflow sends it to a hosted Kokoro API (DeepInfra) in parts, and the audio waits in R2 until the app collects it, so articles finish even with the app closed. The app's service worker (`src/sw.ts`) takes shares, sends articles off and downloads finished audio after the app closes too (SPEC §11b). It costs about 1¢ per article, capped at about $10 a month. On-device Kokoro (WebGPU/WASM) was the original plan and its engine is still in the code (the `/spike` page uses it), but it struggled on a Pixel 8 (memory, background limits, heat), so the app no longer offers it.
 
 **Built:** the full design (queue, Now Playing, read-along, sheets, Settings, First run, wide layout, bottom tab bar), a pull-only Subscriptions inbox for blogs' RSS/Atom feeds, server voices with a daily budget and email alerts, share target, invite links, offline playback, progressive playback while audio renders, link previews.
 
@@ -96,9 +96,9 @@ Keep the screen on while it renders (the page requests a wake lock). Android thr
 
 Deployed 2026-10-28:
 
-- App (Pages project `read-aloud`): https://read-aloud-c1w.pages.dev
+- App (Pages project `read-aloud`): https://pocketreader.me (also https://read-aloud-c1w.pages.dev)
 - Worker `reader-proxy`: https://reader-proxy.andrew-crocker-c26.workers.dev
-- Production secret: `worker/.prod.vars` (git-ignored). The invite link is `https://read-aloud-c1w.pages.dev/#invite=<APP_SECRET>`.
+- Production secret: `worker/.prod.vars` (git-ignored). The invite link is `https://pocketreader.me/#invite=<APP_SECRET>`.
 
 To ship changes: `npm run deploy:worker` and `npm run deploy:app`. Secrets: `./scripts/put-secrets.sh`.
 
@@ -144,7 +144,7 @@ How it was set up the first time:
 
    Note the printed `https://reader-proxy.<you>.workers.dev` URL.
 
-4. Point the production build at the Worker. Create `.env.production` with one line:
+4. Point the production build at the Worker. Set the one line in `.env.production` to your Worker (in a fork, keep this change out of pull requests; see [CLAUDE.md](CLAUDE.md)):
 
    ```
    VITE_PROXY_URL=https://reader-proxy.<you>.workers.dev
@@ -178,9 +178,11 @@ How it was set up the first time:
 | Kokoro in a Web Worker, WebGPU→WASM fallback with output sanity check | [src/tts/kokoro.worker.ts](src/tts/kokoro.worker.ts), [src/tts/engine.ts](src/tts/engine.ts) |
 | Chunked render with per-chunk persistence, then concatenate + MP3 encode + timings | [src/pipeline/render.ts](src/pipeline/render.ts), [src/audio/](src/audio) |
 | Pipeline loops: fetch and render side by side, resume on launch / `online` / return to the app | [src/pipeline/runner.ts](src/pipeline/runner.ts) |
+| Service worker: app shell, share target, background sync (extract, send, download audio while closed) | [src/sw.ts](src/sw.ts), [src/pipeline/background.ts](src/pipeline/background.ts), [src/pipeline/serverSync.ts](src/pipeline/serverSync.ts) |
+| PDFs: reading order, running heads, hyphenation, headings | [src/pipeline/pdf.ts](src/pipeline/pdf.ts) |
 | Player: one `<audio>`, streaming while rendering, speed, skip, sentence nav, auto-advance, Media Session, article tint | [src/player/](src/player) |
 | Screens: Queue, Subscriptions, tab bar, Now Playing, read-along, sheets, Settings, First run, invite screen | [src/screens/](src/screens) |
-| Subscriptions (§4b): feed parsing and discovery, new-post diffing, checks | [src/feeds/](src/feeds) |
+| Subscriptions (§4c): feed parsing and discovery, new-post diffing, checks | [src/feeds/](src/feeds) |
 | UI state on the history stack (Android back), snackbar, share target, invites, app updates | [src/app/](src/app) |
 | On-device TTS benchmark | [src/pages/Spike.tsx](src/pages/Spike.tsx) |
 

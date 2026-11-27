@@ -13,7 +13,8 @@ const fetcher =
   (settings: Settings): FetchText =>
   async (url) => {
     const r = await fetchHtml(url, settings);
-    return { text: r.html, finalUrl: r.finalUrl };
+    // A PDF comes back as bytes, not text: it isn't a feed and links to nothing, but its site did answer.
+    return { text: r.html ?? '', finalUrl: r.finalUrl };
   };
 
 /** Like `fetcher`, for asking whether a link's site answers: it did if our service only declined the page (too large, not HTML). */

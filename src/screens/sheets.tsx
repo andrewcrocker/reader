@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAppData } from '../app/data';
 import { back, openSheet, showSnack, type Sheet as SheetState } from '../app/ui';
-import { addText, addUrl, replaceWithText, retryArticle } from '../pipeline/runner';
+import { addFile, addText, addUrl, MAX_FILE_BYTES, replaceWithText, retryArticle } from '../pipeline/runner';
 import { MAX_SPEED, MIN_SPEED, usePlayer } from '../player/PlayerProvider';
 import { fmtDuration, fmtSpeed, hasRealTitle, lengthSec, siteLabel, urlTitle } from '../queue/display';
 import { Art } from '../ui/Art';
@@ -27,15 +27,15 @@ export function AddSheet({ sheet }: { sheet: Extract<SheetState, { kind: 'add' }
   return (
     <Sheet label={sheet.replaceId ? 'Paste the full text' : 'Add to queue'}>
       {!sheet.replaceId && (
-        <div className="seg" role="tablist" aria-label="Add a link or text">
-          {(['link', 'text'] as const).map((t) => (
+        <div className="seg" role="tablist" aria-label="Add a link, text or a PDF">
+          {(['link', 'text', 'pdf'] as const).map((t) => (
             <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}>
-              {t === 'link' ? 'Link' : 'Text'}
+              {t === 'link' ? 'Link' : t === 'text' ? 'Text' : 'PDF'}
             </button>
           ))}
         </div>
       )}
-      {tab === 'link' && !sheet.replaceId ? <LinkTab /> : <TextTab sheet={sheet} />}
+      {sheet.replaceId || tab === 'text' ? <TextTab sheet={sheet} /> : tab === 'pdf' ? <PdfTab /> : <LinkTab />}
     </Sheet>
   );
 }
@@ -104,6 +104,30 @@ function LinkTab() {
         </div>
       </form>
       <p className="hint">Tip: the fastest way is Share › Reader from any app. If a page won’t load, switch to Text and paste the article itself.</p>
+    </>
+  );
+}
+
+function PdfTab() {
+  const [error, setError] = useState<string>();
+  const choose = async (file: File | undefined) => {
+    if (!file) return;
+    if (!/pdf$/i.test(file.type || file.name)) return setError('That isn’t a PDF.');
+    if (file.size > MAX_FILE_BYTES) return setError('That PDF is too large (50 MB at most).');
+    await addFile(file);
+    back();
+  };
+  return (
+    <>
+      <label className="paste-btn">
+        <Icon name="upload" size={26} />
+        <span style={{ minWidth: 0 }}>
+          <span className="l1">Choose a PDF</span>
+          <span className="l2">{error ?? 'From your files'}</span>
+        </span>
+        <input className="sr-only" type="file" accept="application/pdf,.pdf" onChange={(e) => void choose(e.target.files?.[0])} />
+      </label>
+      <p className="hint">Reader pulls out the text and reads it aloud; you can follow along in Read along. You can also Share › Reader from Files, or add a link to a PDF on the Link tab. Scanned PDFs (pictures of pages) have no text to read.</p>
     </>
   );
 }

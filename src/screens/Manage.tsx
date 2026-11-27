@@ -11,7 +11,7 @@ import { Snackbar } from '../ui/Snackbar';
 import { MiniPlayer } from './MiniPlayer';
 
 /**
- * Your subscriptions (SPEC §4b): a full screen pushed from the Subscriptions header, the way
+ * Your subscriptions (SPEC §4c): a full screen pushed from the Subscriptions header, the way
  * Settings is pushed from Up next. Subscribe at the top, then the blogs you follow, each with Remove.
  */
 export function Manage() {

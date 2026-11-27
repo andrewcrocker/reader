@@ -10,7 +10,7 @@ import { Icon } from '../ui/Icon';
 import { Dock } from './TabBar';
 
 /**
- * The Subscriptions tab (SPEC §4b): new posts from the blogs you follow. Subscribing, the list of
+ * The Subscriptions tab (SPEC §4c): new posts from the blogs you follow. Subscribing, the list of
  * blogs and removing one are on Your subscriptions (Manage). Nothing here is added to the queue until you tap Add.
  */
 export function Subscriptions() {

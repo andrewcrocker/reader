@@ -1,4 +1,5 @@
 import type { Chunk, LyricBlock, Sentence } from '../db';
+import { parseHtml } from './dom';
 
 // Readability HTML (or pasted text) -> listening script: sentences for display/timing,
 // chunks of normalized text for the TTS engine.
@@ -51,7 +52,8 @@ const BLOCK_TAGS = new Set([
 ]);
 
 export function htmlToBlocks(html: string): Block[] {
-  const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
+  // A full document: linkedom drops a bare <body> fragment.
+  const doc = parseHtml(`<!doctype html><html><head></head><body>${html}</body></html>`);
   const body = doc.body;
 
   body.querySelectorAll(DROP_SELECTOR).forEach((el) => el.remove());
@@ -84,11 +86,11 @@ export function htmlToBlocks(html: string): Block[] {
   };
 
   const walk = (node: Node) => {
-    if (node.nodeType === Node.TEXT_NODE) {
+    if (node.nodeType === 3 /* text */) {
       buf += node.textContent ?? '';
       return;
     }
-    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    if (node.nodeType !== 1 /* element */) return;
     const el = node as Element;
     if (/^H[1-6]$/.test(el.tagName)) {
       flush();

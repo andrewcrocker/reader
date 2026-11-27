@@ -1,9 +1,9 @@
 import { db, domainOf, getSettings, nextQueueOrder, updateSettings, type Article, type VoiceQuality } from '../db';
 import { deleteAudio } from '../audio/storage';
-import { fetchArtwork, purgeArt } from '../art/art';
+import { purgeArt } from '../art/art';
 import { disposeSharedEngine, EngineLostError, getSharedEngine, reusableEngine, type KokoroEngine } from '../tts/engine';
-import { buildScript, htmlToBlocks, introBlock, plainTextToBlocks, type Block } from './textprep';
-import { ExtractError, loadArticle } from './extract';
+import { buildScript, plainTextToBlocks } from './textprep';
+import { failure, fetchStep as fetchShared, withIntro } from './background';
 import { renderArticle } from './render';
 import { collectArticle, ServerWaitError, setRetryHandler, submitPending } from './serverRender';
 import { deleteJob } from '../tts/server';
@@ -57,6 +57,34 @@ export async function addUrl(url: string, provisionalTitle?: string): Promise<st
     queueOrder: await nextQueueOrder(),
     voice: settings.voice,
     ttsProvider: settings.provider,
+  });
+  void kick();
+  return id;
+}
+
+/** Uploads and shares (the service worker checks the same limit). */
+export const MAX_FILE_BYTES = 50 * 1024 * 1024;
+
+/** An uploaded PDF: kept in `files` until the fetch loop reads its text (no connection needed). */
+export async function addFile(file: File): Promise<string> {
+  const id = crypto.randomUUID();
+  const settings = await getSettings();
+  const queueOrder = await nextQueueOrder();
+  await db.transaction('rw', db.articles, db.files, async () => {
+    await db.files.put({ id, blob: file, name: file.name });
+    await db.articles.add({
+      id,
+      source: 'file',
+      url: '',
+      title: file.name.replace(/\.pdf$/i, '').replace(/[_]+/g, ' '),
+      savedAt: Date.now(),
+      status: 'fetching',
+      sentences: [],
+      positionSec: 0,
+      queueOrder,
+      voice: settings.voice,
+      ttsProvider: settings.provider,
+    });
   });
   void kick();
   return id;
@@ -133,6 +161,7 @@ export async function replaceWithText(id: string, text: string, title?: string):
 
 async function clearRender(a: Article) {
   await db.renderedChunks.where('articleId').equals(a.id).delete();
+  await db.serverAudio.where('articleId').equals(a.id).delete();
   if (a.audioKey) await deleteAudio(a.audioKey);
 }
 
@@ -141,9 +170,11 @@ export async function purgeArticle(id: string): Promise<void> {
   cancelled.add(id);
   const a = await db.articles.get(id);
   if (!a) return;
-  await db.transaction('rw', db.articles, db.renderedChunks, async () => {
+  await db.transaction('rw', [db.articles, db.renderedChunks, db.serverAudio, db.files], async () => {
     await db.articles.delete(id);
     await db.renderedChunks.where('articleId').equals(id).delete();
+    await db.serverAudio.where('articleId').equals(id).delete();
+    await db.files.delete(id);
   });
   if (a.audioKey) await deleteAudio(a.audioKey);
   if (a.serverJob) void deleteJob(await getSettings(), a.serverJob);
@@ -153,7 +184,7 @@ export async function purgeArticle(id: string): Promise<void> {
 export async function retryArticle(id: string): Promise<void> {
   const a = await db.articles.get(id);
   if (!a) return;
-  const status = a.chunks?.length ? 'extracted' : isOnline() ? 'fetching' : 'waiting';
+  const status = a.chunks?.length ? 'extracted' : isOnline() || a.source === 'file' ? 'fetching' : 'waiting';
   await db.articles.update(id, { status, error: undefined, errorKind: undefined, serverJob: undefined, busyUntil: undefined });
   void kick();
 }
@@ -238,33 +269,21 @@ async function renderExclusively(work: () => Promise<void>): Promise<void> {
 
 const live = async () => (await db.articles.orderBy('queueOrder').toArray()).filter((a) => !a.deletedAt);
 
-/** Fetches and extracts the next page. Returns false when there's nothing to fetch. */
+/** Fetches and extracts the next page (shared with the service worker). Returns false when there's nothing to fetch. */
 async function fetchStep(): Promise<boolean> {
-  if (!isOnline()) return false;
-  // Saved while offline: start fetching now (SPEC §11).
-  await db.articles.where('status').equals('waiting').modify({ status: 'fetching' });
-  const next = (await live()).find((a) => a.status === 'fetching');
-  if (!next) return false;
-  cancelled.delete(next.id);
-  try {
-    await extract(next);
-    // It has text now; the render loop picks it up when it gets to it.
-    void run('render');
-  } catch (err) {
-    if (!(await db.articles.get(next.id))) return true;
-    // Offline mid-fetch: wait for the connection rather than failing.
-    if (!isOnline()) await db.articles.update(next.id, { status: 'waiting' });
-    else await db.articles.update(next.id, failure(err));
-  }
-  return true;
+  const did = await fetchShared(cancelled);
+  // It may have text now; the render loop picks it up when it gets to it.
+  if (did) void run('render');
+  return did;
 }
 
 /** Renders the next article (one at a time, in queue order). Returns false when there's nothing to do. */
 async function renderStep(): Promise<boolean> {
   const all = await live();
-  const server = (await getSettings()).engineKind === 'server';
-  if (server && isOnline()) await submitPending(all);
-  const next = server ? nextForServer(await live()) : all.find((a) => a.status === 'rendering' && !a.archivedAt) ?? all.find((a) => a.status === 'extracted' && !a.archivedAt);
+  const settings = await getSettings();
+  const server = settings.engineKind === 'server';
+  if (server && isOnline()) await submitPending();
+  const next = server ? nextForServer(await live(), settings.lastPlayingArticleId) : all.find((a) => a.status === 'rendering' && !a.archivedAt) ?? all.find((a) => a.status === 'extracted' && !a.archivedAt);
   if (!next) return false;
   cancelled.delete(next.id);
   try {
@@ -280,41 +299,12 @@ async function renderStep(): Promise<boolean> {
 }
 
 /** Server mode: collect articles whose jobs are already running first; skip any waiting out the budget. */
-function nextForServer(all: Article[]): Article | undefined {
+function nextForServer(all: Article[], playingId?: string): Article | undefined {
   const now = Date.now();
   const open = all.filter((a) => !a.archivedAt && (a.status === 'rendering' || a.status === 'extracted'));
-  return open.find((a) => a.serverJob) ?? open.find((a) => !(a.busyUntil && a.busyUntil > now));
-}
-
-/** Failed state with a one-line, user-facing reason (DESIGN §9). */
-function failure(err: unknown): Partial<Article> {
-  if (err instanceof ExtractError) return { status: 'failed', error: err.message, errorKind: err.kind };
-  return { status: 'failed', error: err instanceof Error ? err.message : String(err), errorKind: undefined };
-}
-
-async function extract(a: Article) {
-  const settings = await getSettings();
-  const x = await loadArticle(a.url, settings);
-  const script = buildScript(withIntro(htmlToBlocks(x.contentHtml), x));
-  if (!script.chunks.length) throw new ExtractError('We couldn’t find any article text on this page.', 'page');
-  const patch: Partial<Article> = {
-    status: 'extracted',
-    title: x.title,
-    byline: x.byline,
-    siteName: x.siteName,
-    domain: domainOf(x.finalUrl) ?? a.domain,
-    imageUrl: x.imageUrl,
-    iconUrl: x.iconUrl,
-    canonicalUrl: x.canonicalUrl,
-    contentHtml: x.contentHtml,
-    extractionMethod: x.method,
-    extractionQuality: x.quality,
-    sentences: script.sentences,
-    blocks: script.blocks,
-    chunks: script.chunks,
-  };
-  await db.articles.update(a.id, patch);
-  await fetchArtwork({ ...a, ...patch });
+  // The article in the player first, so tapping one that isn't downloaded yet starts it streaming.
+  const playing = open.find((a) => a.id === playingId && (a.serverJob || a.status === 'rendering'));
+  return playing ?? open.find((a) => a.serverJob) ?? open.find((a) => !(a.busyUntil && a.busyUntil > now));
 }
 
 let readyEngine: KokoroEngine | null = null;
@@ -387,11 +377,6 @@ async function render(a: Article, attempt = 0) {
   }
 }
 
-function withIntro(blocks: Block[], meta: { title?: string; byline?: string; siteName?: string }): Block[] {
-  const intro = introBlock(meta);
-  return intro ? [intro, ...blocks] : blocks;
-}
-
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 }
@@ -417,6 +402,10 @@ export function startRunner(): void {
   if (started) return;
   started = true;
   window.addEventListener('online', () => void kick());
+  // The service worker finished some background work (src/sw.ts): collect what it downloaded.
+  navigator.serviceWorker?.addEventListener('message', (e) => {
+    if (e.data?.type === 'reader-work-done') void kick();
+  });
   setRetryHandler(() => void kick());
   // Back in front: resume anything stalled while hidden, and take the screen-on lock again
   // (the browser drops it when the page is hidden).

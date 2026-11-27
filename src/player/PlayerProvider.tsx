@@ -1,19 +1,23 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { db, updateSettings, type Article } from '../db';
 import { loadAudio } from '../audio/storage';
-import { rasterCover, useArtUrl } from '../art/art';
+import { rasterCover } from '../art/art';
+import { useArtUrl } from '../art/useArtUrl';
 import { coverColor } from '../ui/Art';
 import { coverInk } from '../theme/color';
 import { lengthSec, siteLabel } from '../queue/display';
-import { purgeArticle } from '../pipeline/runner';
+import { kick, purgeArticle } from '../pipeline/runner';
 import { useAppData } from '../app/data';
 import { applyTint } from './tint';
+import { playChime, stopChime } from './chime';
 import { nextSentenceStart, prevSentenceStart } from './sentences';
 import { canStream, RenderStream, type StreamTimeline } from './stream';
 
 // One <audio> at the root, shared by the mini player, Now Playing, and Lyrics (SPEC §7).
 
 const SAVE_EVERY_MS = 5000;
+/** Playing from within this many seconds of the top counts as starting the article. */
+const START_WINDOW_SEC = 0.5;
 export const MIN_SPEED = 0.8;
 export const MAX_SPEED = 3.0;
 
@@ -83,6 +87,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const loadedRef = useRef<string | null>(null);
   /** Position and play state carried from the stream to the finished file of the same article. */
   const handoff = useRef<{ id: string; time: number; playing: boolean } | null>(null);
+  /** Bumped whenever what should be playing changes, so a chime that outlives the change does nothing after it. */
+  const intent = useRef(0);
+  /** The start chime is sounding and the article plays when it's done. */
+  const starting = useRef(false);
   const sentences = timeline?.sentences ?? current?.sentences ?? [];
   const latest = useRef({ current, upNext, settings, speed, sentences });
   latest.current = { current, upNext, settings, speed, sentences };
@@ -96,9 +104,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (!el) return;
     const cur = latest.current.current;
     // Same article, already playing from the stream: carry the position over to the file.
-    handoff.current = cur && loadedRef.current === cur.id && el.currentSrc ? { id: cur.id, time: el.currentTime, playing: !el.paused } : null;
+    handoff.current = cur && loadedRef.current === cur.id && el.currentSrc ? { id: cur.id, time: el.currentTime, playing: !el.paused || starting.current } : null;
     let url: string | null = null;
     let live = true;
+    cancelStart();
     loadedRef.current = null;
     setLoadedId(null);
     setFileDuration(0);
@@ -160,29 +169,64 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, [savePosition]);
 
   // ---- Controls ----
+  /** Drops a start chime that is still sounding, so the article doesn't play after it. */
+  const cancelStart = useCallback(() => {
+    if (!starting.current) return;
+    intent.current++;
+    starting.current = false;
+    stopChime();
+    setPlaying(false);
+  }, []);
+
+  /** Starts the element. From the top of an article the start chime sounds first (SPEC §7). */
+  const begin = useCallback((el: HTMLAudioElement) => {
+    if (starting.current) return;
+    const go = () => void el.play().catch(() => setPlaying(false));
+    if (!latest.current.settings.chimes || el.currentTime > START_WINDOW_SEC) return go();
+    const mine = ++intent.current;
+    starting.current = true;
+    // Show it as playing right away; the chime is part of the article starting.
+    setPlaying(true);
+    void playChime('start').then(() => {
+      if (intent.current !== mine) return;
+      starting.current = false;
+      go();
+    });
+  }, []);
+
+  const pause = useCallback(() => {
+    // Pausing during the end chime also calls off the auto-advance.
+    intent.current++;
+    cancelStart();
+    audioRef.current?.pause();
+  }, [cancelStart]);
+
   const play = useCallback(
     (id?: string) => {
       const el = audioRef.current;
       const cur = latest.current.current;
       if (!id || id === cur?.id) {
-        if (el?.currentSrc) void el.play().catch(() => {});
+        if (el?.currentSrc) begin(el);
         else pendingPlay.current = true;
         return;
       }
+      intent.current++;
+      cancelStart();
       savePosition();
       el?.pause();
       pendingPlay.current = true;
-      void updateSettings({ lastPlayingArticleId: id });
+      // The collector goes for the playing article first, so one that isn't downloaded yet starts streaming.
+      void updateSettings({ lastPlayingArticleId: id }).then(() => kick());
     },
-    [savePosition],
+    [savePosition, begin, cancelStart],
   );
 
   const toggle = useCallback(() => {
     const el = audioRef.current;
     if (!el?.currentSrc) return;
-    if (el.paused) void el.play().catch(() => {});
-    else el.pause();
-  }, []);
+    if (starting.current || !el.paused) pause();
+    else begin(el);
+  }, [begin, pause]);
 
   const seek = useCallback(
     (t: number) => {
@@ -246,13 +290,17 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (!done) return;
     const next = s.autoAdvance ? neighbor(list, done, 1) : undefined;
     const now = Date.now();
+    const mine = ++intent.current;
+    // The end chime sounds while the article is filed away; the next one waits for it.
+    const chimed = s.chimes ? playChime('end') : Promise.resolve();
     if (s.keepPlayed === 'delete') await purgeArticle(done.id);
     else await db.articles.update(done.id, { playedAt: now, archivedAt: done.archivedAt ?? now, positionSec: 0 });
     // Replaying from the Archive starts over.
     if (audioRef.current) audioRef.current.currentTime = 0;
     setTime(0);
-    if (next) play(next.id);
-
+    await chimed;
+    // Skip the advance if something else was started during the chime.
+    if (next && intent.current === mine) play(next.id);
   }, [play]);
 
   // ---- Article tint follows the playing article ----
@@ -292,7 +340,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const ms = navigator.mediaSession;
     const handlers: [MediaSessionAction, MediaSessionActionHandler][] = [
       ['play', () => play()],
-      ['pause', () => audioRef.current?.pause()],
+      ['pause', pause],
       ['seekbackward', (d) => (d.seekOffset ? seek(audioRef.current!.currentTime - d.seekOffset) : skip(-1))],
       ['seekforward', (d) => (d.seekOffset ? seek(audioRef.current!.currentTime + d.seekOffset) : skip(1))],
       ['seekto', (d) => d.seekTime !== undefined && seek(d.seekTime)],
@@ -313,7 +361,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         /* */
       }
     });
-  }, [play, seek, skip, article]);
+  }, [play, pause, seek, skip, article]);
 
   const positionState = () => {
     const el = audioRef.current;
@@ -385,7 +433,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           positionState();
           if (pendingPlay.current || carried?.playing) {
             pendingPlay.current = false;
-            void el.play().catch(() => {});
+            if (carried?.playing) void el.play().catch(() => {});
+            else begin(el);
           }
         }}
         onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}

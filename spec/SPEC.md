@@ -14,7 +14,7 @@ Status: reconciled with DESIGN.md (Oct 28, 2026). DESIGN.md owns screens, states
 - Display-state mapping for the queue rows (§9a).
 - One global playback speed; skip interval is 10/15/30 s (§7).
 - Voice quality (model size) is separate from voice choice (§6.3).
-- Feed inbox moved out of Phase 2 to "Later" (§14). It has since been built (§4b).
+- Feed inbox moved out of Phase 2 to "Later" (§14). It has since been built (§4c).
 - Answered open questions: voice preference, finished articles, reading mode (§15).
 
 ---
@@ -121,25 +121,31 @@ Status: reconciled with DESIGN.md (Oct 28, 2026). DESIGN.md owns screens, states
 | **Share sheet: text** (Android) | v1 | Shared plain text (selected text from a reader or notes app) opens the Add sheet on the Text tab, prefilled, so the user can add a title and save. |
 | **Paste URL** | v1 | A prominent "Paste link" button reads the clipboard on tap. Silent clipboard reading on app open isn't allowed in browsers, so it has to be a tap. |
 | **Paste text** | v1 | Paste the article body itself. The escape hatch for anything extraction can't reach. Also used to complete a partial article (below). |
-| **Feed inbox** (discovery) | v1 | Subscribe to a blog's RSS/Atom feed by pasting its address (a site address works: the feed is found from the page). New posts wait in **Subscriptions**, a tab separate from the queue, and are never added or rendered until the user taps Add. Pull only: checked on launch, when the app comes back to the front, and on "Check now". See "Feed inbox" below. |
+| **PDF** | v1 | A link to a PDF (Link tab or share), a PDF shared from Files or a browser, or one chosen on the Add sheet's PDF tab. Its text is pulled out and read like an article (§4b). |
+| **Reading list link** | v1 | A friend's `#list=` link (below). Opens a sheet of its articles; the chosen ones are added like pasted links. |
+| **Feed inbox** (discovery) | v1 | Subscribe to a blog's RSS/Atom feed by pasting its address (a site address works: the feed is found from the page). New posts wait in **Subscriptions**, a tab separate from the queue, and are never added or rendered until the user taps Add. Pull only: checked on launch, when the app comes back to the front, and on "Check now". See §4c. |
 | **Desktop bookmarklet** | Out of scope for v1 | See "Saving from another device" below. |
 
-**v1 = share sheet (URL and text) + paste URL + paste text.**
+**v1 = share sheet (URL, text, PDF file) + paste URL + paste text + PDF upload.**
 
 **Share target**
 
 ```json
 "share_target": {
   "action": "/share",
-  "method": "GET",
-  "params": { "title": "title", "text": "text", "url": "url" }
+  "method": "POST",
+  "enctype": "multipart/form-data",
+  "params": { "title": "title", "text": "text", "url": "url", "files": [{ "name": "file", "accept": ["application/pdf", ".pdf"] }] }
 }
 ```
+
+POST, so the service worker receives the share (§11b): it saves the link or PDF itself, starts work on it that carries on after the app closes, and redirects to `/share?added=<id>`. Shared text is handed to the page as `/share?title=…&text=…`, since it waits for Save. A file that isn't a PDF redirects to `/share?unsupported=<name>`, which shows a snackbar.
 
 Classify each share:
 1. If `url` is present, it's a link.
 2. Else if `text` is a single URL, or short text (under about 300 characters) containing exactly one URL, it's a link. Many Android apps send links this way ("Headline https://…"). Use the shared `title` or the leading text as a provisional title.
 3. Otherwise it's text: open the Add sheet on Text with `text` as the body and `title` (if any) as the title.
+4. A shared PDF file is saved with `source: "file"` (the blob waits in `files` until it's read).
 
 A link adds a row and opens the Queue with the arrival highlight (DESIGN.md §6). Text waits for the user to tap Save.
 
@@ -147,6 +153,16 @@ A link adds a row and opens the Queue with the arrival highlight (DESIGN.md §6)
 - PWA: sharing opens the app, which shows the new item in the queue. You then switch back to whatever you were reading. Fine, slightly clunky.
 - Native (§12): sharing can show a "Saved" toast and stay in the current app, with rendering happening in the background. The PWA arrival snackbar is designed to shrink to that.
 - iPhone: no PWA share target. Use an Apple Shortcut in the share sheet that opens `app/#add=<url>`.
+
+**Sharing a reading list**
+Multi-select → **Share as list** turns the chosen articles into one link, so a friend can add them to their own queue. Still no server and no accounts: the list lives in the URL fragment, which browsers never send to a server.
+
+- Format: `https://app/#list=<payload>`, where the payload is base64url of `deflate-raw` (`CompressionStream`) of JSON `{ name?, items: [{ url, title, site? }] }`. Codec and tests in `src/app/share.ts`.
+- Only URL articles go in. Pasted text stays on the phone, and the snackbar says how many were left out.
+- Shared with `navigator.share`, or copied to the clipboard where that's missing.
+- About 10 articles fit in 2,000 characters. Longer lists still work, but the sheet warns that some apps cut long links.
+- Opening the link shows the list as a sheet with a checkbox per article (all on). Links already in the queue are skipped. The rest go through the same add-URL path as a pasted link, in list order. The fragment is cleared from the address bar on open, like `#add=`. Decoding drops anything that isn't an http(s) link.
+- It's a snapshot: nothing syncs, and the sender's queue isn't touched.
 
 **Saving from another device (the catch with "everything local")**
 Because the queue lives only on the phone, a laptop has nowhere to send an article. Options, in order of simplicity:
@@ -160,10 +176,22 @@ Because the queue lives only on the phone, a laptop has nowhere to send an artic
 2. Extraction pipeline (§5) → `status: "extracted"`, with `extractionQuality` set (or `status: "failed"` with a reason).
 3. Fetch and store artwork (site art and article art) through `/asset`, and compute the tint source color (§4a).
 4. TTS rendering (§6) → `status: "rendering"` with progress → `"ready"`. Only one article renders at a time; others wait in `"extracted"`. Rendering also waits until the voice model is downloaded.
-5. Work resumes on next app open if the app was closed mid-pipeline. (PWAs get no reliable background execution.)
+5. Closing the app doesn't stop this: the service worker carries on for a few minutes, and Background Sync brings it back later (§11b). Anything still left resumes on the next app open.
 
 **Completing a partial article ("Paste the full text")**
 The Partial explainer sheet opens the Add sheet on Text, prefilled with the article's title. On save, the pasted body replaces `contentHtml` and `sentences` on the **same** article (keeping its id, queue position, art, and URL), sets `source: "text"` and `extractionQuality: "full"`, discards existing audio, and re-renders. Any listening position resets.
+
+## 4b. PDFs
+
+A PDF arrives as a link (the Worker's `/fetch` passes PDFs through, up to 30 MB, and the app also sniffs `%PDF`), a shared file, or an upload (up to 50 MB). The text is read with pdf.js (`unpdf`, which runs without a DOM, so the service worker can do it too), then cleaned up for listening (`src/pipeline/pdf.ts`):
+
+1. **Reading order.** Text runs are grouped into lines per page. A two-column page is split at its gutter and read left column, then right; full-width lines (title, abstract, wide captions) cut the page into bands. Rotated text (margin stamps, watermarks) is dropped.
+2. **Running heads and page numbers.** Lines near the top or bottom of the page are dropped when they repeat (digits ignored) on at least 30% of pages, or look like a page number, a DOI or a URL.
+3. **Small print.** Footnote markers (small numerals in a line), tiny text (chart labels) and footnotes below a page's last body line are dropped.
+4. **Paragraphs and headings.** Lines join into paragraphs and split on larger gaps, first-line indents and short last lines. A sentence carries on across a page or column break. Words hyphenated across lines are rejoined ("news-/papers" → "newspapers", but "self-/aware" keeps its hyphen). Short lines in larger type, or numbered like "2.1 Methods" on a line of their own, become headings, so §6.1's section skipping (References etc.) applies.
+5. **Captions and tables.** Paragraphs starting "Figure 3:" / "Table 2." and runs that are mostly numbers are dropped.
+
+The title is the PDF's metadata title unless it's junk ("Microsoft Word - draft.docx"), else the largest text on page one, else the file name. Scanned PDFs (no text layer) fail with "This PDF is a scan, so there's no text to read." Password-protected ones fail too. Documents over about 150,000 characters (3½ hours) are cut there and marked Partial. The uploaded file is deleted once its text is out; Read along shows the cleaned text.
 
 ## 4a. Artwork and tint
 
@@ -173,7 +201,7 @@ The Partial explainer sheet opens the Add sheet on Text, prefilled with the arti
 
 ---
 
-## 4b. Feed inbox
+## 4c. Feed inbox
 
 A way to find articles, not a way to save them. It follows the same rules as the rest of the app: everything stays on the device, nothing is added or rendered by itself, and nothing pushes.
 
@@ -314,6 +342,7 @@ Always render at 1.0× and handle speed at playback (`playbackRate`), so one ren
 - Resume position saved per article (on `pause`, `visibilitychange`, and every ~5s).
 - **While rendering:** play up to `renderedUntilSec`; seeking past it snaps back to it.
 - **On finish:** set `playedAt`, then archive or delete per `Settings.keepPlayed` (default archive). Auto-advance continues to the next Up next article that is playable.
+- **Chimes:** a short rising chime plays before an article starts from the top, and a falling one when it ends. Resuming partway plays none. With auto-advance, the next article waits for the end chime. The chimes are made in code, play through a second `<audio>` element, and can be turned off (`Settings.chimes`, default on). If a chime can't play, playback carries on without it.
 
 **Lock screen / headphones:** Media Session API with metadata (title, site, artwork in the order article art → site art → rasterized generated cover, all from local blobs so it works offline) and handlers for play, pause, seekbackward, seekforward, seekto, and previoustrack/nexttrack mapped to **previous/next article**. Bluetooth headset buttons route through these handlers. Sentence navigation is in-app only.
 
@@ -384,7 +413,7 @@ interface Article {
   queueOrder: number;         // fractional index for cheap reordering
 }
 
-/** A blog the user subscribes to (§4b). */
+/** A blog the user subscribes to (§4c). */
 interface Feed {
   id: string;
   feedUrl: string;            // the RSS/Atom address, after redirects
@@ -418,6 +447,7 @@ interface Settings {
   speed: number;              // global
   skipSeconds: 10 | 15 | 30;
   autoAdvance: boolean;
+  chimes: boolean;            // start and end chimes; default true
   keepPlayed: "archive" | "delete";   // default "archive"
   lyricsOn: boolean;
   lastPlayingArticleId?: string;  // restored on launch (§11a)
@@ -450,8 +480,8 @@ The queue row state in DESIGN.md comes from these fields. First match wins.
 ## 10. Queue & CRUD
 
 - **Queue screen** (home): Up next in `queueOrder`, then an **Archive** section. A bottom tab bar switches between Subscriptions and Up next (DESIGN.md "Navigation"). The tab isn't saved: the app opens on Up next. Row anatomy and states are in DESIGN.md.
-- **Gestures:** tap plays immediately; swipe left deletes (undo); swipe right marks played and archives (undo), except on archived rows, which only swipe left; long-press enters multi-select.
-- **Reorder:** drag handles, shown in multi-select mode.
+- **Gestures:** tap plays immediately; swipe left deletes (undo); swipe right marks played and archives (undo), except on archived rows, which only swipe left; hold a row to drag it into place (Up next), or hold and let go to enter multi-select.
+- **Reorder:** hold a row and drag it (Up next only). Drag handles also work in multi-select mode, and on wide screens the row's ⋯ menu has Move up and Move down.
 - **Multi-select actions:** delete, move to top, mark played, re-render (e.g. after changing voice), retry extraction.
 - **Clear:** "Clear all" in Settings, with confirm. "Clear archive" isn't designed yet; an action on the Archive section header is the natural place.
 - **Storage:** Settings shows total size split into audio, voice model, and art, plus "Delete audio for archived articles" (keeps text; re-renders on replay).
@@ -460,7 +490,7 @@ The queue row state in DESIGN.md comes from these fields. First match wins.
 
 ## 10a. Sharing with friends
 
-Sharing means sharing **the app**, not content. Each person's queue, articles, audio, and settings live only on their own device.
+Sharing means sharing **the app**, not content. Each person's queue, articles, audio, and settings live only on their own device. The one exception is a reading-list link (§4), which carries a few article links, never audio or text.
 
 - **Distribution:** an invite link like `https://app.example/#invite=<secret>`. Opening it stores the proxy secret locally and starts First run (welcome and install, how to save; plus the voice download for on-device voices). The secret is in the URL fragment, so it's never sent to the server or logged.
 - **Invite a friend:** Settings → About → Share sends the same link through the system share sheet.
@@ -478,10 +508,25 @@ Sharing means sharing **the app**, not content. Each person's queue, articles, a
 - Service worker precaches the app shell and fonts. The app launches in airplane mode.
 - Articles in `ready` state are fully offline (text, audio, timings, art).
 - Online voices need a connection to send and collect a job; saved articles wait ("Queued for audio") and continue when it's back. On-device rendering continues offline once the model is downloaded.
-- URLs shared while offline are saved as `waiting`, and the pipeline runs when connectivity returns (`online` event + on app open).
+- URLs shared while offline are saved as `waiting`, and the pipeline runs when connectivity returns (`online` event + on app open, or the service worker's Background Sync).
+- Uploaded PDFs are read offline; only their audio needs a connection.
 - UI: one slim banner ("Offline · ready articles still play"), no layout shift. Disable only network actions: Retry, voice download, Invite. Detect with `navigator.onLine` plus failed proxy requests.
 
 ---
+
+## 11b. Working while closed
+
+The friend test: share an article, close the app, and it should be ready to play later without keeping the app open. A PWA can't run freely in the background, but the service worker (`src/sw.ts`) gets a few minutes at a time, which is enough because the slow part (rendering) happens on the server:
+
+- **Share target.** Shares go to the service worker (§4), which saves the article and works on it right away, whether or not the page stays open.
+- **Background Sync** (`reader-work`). When the page is hidden with work left (text to fetch, articles to send, audio to download), it registers a one-off sync. Chrome runs it once the app is closed (and when the connection comes back). If the server is still rendering when time runs out, the sync fails on purpose so Chrome retries later with backoff.
+- **Periodic Background Sync** (`reader-refresh`, about every 3 hours, installed app on Android, if Chrome grants it based on engagement) picks up anything else.
+
+Each run, under a 4-minute budget: extract waiting articles (with linkedom standing in for `DOMParser`, §5), send them to the voice server (`submitPending`, holding a Web Lock so the page and the worker never send the same article twice), then download finished chunks. A service worker can't decode audio, so it stores the MP3 bytes in `serverAudio`; once it has every chunk it tells the server to delete its copy. When the app opens, the page decodes those locally (no network needed) into `renderedChunks`, builds the file, and streams meanwhile (§6.2). The service worker also messages any open page when it finishes, so the page collects right away.
+
+On open, the article in the player is collected first, so tapping one that isn't downloaded yet starts it streaming in a second or two. Chunks are downloaded four at a time.
+
+Limits: none of this works on iPhone (no Background Sync), Chrome decides when syncs and refreshes actually run, and a force-stopped Chrome runs nothing. Each of these falls back to the old behavior: the work finishes on the next open. The next step up would be Web Push (the Worker notifies when a render finishes), which also gives a "Ready to listen" notification.
 
 ## 11a. Persistence across restarts
 
@@ -515,7 +560,8 @@ All requests need the header `X-App-Secret: <secret>`. CORS is restricted to the
 
 ```
 GET  /fetch?url=<encoded>&profile=default|nocookie|referrer|amp
-  → 200 { finalUrl, status, contentType, html }
+  → 200 the page's HTML streamed through, or a PDF's bytes (application/pdf, or octet-stream from a .pdf path; up to 30 MB)
+       headers X-Final-Url, X-Upstream-Status, X-Upstream-Content-Type
   → 4xx/5xx { error }
 
 GET  /asset?url=<encoded>
@@ -572,14 +618,14 @@ Only rendered audio is stored, and only until the app downloads it. No logging o
 - [ ] Optional word-level emphasis
 
 **Later**
-- [ ] Feed inbox follow-ups: OPML import, JSON Feed. (The inbox itself is built, §4b.)
+- [ ] Feed inbox follow-ups: OPML import, JSON Feed. (The inbox itself is built, §4c.)
 - [ ] Saving from another device (relay inbox)
 
 ---
 
 ## 15. Open questions
 
-1. ~~Discovery~~ **Decided:** a pull-only feed inbox (§4b): subscribe to blogs, new posts wait in Subscriptions, nothing is added or rendered until the user taps Add. No recommendations.
+1. ~~Discovery~~ **Decided:** a pull-only feed inbox (§4c): subscribe to blogs, new posts wait in Subscriptions, nothing is added or rendered until the user taps Add. No recommendations.
 2. **Voice quality bar:** if on-device Kokoro is good but noticeably below the best cloud voices, is that acceptable as the default for you too, or would you personally use BYO-key?
 2a. **Friends' phones:** roughly how many are on iPhone? That determines how much the PWA route matters compared with a native Android app.
 3. ~~Voice preference~~ **Decided:** one global voice, chosen in Settings.

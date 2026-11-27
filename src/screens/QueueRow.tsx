@@ -1,12 +1,14 @@
-import { useRef, useState, type PointerEvent as RPointerEvent } from 'react';
+import { useRef, useState, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react';
 import type { Article } from '../db';
 import { hasRealTitle, urlTitle, type RowMeta } from '../queue/display';
 import { Art } from '../ui/Art';
 import { Icon, StatusGlyph } from '../ui/Icon';
 import { MenuButton, type MenuItem } from '../ui/Menu';
+import type { GrabPoint } from './useDragReorder';
 
-const LONG_PRESS_MS = 500;
-const SLOP = 10;
+/** Hold this long to grab a row; moving more than SLOP first means scroll or swipe instead. */
+const LONG_PRESS_MS = 400;
+const SLOP = 8;
 
 export interface RowProps {
   article: Article;
@@ -17,26 +19,31 @@ export interface RowProps {
   online: boolean;
   selecting: boolean;
   selected: boolean;
-  dragging?: boolean;
+  /** Picked up for reordering. */
+  lifted?: boolean;
   onTap: () => void;
+  /** Hold with no way to reorder (Archive rows): enter multi-select. */
   onLongPress: () => void;
+  /** Up next rows: a hold (or the handle) picks the row up. Releasing a hold without moving selects it. */
+  onGrab?: (p: GrabPoint, phase: 'held' | 'drag') => void;
+  /** Move up / down one place (handle keyboard). */
+  onMove?: (delta: number) => void;
   onSwipe?: (dir: 'left' | 'right') => void;
   /** False for an archived row: it's already played, so a right drag doesn't swipe (it's ignored, as a vertical drag is). Default true. */
   canMarkPlayed?: boolean;
   onStatus?: () => void;
   onRetry?: () => void;
-  onHandleDown?: (e: RPointerEvent) => void;
   rowRef?: (el: HTMLElement | null) => void;
   /** "More actions" menu, for pointers that can't swipe (the wide layout). */
   menu?: MenuItem[];
 }
 
-/** One queue row (DESIGN "Article states"). Swipe left deletes, right marks played; long-press selects. */
+/** One queue row (DESIGN "Article states"). Swipe left deletes, right marks played; hold to move it, or hold and release to select. */
 export function QueueRow(p: RowProps) {
   const a = p.article;
   const [dx, setDx] = useState(0);
   // `down` is set only between pointerdown and pointerup, so a mouse hovering over the row never swipes.
-  const g = useRef<{ x: number; y: number; down: boolean; mode: 'idle' | 'swipe' | 'scroll'; timer?: ReturnType<typeof setTimeout>; suppress: boolean }>({ x: 0, y: 0, down: false, mode: 'idle', suppress: false });
+  const g = useRef<{ x: number; y: number; down: boolean; mode: 'idle' | 'swipe' | 'scroll' | 'held'; timer?: ReturnType<typeof setTimeout>; suppress: boolean }>({ x: 0, y: 0, down: false, mode: 'idle', suppress: false });
   const urlish = !hasRealTitle(a) && a.source === 'url';
   const failed = p.meta.glyph === 'failed';
   const partial = p.meta.glyph === 'partial';
@@ -50,9 +57,15 @@ export function QueueRow(p: RowProps) {
     s.down = true;
     s.suppress = false;
     clearTimeout(s.timer);
+    const pt = { pointerId: e.pointerId, clientX: e.clientX, clientY: e.clientY };
     s.timer = setTimeout(() => {
-      if (s.mode === 'idle') {
-        s.suppress = true;
+      if (s.mode !== 'idle') return;
+      s.suppress = true;
+      // From here the reorder hook owns the pointer: it drags, or selects on release.
+      if (p.onGrab) {
+        s.mode = 'held';
+        p.onGrab(pt, 'held');
+      } else {
         navigator.vibrate?.(10);
         p.onLongPress();
       }
@@ -60,7 +73,7 @@ export function QueueRow(p: RowProps) {
   };
   const move = (e: RPointerEvent) => {
     const s = g.current;
-    if (!s.down) return;
+    if (!s.down || s.mode === 'held') return;
     const mx = e.clientX - s.x;
     const my = e.clientY - s.y;
     if (s.mode === 'idle' && (Math.abs(mx) > SLOP || Math.abs(my) > SLOP)) {
@@ -90,7 +103,7 @@ export function QueueRow(p: RowProps) {
     s.down = false;
   };
 
-  const cls = ['row', p.playing && 'playing', p.played && 'played', (p.selected || p.isNew) && (p.selected ? 'selected' : 'is-new'), p.selecting && 'selecting', (failed || p.onRetry || p.menu) && !p.selecting && 'has-action', p.dragging && 'dragging']
+  const cls = ['row', p.playing && 'playing', p.played && 'played', (p.selected || p.isNew) && (p.selected ? 'selected' : 'is-new'), p.selecting && 'selecting', (failed || p.onRetry || p.menu) && !p.selecting && 'has-action']
     .filter(Boolean)
     .join(' ');
 
@@ -109,7 +122,7 @@ export function QueueRow(p: RowProps) {
   );
 
   return (
-    <li className="row-wrap" ref={p.rowRef} data-id={a.id}>
+    <li className={`row-wrap${p.lifted ? ' lifted' : ''}`} ref={p.rowRef} data-id={a.id}>
       {dx !== 0 && (
         <div className={`row-swipe-bg ${dx > 0 ? 'right' : 'left'}`} aria-hidden="true">
           {dx > 0 ? (
@@ -131,7 +144,7 @@ export function QueueRow(p: RowProps) {
         onPointerUp={up}
         onPointerLeave={() => {
           // Released outside the row without swiping (a captured swipe keeps its events).
-          if (g.current.mode === 'swipe') return;
+          if (g.current.mode === 'swipe' || g.current.mode === 'held') return;
           g.current.down = false;
           clearTimeout(g.current.timer);
         }}
@@ -189,9 +202,21 @@ export function QueueRow(p: RowProps) {
           </button>
         )}
         {!p.selecting && p.menu && <MenuButton label={`More actions for ${hasRealTitle(a) ? a.title : urlTitle(a.url)}`} items={p.menu} />}
-        {p.selecting && p.onHandleDown && (
-
-          <button className="drag-handle" aria-label={`Reorder ${a.title}`} onPointerDown={p.onHandleDown}>
+        {p.selecting && p.onGrab && (
+          <button
+            className="drag-handle"
+            aria-label={`Reorder ${a.title}. Arrow keys move it`}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              p.onGrab!({ pointerId: e.pointerId, clientX: e.clientX, clientY: e.clientY }, 'drag');
+            }}
+            onKeyDown={(e: KeyboardEvent) => {
+              const delta = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0;
+              if (!delta) return;
+              e.preventDefault();
+              p.onMove?.(delta);
+            }}
+          >
             <Icon name="drag" />
           </button>
         )}

@@ -1,0 +1,10 @@
+{
+  // The service worker needs the WebWorker types; the shared pipeline code it imports is typed against the DOM.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "WebWorker"],
+    "types": ["vite/client"]
+  },
+  "include": ["src/sw.ts", "src/globals.d.ts"],
+  "exclude": []
+}

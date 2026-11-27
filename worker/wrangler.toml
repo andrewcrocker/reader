@@ -6,7 +6,7 @@ preview_urls = false
 
 [vars]
 # Comma-separated list of origins allowed to call the proxy from a browser.
-ALLOWED_ORIGINS = "https://read-aloud-c1w.pages.dev,http://localhost:5173,http://localhost:4173"
+ALLOWED_ORIGINS = "https://pocketreader.me,https://read-aloud-c1w.pages.dev,http://localhost:5173,http://localhost:4173"
 # Characters a day sent to the voice host, across everyone (~$0.33/day at $0.99 per million).
 DAILY_CHAR_CAP = "330000"
 

@@ -22,7 +22,7 @@ Read these first if you've seen the brief.
 | Finding new articles | A feed inbox, not designed yet | **Subscriptions:** pull only. You paste a blog's address on **Your subscriptions** (Manage, from the Subscriptions header), new posts wait in the Subscriptions tab, and nothing joins the queue until you tap Add |
 | Shared text | Not covered | Text (not a URL) shared from another app opens the **Add sheet on the Text tab**, prefilled |
 | Up-next peek | Peek or swipe | **Peek** of the next article at the bottom of Now Playing |
-| Reorder handles | Always, or edit mode | **Only in multi-select mode** |
+| Reorder | Handles always, or in edit mode | **Hold a row and drag it.** Handles appear only in multi-select |
 | Lyrics dimming | All dimmed text at 4.5:1 | Already-read text drops to about 2.6:1 (see Accessibility) |
 | Voice choice | Global or per-article | **One global voice** from three (Heart, Bella, Michael), picked in Settings. No picker in the player or First run |
 | Voice engine | On-device, with optional cloud | **Online (server Kokoro) only.** No engine or quality choice in Settings or First run |
@@ -63,7 +63,7 @@ This is a podcast player for articles. Listening is the main job and reading is 
 
 A **bottom tab bar** switches between two views: **Subscriptions | Up next**. Up next is the hub and the home view. Archive is a section at the bottom of the Up next list, not a tab. Now Playing opens from the mini player on any tab. Lyrics view is a mode inside Now Playing. Settings is a pushed screen from the Up next header, and Your subscriptions is a pushed screen from the Subscriptions header. Neither has a tab bar. The Add sheet, speed picker, and Partial explainer are bottom sheets.
 
-Ways in: app icon → Up next; share sheet → Up next (URL) or Add sheet on Text (text); `#add=` link → Up next; invite link → First run → empty Up next. The app always opens on Up next. The tab isn't remembered between launches.
+Ways in: app icon → Up next; share sheet → Up next (URL) or Add sheet on Text (text); `#add=` link → Up next; `#list=` link → Up next, with the reading-list sheet open (see Reading lists); invite link → First run → empty Up next. The app always opens on Up next. The tab isn't remembered between launches.
 
 **Back:** Up next is the bottom of the back stack. Subscriptions sits one step above it, so back from Subscriptions returns to Up next, and tapping Up next does the same as back. Your subscriptions sits one step above Subscriptions, so back from it returns to the inbox. It's a push, the same as Settings from Up next, with the same back arrow and the same back gesture.
 
@@ -224,6 +224,7 @@ Every row shows a 16 dp status glyph at the start of its meta line, then text. E
   - A 36 dp banner under the header on `fill`: cloud-slash glyph and "Offline · ready articles still play."
   - Retry buttons are disabled (`input-border` color, cloud-slash glyph) and described by the row note.
   - Nothing else changes.
+- **Reorder** (Up next only): hold a row for about 400 ms. It lifts (a light buzz, a shadow, 2% larger) and follows the finger; the rows it passes slide apart to show where it will land, and the list scrolls when the row nears the top or the mini player. Let go to drop it. Moving more than about 8 px before the hold fires scrolls, swipes, or does nothing, as usual, so a long list never reorders by accident. Holding and letting go without moving enters multi-select, as a long-press always did. With a mouse, press and hold the same way. On wide screens each row's ⋯ menu also has **Move up** and **Move down**. Reduced motion: no lift scale, and the slot opens instantly.
 - **Voices busy** (online voices, daily budget spent): the same banner with a clock glyph and "Voices are busy right now. Your articles will finish later." Affected rows read "Waiting for voices"; they start again on their own after the reset (midnight UTC). Offline wins if both apply.
 
 ### 2. Mini player
@@ -293,7 +294,7 @@ Toggled by Read along. The cover area and metadata collapse into a compact heade
 
 ### 5. Add sheet · artboard "Add sheet …"
 
-Bottom sheet on `surface-sheet`, scrim behind. Header: "Add to queue" and close. Segmented control: **Link | Text**.
+Bottom sheet on `surface-sheet`, scrim behind. Header: "Add to queue" and close. Segmented control: **Link | Text | PDF**.
 
 - **Link tab:**
   - A large `accent` button (72 tall): clipboard glyph, "Paste link," and a one-line preview of the clipboard URL. It is disabled with "No link on your clipboard" when empty.
@@ -302,8 +303,12 @@ Bottom sheet on `surface-sheet`, scrim behind. Header: "Add to queue" and close.
 - **Text tab:**
   - Title (optional; first line is used if blank), then the article text (Literata 15) with a word count and listen estimate.
   - "Save to queue" (full width, `accent`).
+- **PDF tab:**
+  - The same large `accent` button: upload glyph, "Choose a PDF," "From your files" (or the reason a file was refused: not a PDF, over 50 MB). It opens the system file picker.
+  - Hint: Reader pulls out the text and reads it aloud; Read along shows it. Share › Reader from Files works too, as does a PDF link on the Link tab. Scanned PDFs have no text.
+  - Choosing a file saves it straight away; the row reads "Preparing" while the text is pulled out, then goes on as usual. Its site label is "PDF."
 - **Shared text arrival:** opens on Text, prefilled, with a status row: "Text shared from <app>. Add a title, then save."
-- **After saving:** the sheet closes and the new row appears at the bottom of Up next in its first state (Fetching for links, Queued for audio for text).
+- **After saving:** the sheet closes and the new row appears at the bottom of Up next in its first state (Fetching for links and PDFs, Queued for audio for text).
 
 ### 6. Share-sheet arrival · artboard "Share-sheet arrival …"
 
@@ -315,10 +320,10 @@ Bottom sheet on `surface-sheet`, scrim behind. Header: "Add to queue" and close.
 
 ### 7. Multi-select · artboard "Multi-select …"
 
-- **Enter:** long-press a row.
-- **Header** (on a slightly darker `bg`): close, "N selected," Select all.
-- **Rows:** a checkbox (accent-colored) leads; selected rows use `row-selected`; drag handles appear at the trailing edge.
-- **Bottom action bar** (replaces the mini player): Delete (`error`), Move to top, Mark played, Re-render, Retry. Each has an icon over a label.
+- **Enter:** hold a row and let go without moving it (holding and moving reorders; see Queue).
+- **Header** (on a slightly darker `bg`): close, "N selected," Share as list (share glyph; see 14), Select all.
+- **Rows:** a checkbox (accent-colored) leads; selected rows use `row-selected`; drag handles appear at the trailing edge. A focused handle moves its row with the up and down arrow keys.
+- **Bottom action bar** (replaces the mini player and the tab bar): Delete (`error`), Move to top, Mark played, Re-render, Retry. Each has an icon over a label.
   - Disable Retry if no failed row is selected.
   - Disable Re-render if nothing renderable is selected.
 - **Delete:** exits selection and shows the "N articles deleted · Undo" snackbar for 6 s.
@@ -381,6 +386,7 @@ Pushed screen: back arrow and "Settings." The top level is a menu: **Voice**, **
   - Speed (opens the speed picker; same value as the player).
   - Skip interval (segmented 10s / 15s / 30s).
   - Auto-advance switch.
+  - Chimes switch ("A short sound when an article starts and ends").
   - "When an article finishes": Archive / Delete.
 - **Storage:**
   - Total used (Literata 28).
@@ -412,6 +418,19 @@ Two steps with Online voices (the default): Welcome, then Save from anywhere. Th
 
 With on-device voices, saved articles stay in "Queued for audio" until the voice is ready, with a meta note: "Waiting for voice download."
 
+### 14. Reading lists
+
+A snapshot of some articles, sent as one link (SPEC §4). Nothing is uploaded and nothing stays in sync: the link holds the list.
+
+- **Share as list** (multi-select header, share glyph): a sheet with a line on what it does, an optional **List name** field (placeholder "Reading list"), the articles in queue order (title in Literata, site under it), and **Share N articles** (primary). It opens the system share sheet with just the link (no extra text, so Copy gives a clean URL; the name travels inside the link), or copies the link where there isn't one.
+  - Only links can go in. Pasted text is left out, with a `status-note` in the sheet ("1 pasted article wasn't included: only links can be shared.") and the same note in the snackbar afterwards.
+  - Past about 2,000 characters the note also warns that some apps may cut the link off. The link still works.
+  - Sharing exits selection and shows "Link copied" or "List shared" in the snackbar.
+- **Opening a list link:** the Queue opens with a sheet titled with the list name (or "Reading list"), then "A reading list someone shared · N articles · M already in your queue."
+  - Each article is a checkbox row: title, then site. All start checked. Articles already in the queue (by URL, Archive included) show unchecked and disabled, with "Already in your queue."
+  - **Add all to Up next** (primary) becomes "Add N to Up next" when some are unchecked. Each one is added like a pasted link, at the end of Up next, and the snackbar says "N articles added to Up next."
+  - A damaged link shows a snackbar instead: "That reading list link is damaged. Ask for it again."
+
 ## Interactions and motion
 
 | Interaction | Behavior |
@@ -424,9 +443,11 @@ With on-device voices, saved articles stay in "Queued for audio" until the voice
 | Tap row | Play (or resume) immediately |
 | Tap Partial/Failed status | Open the explainer sheet |
 | Swipe row left | Delete, undo snackbar |
-| Swipe row right | Mark played → Archive, undo snackbar |
-| Long-press row | Multi-select |
+| Swipe row right | Mark played → Archive, undo snackbar (Up next rows only) |
+| Hold row, then drag (Up next) | Reorder |
+| Hold row, then let go | Multi-select |
 | Drag handle (multi-select) | Reorder |
+| Move up / Move down (⋯ menu, wide) | Reorder by one |
 | Tap / swipe up mini player | Expand to Now Playing, shared-element art |
 | Swipe down on Now Playing | Collapse |
 | Long-press back / forward | Previous / next article |
@@ -481,6 +502,6 @@ Target WCAG 2.2 AA.
 - **Sleep timer**, per-article voices
 
 **Still open:**
-- [x] Name: **Reader** (2026-10-28), used in copy, the share target, the page title and link previews. The URL stays `read-aloud-c1w.pages.dev`.
+- [x] Name: **Reader** (2026-10-28), used in copy, the share target, the page title and link previews. The URL is `pocketreader.me` (2026-11-21); `read-aloud-c1w.pages.dev` still works.
 - [ ] Wordmark and icon.
 - [ ] Native later (SPEC.md §12): the arrival snackbar becomes a system toast without opening the app.

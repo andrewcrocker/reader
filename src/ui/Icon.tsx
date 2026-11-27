@@ -8,7 +8,7 @@ type Name =
 
   | 'add' | 'settings' | 'pause' | 'play' | 'chevron-down' | 'chevron-right' | 'back' | 'close' | 'external'
   | 'prev-sentence' | 'next-sentence' | 'auto-advance' | 'read-along' | 'link' | 'clipboard' | 'share'
-  | 'cloud-off' | 'check' | 'arrow-up' | 'trash' | 'move-top' | 'mark-played' | 're-render' | 'retry' | 'drag'
+  | 'cloud-off' | 'check' | 'arrow-up' | 'arrow-down' | 'trash' | 'move-top' | 'mark-played' | 're-render' | 'retry' | 'drag'
   | 'minus' | 'plus' | 'shield' | 'warn' | 'download' | 'upload' | 'speaker' | 'more' | 'clock'
   | 'rss' | 'queue' | 'manage';
 
@@ -89,6 +89,7 @@ const P: Record<Name, ReactNode> = {
   ),
   check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
   'arrow-up': <path d="M12 19V5M6 11l6-6 6 6" />,
+  'arrow-down': <path d="M12 5v14M6 13l6 6 6-6" />,
   trash: <path d="M4 7h16M10 7V4.5h4V7M6.5 7l1 13h9l1-13" />,
   'move-top': <path d="M5 4h14M12 20V9M7 13l5-5 5 5" />,
   'mark-played': (

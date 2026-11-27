@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { getSettings, updateSettings } from './db';
 import { AppDataProvider, useAppData } from './app/data';
-import { classifyShare, readHash, type Shared } from './app/share';
+import { classifyShare, decodeList, readHash, type Shared } from './app/share';
 import { getUi, openNowPlaying, openSheet, setNewId, showSnack, useUi, useWide } from './app/ui';
 import { markAllSeen, startFeedChecks } from './feeds/store';
 import { addUrl, kick, startRunner } from './pipeline/runner';
@@ -14,6 +14,7 @@ import { NowPlaying } from './screens/NowPlaying';
 import { Queue } from './screens/Queue';
 import { Settings } from './screens/Settings';
 import { AddSheet, ExplainSheet, SpeedSheet } from './screens/sheets';
+import { ReadingListSheet, ShareListSheet } from './screens/listSheets';
 import { Manage } from './screens/Manage';
 import { Subscriptions } from './screens/Subscriptions';
 import { Spike } from './pages/Spike';
@@ -30,18 +31,33 @@ export function App() {
   );
 }
 
-/** What arrived with this launch: a share (SPEC §4), `#add=<url>`, or `#invite=<secret>` (§10a). */
-function incoming(): Shared | null {
-  const { invite, add } = readHash(location.hash);
+type Incoming = Shared | { kind: 'added'; id: string } | { kind: 'unsupported'; name: string };
+
+/**
+ * What arrived with this launch: a share (SPEC §4), `#add=<url>`, `#list=…` (§4), or `#invite=<secret>` (§10a).
+ * Shared links and PDFs are saved by the service worker (src/sw.ts), which sends `/share?added=<id>`.
+ */
+function incoming(): Incoming | null {
+  const { invite, add, list } = readHash(location.hash);
+  if (list)
+    void decodeList(list).then((l) =>
+      l ? openSheet({ kind: 'list', list: l }) : showSnack({ text: 'That reading list link is damaged. Ask for it again.' }),
+    );
   if (invite) void acceptInvite(invite).then(() => (void checkInvite(), kick()));
   else void checkInvite();
-  let shared: Shared | null = null;
+  let shared: Incoming | null = null;
   if (location.pathname === '/share') {
     const q = new URLSearchParams(location.search);
-    shared = classifyShare({ title: q.get('title'), text: q.get('text'), url: q.get('url') });
+    const added = q.get('added');
+    const unsupported = q.get('unsupported');
+    shared = added
+      ? { kind: 'added', id: added }
+      : unsupported !== null
+        ? { kind: 'unsupported', name: unsupported }
+        : classifyShare({ title: q.get('title'), text: q.get('text'), url: q.get('url') });
   } else if (add) shared = { kind: 'link', url: add };
   // Keep the secret and the share out of history and the address bar.
-  if (invite || add || location.pathname === '/share') history.replaceState(null, '', '/');
+  if (invite || add || list || location.pathname === '/share') history.replaceState(null, '', '/');
   return shared;
 }
 
@@ -65,6 +81,8 @@ function boot(): Promise<string | undefined> {
     startFeedChecks();
     if (shared?.kind === 'text') openSheet({ kind: 'add', tab: 'text', text: shared.text, title: shared.title, shared: true });
     if (shared?.kind === 'link') return addUrl(shared.url, shared.title);
+    if (shared?.kind === 'added') return shared.id;
+    if (shared?.kind === 'unsupported') showSnack({ text: shared.name ? `Reader can only read PDFs and web pages, not “${shared.name}”.` : 'Reader can only read PDFs and web pages.' });
   })();
   return booting;
 }
@@ -132,6 +150,8 @@ function Shell() {
       {sheet?.kind === 'add' && <AddSheet key={`${sheet.tab}${sheet.replaceId ?? ''}${sheet.text?.length ?? 0}`} sheet={sheet} />}
       {sheet?.kind === 'speed' && <SpeedSheet />}
       {sheet?.kind === 'explain' && <ExplainSheet id={sheet.id} />}
+      {sheet?.kind === 'share-list' && <ShareListSheet ids={sheet.ids} onShared={sheet.onShared} />}
+      {sheet?.kind === 'list' && <ReadingListSheet list={sheet.list} />}
     </>
   );
   // Settings and Your subscriptions are their own screens; otherwise the tab bar picks the list. Up next is the home view.

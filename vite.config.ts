@@ -47,6 +47,10 @@ export default defineConfig({
       // src/app/update.ts registers the worker and applies updates once nothing is playing.
       registerType: 'prompt',
       injectRegister: false,
+      // Our own worker (src/sw.ts): it also handles shares and finishes work after the app closes.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       includeAssets: ['icons/*.png'],
       manifest: {
         // "Reader" is the app's name (DESIGN "Still open": wordmark and icon).
@@ -58,10 +62,12 @@ export default defineConfig({
         // Dark is primary; index.html sets the status bar per scheme from the `bg` token.
         background_color: '#151413',
         theme_color: '#151413',
+        // POST so the service worker takes it (and can work on it after the app closes), and so PDFs can be shared.
         share_target: {
           action: '/share',
-          method: 'GET',
-          params: { title: 'title', text: 'text', url: 'url' },
+          method: 'POST',
+          enctype: 'multipart/form-data',
+          params: { title: 'title', text: 'text', url: 'url', files: [{ name: 'file', accept: ['application/pdf', '.pdf'] }] },
         },
         icons: [
           { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
@@ -69,24 +75,15 @@ export default defineConfig({
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      workbox: {
+      injectManifest: {
+        // A classic script (the app registers it as one; pdf.js's module-only bits are Node paths it never takes).
+        rollupFormat: 'iife',
         // woff2: the self-hosted fonts, so type works offline; mp3: the voice samples in Settings.
         globPatterns: ['**/*.{js,css,html,png,svg,webmanifest,woff2,mp3}'],
         // Only link-preview crawlers need the share card.
         globIgnores: ['og.png'],
-
         // The transformers.js chunk is large; the app shell must still precache.
         maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
-        navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//, /^\/ort\//],
-        runtimeCaching: [
-          {
-            // ~21 MB ORT WASM runtime: cache on first use, not at install.
-            urlPattern: ({ url }) => url.pathname.startsWith('/ort/'),
-            handler: 'CacheFirst',
-            options: { cacheName: 'ort-wasm', expiration: { maxEntries: 10 } },
-          },
-        ],
       },
     }),
   ],

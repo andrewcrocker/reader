@@ -78,7 +78,7 @@ export function hasRealTitle(a: Article): boolean {
 }
 
 export function siteLabel(a: Article): string | undefined {
-  return a.siteName || a.domain || (a.source === 'text' ? 'Pasted text' : undefined);
+  return a.siteName || a.domain || (a.source === 'text' ? 'Pasted text' : a.source === 'file' ? 'PDF' : undefined);
 }
 
 /** One meta-line segment; `strong` segments get the state's emphasis color. */
@@ -136,7 +136,7 @@ export function rowMeta(a: Article, state: DisplayState, ctx: Ctx & { isNew?: bo
         glyph = 'failed';
         tone = 'error';
         push(
-          a.errorKind === 'audio' ? 'Couldn’t make the audio' : a.source === 'text' ? 'Couldn’t prepare this text' : a.errorKind === 'service' ? 'Couldn’t connect' : 'Couldn’t load the page',
+          a.errorKind === 'audio' ? 'Couldn’t make the audio' : a.source === 'text' ? 'Couldn’t prepare this text' : a.source === 'file' || a.extractionMethod === 'pdf' ? 'Couldn’t read the PDF' : a.errorKind === 'service' ? 'Couldn’t connect' : 'Couldn’t load the page',
           true,
         );
 
