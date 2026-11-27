@@ -6,8 +6,8 @@ import { headline, listArticles, MAX_ITEMS, publishRequest, RANGE_LABEL, toShare
 // The client half of publishing a list (spec/SHARING.md): build the card, send it with the snapshot,
 // keep a receipt, hand the link to the system share sheet.
 
-/** The card shows at most this many titles (the Worker's page shows them all). */
-const CARD_ROWS = 5;
+/** The card shows the first article as "now playing" and a few after it (the Worker's page shows them all). It lays out as many of these as fit. */
+const CARD_ROWS = 4;
 
 /** The site or article art for an article's tile, decoded; undefined when it has none (the tile is then the tint and initials). */
 async function loadArt(a: Article): Promise<ImageBitmap | undefined> {
@@ -30,7 +30,9 @@ export async function cardSpec(articles: Article[], range: ShareRange, name: str
       return { title: it.title, domain: it.domain, tint: it.tint ?? '#3f4c4a', minutes: it.minutes, art: withArt ? await loadArt(a) : undefined };
     }),
   );
-  return { headline: headline(name.trim().slice(0, 40), range), rangeLabel: RANGE_LABEL[range], total: list.length, items };
+  // The whole list's listening time, not just the rows the card has room for.
+  const totalMinutes = list.reduce((sum, a) => sum + (toShareItem(a).minutes ?? 0), 0);
+  return { headline: headline(name.trim().slice(0, 40), range), rangeLabel: RANGE_LABEL[range], total: list.length, totalMinutes: totalMinutes || undefined, items };
 }
 
 export class PublishError extends Error {}
