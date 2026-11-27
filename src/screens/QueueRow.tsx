@@ -21,6 +21,8 @@ export interface RowProps {
   onTap: () => void;
   onLongPress: () => void;
   onSwipe?: (dir: 'left' | 'right') => void;
+  /** False for an archived row: it's already played, so a right drag doesn't swipe (it's ignored, as a vertical drag is). Default true. */
+  canMarkPlayed?: boolean;
   onStatus?: () => void;
   onRetry?: () => void;
   onHandleDown?: (e: RPointerEvent) => void;
@@ -63,10 +65,12 @@ export function QueueRow(p: RowProps) {
     const my = e.clientY - s.y;
     if (s.mode === 'idle' && (Math.abs(mx) > SLOP || Math.abs(my) > SLOP)) {
       clearTimeout(s.timer);
-      s.mode = !p.selecting && p.onSwipe && Math.abs(mx) > Math.abs(my) ? 'swipe' : 'scroll';
+      const allowed = mx < 0 || p.canMarkPlayed !== false;
+      s.mode = !p.selecting && p.onSwipe && allowed && Math.abs(mx) > Math.abs(my) ? 'swipe' : 'scroll';
       if (s.mode === 'swipe') (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     }
-    if (s.mode === 'swipe') setDx(mx);
+    // Once a left swipe is under way, dragging back past the start stops at the start instead of showing "Mark played".
+    if (s.mode === 'swipe') setDx(p.canMarkPlayed === false ? Math.min(0, mx) : mx);
   };
   const up = (e: RPointerEvent) => {
     const s = g.current;

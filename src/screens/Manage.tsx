@@ -29,7 +29,7 @@ export function Manage() {
   };
 
   // Newest first, so a blog you just added appears right under the field.
-  const list = [...feeds].reverse();
+  const list = [...feeds].sort((a, b) => b.addedAt - a.addedAt);
 
   return (
     <div className="screen">

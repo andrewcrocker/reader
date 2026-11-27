@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent as RPointerEvent } from 'react';
 import type { Article } from '../db';
 import { useAppData } from '../app/data';
+import { plural } from '../format';
 import { openNowPlaying, openSettings, openSheet, showSnack, useUi, useWide } from '../app/ui';
 import { isPlayable, usePlayer } from '../player/PlayerProvider';
 import { displayState, isBusy, queueSummary, rowMeta, voiceReady, type Ctx } from '../queue/display';
@@ -11,8 +12,6 @@ import { Snackbar } from '../ui/Snackbar';
 import { MiniPlayer } from './MiniPlayer';
 import { QueueRow } from './QueueRow';
 import { TabBar } from './TabBar';
-
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 export function deleteWithUndo(ids: string[]) {
   void softDelete(ids).then((undo) =>
@@ -142,6 +141,7 @@ export function Queue() {
         onTap={() => tap(a)}
         onLongPress={() => setSelected((s) => new Set(s).add(a.id))}
         onSwipe={(dir) => (dir === 'left' ? deleteWithUndo([a.id]) : !inArchive && markPlayedWithUndo([a.id]))}
+        canMarkPlayed={!inArchive}
         onStatus={() => openSheet({ kind: 'explain', id: a.id })}
         onRetry={state === 'failed' ? () => void retryArticle(a.id) : undefined}
         onHandleDown={inArchive ? undefined : handleDown(a.id)}
