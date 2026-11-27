@@ -106,4 +106,35 @@ describe('singleFlight', () => {
     runs[1].ok('forced');
     expect(await forced).toBe('forced');
   });
+
+  it('turns a task that throws before returning a promise into a rejection, and runs fresh next time', async () => {
+    let calls = 0;
+    const run = singleFlight<string>(() => {
+      calls += 1;
+      if (calls === 1) throw new Error('sync boom');
+      return Promise.resolve('fine');
+    });
+    await expect(run(false)).rejects.toThrow('sync boom');
+    expect(await run(false)).toBe('fine');
+    expect(calls).toBe(2);
+  });
+
+  it('is not left stuck when the queued forced run throws before returning a promise', async () => {
+    const started: boolean[] = [];
+    let finishFirst: (v: string) => void = () => {};
+    const run = singleFlight<string>((force) => {
+      started.push(force);
+      if (started.length === 1) return new Promise((resolve) => (finishFirst = resolve));
+      if (started.length === 2) throw new Error('sync boom');
+      return Promise.resolve('recovered');
+    });
+    const first = run(false);
+    const forced = run(true);
+    finishFirst('one');
+    expect(await first).toBe('one');
+    await expect(forced).rejects.toThrow('sync boom');
+    // The failed forced run must not be handed back forever.
+    expect(await run(false)).toBe('recovered');
+    expect(started).toEqual([false, true, false]);
+  });
 });
