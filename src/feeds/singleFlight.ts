@@ -5,13 +5,20 @@
  * arrives before that one starts. Calls while a forced run is under way join it, since it covers them.
  *
  * `task` should not reject; a rejection reaches that run's callers and doesn't stop a queued run.
+ * A task that throws before it returns a promise counts as a rejection too, so nothing is left stuck.
  */
 export function singleFlight<T>(task: (force: boolean) => Promise<T>): (force: boolean) => Promise<T> {
   let current: { done: Promise<T>; force: boolean } | null = null;
   let queued: Promise<T> | null = null;
 
   const start = (force: boolean): Promise<T> => {
-    const done: Promise<T> = task(force).finally(() => {
+    let run: Promise<T>;
+    try {
+      run = task(force);
+    } catch (e) {
+      run = Promise.reject(e);
+    }
+    const done: Promise<T> = run.finally(() => {
       if (current?.done === done) current = null;
     });
     current = { done, force };
