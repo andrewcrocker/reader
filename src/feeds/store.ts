@@ -4,6 +4,7 @@ import { addUrl } from '../pipeline/runner';
 import { discoverFeed, FeedError, probeLinkBase, type FetchText } from './discover';
 import { diffItems, idsToPrune, isDue, rebaseLink, urlKey, WINDOW } from './diff';
 import { parseFeed } from './parse';
+import { singleFlight } from './singleFlight';
 
 // Subscriptions on the device (SPEC §4 "Feed inbox"). Pull only: feeds are read when the app
 // opens, when it comes back to the front, and when asked. Nothing is added to the queue by itself.
@@ -64,16 +65,18 @@ export interface CheckResult {
 }
 
 const NONE: CheckResult = { checked: 0, added: 0, failed: 0 };
-let running: Promise<CheckResult> | null = null;
+
+// A check already under way covers a later one (launch and "back in front" can land together). The
+// exception is `force`: a check that skipped recently checked feeds can't stand in for "Check now",
+// so a forced call waits for it to finish and then checks every feed (see `singleFlight`).
+const flight = singleFlight((force: boolean) => run(force).catch(() => NONE));
 
 /**
  * Looks for new posts. Feeds checked in the last 30 minutes are skipped unless `force`. Only posts
  * not stored yet are added, unseen. A feed that fails just records why, per feed, with no banner.
  */
 export function checkFeeds({ force = false }: { force?: boolean } = {}): Promise<CheckResult> {
-  // A check already under way covers this call too (launch and "back in front" can land together).
-  running ??= run(force).catch(() => NONE).finally(() => (running = null));
-  return running;
+  return flight(force);
 }
 
 async function run(force: boolean): Promise<CheckResult> {
@@ -104,7 +107,7 @@ async function checkOne(feed: Feed, settings: Settings): Promise<number | null> 
       const fresh: FeedItem[] = diffItems(feed.id, parsed.items, new Set(stored.map((i) => i.id)), WINDOW, linkBase).map((n) => ({ ...n, firstSeenAt: now, seenAt: null }));
       await db.feedItems.bulkAdd(fresh);
       await db.feedItems.bulkDelete(idsToPrune([...stored, ...fresh]));
-      await db.feeds.update(feed.id, { lastCheckedAt: now, lastError: undefined, siteUrl: parsed.siteUrl ?? feed.siteUrl, linkBase });
+      await db.feeds.update(feed.id, { lastCheckedAt: now, lastError: undefined, title: parsed.title || feed.title, siteUrl: parsed.siteUrl ?? feed.siteUrl, linkBase });
       return fresh.length;
     });
   } catch (e) {
