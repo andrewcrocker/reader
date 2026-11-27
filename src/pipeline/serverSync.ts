@@ -1,5 +1,5 @@
 import { db, getSettings, type Article } from '../db';
-import { deleteJob, fetchChunkBytes, jobStatus, ServerBusyError, ServerUnavailableError, submitJob } from '../tts/server';
+import { deleteJob, fetchChunkBytes, isCacheable, jobStatus, ServerBusyError, ServerUnavailableError, submitJob } from '../tts/server';
 import { DEFAULT_VOICE, isVoice } from '../tts/voices';
 
 // The part of server voices that needs no DOM or audio APIs, so the page and the service worker
@@ -64,7 +64,7 @@ export async function submitPending(only?: string[]): Promise<void> {
       const missing = (a.chunks ?? []).filter((c) => !have.has(c.i));
       if (!missing.length) continue; // collecting finishes it without a job
       try {
-        const job = await submitJob(s, voiceFor(a), missing);
+        const job = await submitJob(s, voiceFor(a), missing, isCacheable(a));
         await db.articles.update(a.id, { serverJob: job, busyUntil: undefined });
       } catch (err) {
         if (err instanceof ServerBusyError) {
