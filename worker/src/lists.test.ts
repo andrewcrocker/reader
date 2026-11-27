@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import app, { type Env } from './index';
-import { describeList, esc, httpUrl, isPng, isPublicListRoute, newListId, parseListRequest, renderListPage, tidy, type StoredList } from './lists';
+import { describeList, esc, fmtClock, fmtTotal, httpUrl, isPng, isPublicListRoute, newListId, parseListRequest, renderListPage, tidy, totalMinutes, type StoredList } from './lists';
 
 // A tiny in-memory R2: just the calls lists.ts makes.
 function fakeLists() {
@@ -134,6 +134,29 @@ describe('helpers', () => {
 
   it('escapes the five HTML characters', () => {
     expect(esc(`<a href="x" onclick='y'>&</a>`)).toBe('&lt;a href=&quot;x&quot; onclick=&#39;y&#39;&gt;&amp;&lt;/a&gt;');
+  });
+});
+
+describe('player helpers', () => {
+  it('writes the total listening time in the app’s style', () => {
+    expect(fmtTotal(0.2)).toBe('1 m');
+    expect(fmtTotal(45)).toBe('45 m');
+    expect(fmtTotal(60)).toBe('1 h');
+    expect(fmtTotal(137)).toBe('2 h 17 m');
+    expect(fmtTotal(1260)).toBe('21 h');
+  });
+
+  it('writes a length as a clock', () => {
+    expect(fmtClock(25)).toBe('25:00');
+    expect(fmtClock(0)).toBe('0:00');
+    expect(fmtClock(75)).toBe('1:15:00');
+  });
+
+  it('totals the minutes it knows', () => {
+    const items = (mins: (number | undefined)[]) => ({ items: mins.map((minutes) => ({ title: 't', url: 'https://a.test/', domain: 'a.test', minutes })) });
+    expect(totalMinutes(items([10, 20, undefined, 5]))).toBe(35);
+    expect(totalMinutes(items([undefined]))).toBeUndefined();
+    expect(totalMinutes(items([]))).toBeUndefined();
   });
 });
 
@@ -414,6 +437,95 @@ describe('the public page', () => {
     expect(html).not.toMatch(/\sstyle="/);
   });
 
+  describe('the player', () => {
+    const playLink = (html: string) => html.match(/<a class="play" href="([^"]*)">/)?.[1];
+    // Three 8-minute articles in `list()`: the first plays, the whole list is 24 minutes.
+    const sized = (mins: number[], over: Partial<StoredList> = {}) => list({ items: mins.map((m, i) => item(i + 1, { minutes: m })) as StoredList['items'], ...over });
+
+    it('shows the first item, its clock, the play button and the total time', () => {
+      const html = renderListPage(list({ items: [item(1, { title: 'First one', domain: 'paulgraham.com', minutes: 25 }), item(2, { minutes: 17 }), item(3, { minutes: 95 })] as StoredList['items'] }), opts);
+      expect(html).toContain('<section class="player" aria-label="Play Zach’s reading this week">');
+      expect(html).toContain('<p class="np-title">First one</p><p class="np-site">paulgraham.com</p>');
+      expect(html).toContain('<span>0:00</span><span>25:00</span>');
+      expect(html).toContain('<span class="play-label">Listen on Reader</span>');
+      expect(html).toContain('<p class="total">3 articles · 2 h 17 m total</p>');
+      // It sits between the note and the list.
+      expect(html.indexOf('class="player"')).toBeLessThan(html.indexOf('<ol class="list"'));
+    });
+
+    it('sends the play button to the first article in Reader, the same #add= link as "Open in Reader"', () => {
+      const html = renderListPage(list(), opts);
+      expect(playLink(html)).toBe('https://app.example/#add=https%3A%2F%2Fexample.com%2Fpost-1');
+      expect(html).toContain('<span class="play-hint">Opens in Reader</span>');
+    });
+
+    it('falls back to the Get Reader link when there is no app to open the article in', () => {
+      const html = renderListPage(list(), { ...opts, appUrl: undefined });
+      expect(playLink(html)).toBe('https://about.example/reader');
+      expect(html).toContain('<span class="play-hint">Get Reader to listen</span>');
+      // And when the first item has no usable link, even with an app.
+      const bad = renderListPage(list({ items: [{ title: 'Bad', url: 'javascript:alert(1)', domain: 'x.test' }, item(2)] as StoredList['items'] }), opts);
+      expect(playLink(bad)).toBe('https://about.example/reader');
+    });
+
+    it('has no play button at all when it has nowhere honest to send it', () => {
+      const html = renderListPage(list(), { baseUrl: 'https://lists.example', nonce: 'n' });
+      expect(html).toContain('<section class="player"');
+      expect(html).not.toContain('class="play"');
+      expect(html).not.toContain('Listen on Reader');
+    });
+
+    it('does not pretend to play: no script, audio, button or inline handler anywhere', () => {
+      const html = renderListPage(list(), opts);
+      expect(html).not.toMatch(/<(script|audio|video|button|source|input)/i);
+      expect(html).not.toMatch(/\son[a-z]+=/i);
+      expect(html).not.toMatch(/href="(#|javascript:)/);
+      // The only play control is a link.
+      expect(html.match(/class="play"/g)).toHaveLength(1);
+    });
+
+    it('adds up only the lengths it knows, and leaves the time out when it knows none', () => {
+      expect(renderListPage(sized([10, 20, 30]), opts)).toContain('3 articles · 1 h total');
+      expect(renderListPage(sized([10]), opts)).toContain('<p class="total">1 article · 10 m total</p>');
+      const unknown = list({ items: [item(1, { minutes: undefined }), item(2, { minutes: undefined })] as StoredList['items'] });
+      const html = renderListPage(unknown, opts);
+      expect(html).toContain('<p class="total">2 articles</p>');
+      expect(html).toContain('<span>0:00</span><span></span>');
+    });
+
+    it('colors the first tile through the stylesheet like every other tile', () => {
+      const html = renderListPage(list(), opts);
+      expect(html).toContain('<span class="tile t0" aria-hidden="true">');
+      expect(html).toContain('.t0{background:#2e4057');
+      const plain = renderListPage(list({ items: [item(1, { tint: undefined })] as StoredList['items'] }), opts);
+      expect(plain).toContain('<span class="tile" aria-hidden="true">');
+    });
+
+    it('gives a tile the site\u2019s initials, not its language or www prefix', () => {
+      const html = renderListPage(list({ items: [item(1, { domain: 'en.wikipedia.org' }), item(2, { domain: 'www.paulgraham.com' }), item(3, { domain: 'vitalik.eth.limo' })] as StoredList['items'] }), opts);
+      expect(html.match(/class="tile[^"]*" aria-hidden="true">([A-Z]+)</g)!.map((m) => m.match(/>([A-Z]+)</)![1])).toEqual(['W', 'W', 'P', 'VE']);
+    });
+
+    it('is left out of a list with no items rather than breaking the page', () => {
+      expect(renderListPage(list({ items: [] }), opts)).not.toContain('class="player"');
+    });
+  });
+
+  it('reads as a playlist: an ordered list, numbered by a counter, with each length on its row', () => {
+    const html = renderListPage(list(), opts);
+    expect(html).toContain('<ol class="list"');
+    expect(html).toContain('counter-increment:n');
+    expect(html).toContain('content:counter(n)');
+    expect(html.match(/<li class="item">/g)).toHaveLength(3);
+    expect(html.match(/ · 8 min/g)).toHaveLength(3);
+  });
+
+  it('puts a heart in the eyebrow, as on the card', () => {
+    const html = renderListPage(list(), opts);
+    expect(html).toMatch(/<p class="eyebrow"><svg class="heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20\.1C[^"]*"\/><\/svg>This week · 3 articles<\/p>/);
+    expect(html).not.toContain('★');
+  });
+
   it('describes a long list with the first few titles and a count', () => {
     const many = list({ items: Array.from({ length: 12 }, (_, i) => item(i)) as StoredList['items'] });
     expect(describeList(many)).toBe('12 articles: Article 0 · Article 1 · Article 2 and 9 more');
@@ -433,6 +545,8 @@ describe('the public page', () => {
     const nonce = csp.match(/style-src 'nonce-([0-9a-f]+)'/)![1];
     expect(html).toContain(`<style nonce="${nonce}">`);
     expect(html).not.toMatch(/<script/i);
+    expect(html).not.toMatch(/\son[a-z]+=|\sstyle="/i);
+    expect(html).toContain('<section class="player"');
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
     expect(html).toContain('&lt;b&gt;Title&lt;/b&gt;');
     expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');

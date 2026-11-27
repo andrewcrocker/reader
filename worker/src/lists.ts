@@ -245,7 +245,7 @@ export const esc = (s: string): string => s.replace(/[&<>"']/g, (ch) => ESCAPES[
 const safeHref = (u: string): string | undefined => httpUrl(u);
 
 function initials(domain: string): string {
-  const words = domain.replace(/^www\./, '').replace(/\.(com|org|net|io|co|dev|blog|news|me|limo)$/i, '').split(/[\s.\-_]+/).filter((w) => /^[A-Za-z0-9]/.test(w));
+  const words = domain.replace(/^(www|en|m)\./, '').replace(/\.(com|org|net|io|co|dev|blog|news|me|limo)$/i, '').split(/[\s.\-_]+/).filter((w) => /^[A-Za-z0-9]/.test(w));
   const mark = words.length >= 2 ? words[0][0] + words[1][0] : (words[0]?.[0] ?? '·');
   return mark.toUpperCase();
 }
@@ -260,6 +260,33 @@ function inkFor(hex: string): string {
 }
 
 const RANGE_LABEL: Record<ListRange, string> = { week: 'This week', all: 'All time' };
+
+/** The soft heart from the app's icon set (src/ui/heart.ts), 24x24: the eyebrow's glyph, as on the card. */
+const HEART = 'M12 20.1C9.2 18.3 3.6 14.6 3.6 9.5C3.6 6.7 5.6 4.7 8.1 4.7C9.8 4.7 11.2 5.6 12 7.1C12.8 5.6 14.2 4.7 15.9 4.7C18.4 4.7 20.4 6.7 20.4 9.5C20.4 14.6 14.8 18.3 12 20.1Z';
+/** The app's play glyph (src/ui/Icon.tsx). */
+const PLAY = 'M8 5.5v13a1 1 0 0 0 1.5.86l11-6.5a1 1 0 0 0 0-1.72l-11-6.5A1 1 0 0 0 8 5.5z';
+
+/** "45 m", "2 h 17 m", "21 h": the app's own duration style. Same rules as the card (src/share/card.ts). */
+export function fmtTotal(minutes: number): string {
+  const min = Math.max(1, Math.round(minutes));
+  if (min < 60) return `${min} m`;
+  return min % 60 ? `${Math.floor(min / 60)} h ${min % 60} m` : `${min / 60} h`;
+}
+
+/** "25:00", "1:05:00": a length in minutes as a clock, for the player's right-hand time. */
+export function fmtClock(minutes: number): string {
+  const sec = Math.max(0, Math.round(minutes * 60));
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const two = (n: number) => String(n).padStart(2, '0');
+  return h ? `${h}:${two(m)}:${two(sec % 60)}` : `${m}:${two(sec % 60)}`;
+}
+
+/** Listening time of the whole list in minutes (articles whose length isn't known add nothing), or undefined if none is known. */
+export function totalMinutes(list: Pick<StoredList, 'items'>): number | undefined {
+  const sum = list.items.reduce((n, it) => n + (typeof it.minutes === 'number' ? it.minutes : 0), 0);
+  return sum > 0 ? sum : undefined;
+}
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
 
 /** One sentence for link previews: the first few titles and how many more there are. */
@@ -274,8 +301,9 @@ export function describeList(list: StoredList): string {
 
 const STYLE = `
 :root{--bg:#f3f2f0;--surface:#f9f8f6;--fg:#1b1a19;--muted:#575652;--line:#d9d7d3;--fill:#e2e0dd;--accent:#1f5c55;--on-accent:#f3f2f0;
+--mini-bg:#1b1a19;--mini-fg:#f3f2f0;--mini-muted:#bcbab5;--play:#8fd0c3;--on-play:#0f2420;
 --serif:ui-serif,"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;--sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color-scheme:light dark}
-@media (prefers-color-scheme:dark){:root{--bg:#151413;--surface:#1d1c1b;--fg:#e8e6e3;--muted:#a2a09b;--line:#292826;--fill:#282726;--accent:#8fd0c3;--on-accent:#0f2420}}
+@media (prefers-color-scheme:dark){:root{--bg:#151413;--surface:#1d1c1b;--fg:#e8e6e3;--muted:#a2a09b;--line:#292826;--fill:#282726;--accent:#8fd0c3;--on-accent:#0f2420;--mini-bg:#272624;--mini-fg:#e8e6e3;--mini-muted:#adaba6}}
 *{box-sizing:border-box}
 html{background:var(--bg);-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 var(--sans)}
@@ -287,11 +315,33 @@ a{color:var(--accent)}
 .top{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .get{padding:8px 16px;border:1.5px solid var(--line);border-radius:20px;color:var(--fg);font-size:14px;font-weight:600;text-decoration:none}
 .get:hover{border-color:var(--muted)}
-.eyebrow{margin:40px 0 12px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.eyebrow{display:flex;align-items:center;gap:8px;margin:40px 0 12px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.heart{flex:none;width:18px;height:18px;fill:currentColor}
 h1{margin:0;font:500 clamp(36px,10vw,56px)/1.06 var(--serif);letter-spacing:-.015em;text-wrap:balance}
 .note{margin:22px 0 0;padding-left:16px;border-left:3px solid var(--accent);font:italic 400 19px/1.5 var(--serif);color:var(--muted)}
-.list{list-style:none;margin:36px 0 0;padding:0;border-top:1px solid var(--line)}
-.item{display:grid;grid-template-columns:48px minmax(0,1fr);gap:16px;padding:20px 0;border-bottom:1px solid var(--line)}
+.player{margin:32px 0 0;padding:20px 20px 16px;border-radius:24px;background:var(--mini-bg);color:var(--mini-fg);box-shadow:0 18px 40px rgba(20,16,10,.16)}
+.np{display:flex;align-items:center;gap:16px}
+.np .tile{flex:none;width:60px;height:60px;border-radius:13px;font-size:20px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+.np-text{min-width:0}
+.np-title{margin:0;font:500 20px/1.25 var(--serif);overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.np-site{margin:4px 0 0;font-size:14px;color:var(--mini-muted);overflow-wrap:anywhere}
+.scrub{margin-top:20px}
+.bar{display:block;position:relative;height:4px;border-radius:2px;background:rgba(143,208,195,.32)}
+.bar::after{content:"";position:absolute;left:0;top:50%;width:14px;height:14px;margin-top:-7px;border-radius:50%;background:var(--play)}
+.times{display:flex;justify-content:space-between;margin-top:9px;font-size:13px;color:var(--mini-muted);font-variant-numeric:tabular-nums}
+.play{display:flex;align-items:center;gap:16px;margin-top:12px;color:var(--mini-fg);text-decoration:none}
+.play:focus-visible{outline-color:var(--play)}
+.disc{flex:none;width:72px;height:72px;border-radius:50%;background:var(--play);color:var(--on-play);display:grid;place-items:center;box-shadow:0 0 30px rgba(143,208,195,.3)}
+.disc svg{width:34px;height:34px;margin-left:3px;fill:currentColor}
+.play-text{display:flex;flex-direction:column;min-width:0}
+.play-label{font-weight:600;font-size:19px;color:var(--play)}
+.play-hint{margin-top:2px;font-size:14px;color:var(--mini-muted)}
+.play:hover .play-label{text-decoration:underline;text-underline-offset:3px}
+.total{margin:14px 0 0;padding-top:12px;border-top:1px solid rgba(255,255,255,.1);font-size:14px;color:var(--mini-muted);font-variant-numeric:tabular-nums}
+.list{list-style:none;counter-reset:n;margin:28px 0 0;padding:0;border-top:1px solid var(--line)}
+.item{counter-increment:n;display:grid;grid-template-columns:20px 48px minmax(0,1fr);gap:14px;padding:20px 0;border-bottom:1px solid var(--line)}
+.item::before{content:counter(n);font:500 15px/48px var(--sans);color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.item:first-child::before{color:var(--accent);font-weight:600}
 .tile{width:48px;height:48px;border-radius:10px;display:grid;place-items:center;font:600 15px var(--serif);background:var(--fill)}
 .title{display:block;color:var(--fg);font:500 19px/1.3 var(--serif);text-decoration:none;overflow-wrap:anywhere}
 .title:hover{text-decoration:underline;text-underline-offset:3px}
@@ -303,7 +353,7 @@ h1{margin:0;font:500 clamp(36px,10vw,56px)/1.06 var(--serif);letter-spacing:-.01
 .cta p{margin:12px 0 0;color:var(--muted)}
 .btn{display:inline-flex;align-items:center;justify-content:center;height:52px;margin-top:22px;padding:0 28px;border-radius:26px;background:var(--accent);color:var(--on-accent);font-weight:600;font-size:16px;text-decoration:none}
 .foot{margin:28px 0 0;font-size:13px;color:var(--muted)}
-@media (min-width:700px){main{padding-top:48px}.item{grid-template-columns:56px minmax(0,1fr);gap:20px}.tile{width:56px;height:56px;border-radius:12px;font-size:17px}.title{font-size:21px}.cta{padding:36px 36px}}
+@media (min-width:700px){main{padding-top:48px}.item{grid-template-columns:24px 56px minmax(0,1fr);gap:18px}.item::before{line-height:56px}.tile{width:56px;height:56px;border-radius:12px;font-size:17px}.np .tile{width:68px;height:68px;border-radius:14px;font-size:22px}.np-title{font-size:23px}.player{padding:24px 28px 18px}.title{font-size:21px}.cta{padding:36px 36px}}
 @media (prefers-reduced-motion:no-preference){.btn,.title,.open{transition:opacity .15s}.btn:hover{opacity:.9}}
 `;
 
@@ -390,11 +440,31 @@ export function renderListPage(list: StoredList, o: PageOptions): string {
     .join('\n');
 
   const eyebrow = `${RANGE_LABEL[list.range]} · ${plural(list.items.length, 'article')}`;
+
+  // The player: the card's own look, so whoever taps the preview lands on what they saw. Recipients can't
+  // stream audio, so the play button is a link and says where it goes: the first article added to their
+  // Reader (the same `#add=` link as "Open in Reader") or, without that, the "Get Reader" page. No script,
+  // no playback; the bar and clock only echo the card.
+  const first = list.items[0];
+  const firstHref = first ? safeHref(first.url) : undefined;
+  const playHref = appBase && firstHref ? `${appBase}/#add=${encodeURIComponent(firstHref)}` : cta;
+  const playHint = appBase && firstHref ? 'Opens in Reader' : 'Get Reader to listen';
+  const minutes = totalMinutes(list);
+  const firstTint = first?.tint && /^#[0-9a-f]{6}$/.test(first.tint);
+  const player = first
+    ? `<section class="player" aria-label="${esc(`Play ${headline}`)}">
+<div class="np"><span class="tile${firstTint ? ' t0' : ''}" aria-hidden="true">${esc(initials(first.domain))}</span><div class="np-text"><p class="np-title">${esc(first.title)}</p><p class="np-site">${esc(first.domain)}</p></div></div>
+<div class="scrub" aria-hidden="true"><span class="bar"></span><span class="times"><span>0:00</span><span>${first.minutes ? fmtClock(first.minutes) : ''}</span></span></div>
+${playHref ? `<a class="play" href="${esc(playHref)}"><span class="disc" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="${PLAY}"/></svg></span><span class="play-text"><span class="play-label">Listen on Reader</span><span class="play-hint">${playHint}</span></span></a>` : ''}
+<p class="total">${esc(plural(list.items.length, 'article'))}${minutes ? ` · ${esc(fmtTotal(minutes))} total` : ''}</p>
+</section>`
+    : '';
   const body = `<main>
 <div class="top"><a class="brand" href="${esc(cta ?? pageUrl)}"><span class="mark">${MARK}</span>Reader</a>${cta ? `<a class="get" href="${esc(cta)}">Get Reader</a>` : ''}</div>
-<p class="eyebrow">${esc(eyebrow)}</p>
+<p class="eyebrow"><svg class="heart" viewBox="0 0 24 24" aria-hidden="true"><path d="${HEART}"/></svg>${esc(eyebrow)}</p>
 <h1>${esc(headline)}</h1>
 ${list.note ? `<p class="note">${esc(list.note)}</p>` : ''}
+${player}
 <ol class="list" aria-label="${esc(headline)}">
 ${items}
 </ol>

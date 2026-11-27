@@ -482,6 +482,7 @@ Love the articles you want to keep (`lovedAt`), then share them as a list: **Thi
 - **Opt-in and unchanging.** Nothing is published until the user taps Share. A list is a snapshot of at most 50 articles (title, link, domain, byline, minutes, color) and a 1200 × 630 PNG the app draws itself. It never changes afterwards, and the app keeps only a receipt (`SharedList`).
 - **Worker.** `POST /lists` (app secret) stores `lists/<id>.json` and `lists/<id>.png` in the `LISTS` R2 bucket (`reader-lists`, no expiry) and returns `{ id, url }`. `GET /l/:id` (the page) and `GET /l/:id/card.png` are **public**: no secret, no origin check. They are the only unauthenticated routes besides CORS preflight, matched by an exact method and path.
 - **Link.** `<PUBLIC_BASE_URL or the Worker's own origin>/l/<id>`; today `https://reader-proxy.<you>.workers.dev/l/<id>`.
+- **The card and the page are a player.** The preview image shows the headline and a Reader player holding the first article, a round play button labelled "Listen on Reader", the next few items and "+N more · 2 h 17 m total". The page opens with the same player and lists every article as a numbered row with its minutes. Recipients can't stream audio, so the play button is a link, never playback: it opens the first article in Reader (`<APP_URL>/#add=<url>`) or goes to "Get Reader" (SHARING.md).
 
 ## 11. Offline
 
@@ -549,7 +550,7 @@ POST /lists    multipart: meta (JSON { title, note?, name?, range: "week"|"all",
   → 201 { id, url }
   → 400 { error }                                       // bad JSON, not a PNG, >50 items, a non-http(s) url
   → 413 { error }                                       // card or body too large
-GET /l/:id           → 200 text/html: the public page (Open Graph and Twitter card tags, no scripts, strict CSP)   // public
+GET /l/:id           → 200 text/html: the public page (a player header for the first item, numbered rows, Open Graph and Twitter card tags, no scripts, strict CSP)   // public
 GET /l/:id/card.png  → 200 image/png, cached for good                                                              // public
 ```
 

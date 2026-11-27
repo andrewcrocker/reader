@@ -10,7 +10,13 @@ To share: **Saved → Share**. Pick **This week** (loved since Monday: the calen
 
 ## The card
 
-Drawn in the app (`src/share/card.ts`), so the Worker needs no image rendering. Always dark teal (the app's `accent`) with the headline in Literata at about 88 px, so a 300 px thumbnail in iMessage, Slack, X or Discord still reads: the name and period, then "Reader", then a dark panel listing up to five titles with their domains and minutes, "+ N more", and a "Listen on Reader" pill echoing the player. Each title has a tile: the site's art when the app has it, else its tint color with initials. About 250 KB, because the app writes the PNG itself with a row filter (the browser's encoder gives 530 KB for the same pixels). The Worker takes up to 1 MB.
+Drawn in the app (`src/share/card.ts`), so the Worker needs no image rendering. It's meant to read as **a playlist you can press play on**, so the right half is Reader's own player (the mini player's dark surface, Now Playing's tile, scrubber and round accent play button), not a list of titles.
+
+- **Left, on the app's teal (`accent`):** the Reader mark, the eyebrow (a heart, then "THIS WEEK · 6 ARTICLES"), and the headline in Literata, as large as fits (up to about 92 px). A hyphenated word like "all-time" stays whole when the line is wide enough, and a long name drops a size rather than break mid-word.
+- **Right, the player:** *now playing* is the first article (its tile: the site's art when the app has it, else its tint with initials; its title and domain). Under it a scrubber at the very start, "0:00" and the article's length ("25:00"). Then the big round play button, flanked by the app's skip glyphs, with **"Listen on Reader"** as its label, so the call to action is part of the player instead of a separate pill. Below a hairline, the **next two to four items** as compact rows (tile, title, domain, minutes; as many as fit, fewer when titles wrap), and a footer: **"+N more · 2 h 17 m total"** (the whole list's listening time, in the app's duration style).
+- **Small sizes:** at 400 px wide (iMessage, Slack, Discord, X) the headline and the play button are the two things that still read; the rows and times are detail for the full size. With one article the footer is dropped (the clock is the total).
+
+About 250 KB, because the app writes the PNG itself with a row filter (the browser's encoder gives 530 KB for the same pixels). The Worker takes up to 1 MB.
 
 ## Why snapshots
 
@@ -35,7 +41,8 @@ SPEC §1 lists accounts and sync as non-goals ("everything lives on the device")
 ## Virality hooks
 
 - **The card** is the main one: a distinct teal that reads as Reader in a feed, and a headline that makes the list feel curated by a person ("Zach's reading this week").
-- **The page** is calm and fast (no scripts, light and dark), shows who and why, and ends in a "Get Reader" button (twice: header and footer). Where it points is an owner decision (`PUBLIC_CTA_URL`).
+- **The page** is calm and fast (no scripts, light and dark), shows who and why, and ends in a "Get Reader" button (twice: header and footer). Where it points is an owner decision (`PUBLIC_CTA_URL`). It opens with the same player as the card, so whoever taps the preview lands on what they saw: the first article, a play button and the total time, then the list as numbered rows with minutes.
+- **The play button is honest.** Recipients can't stream audio (see below), so the page's play button, "Listen on Reader", is a link, not playback: it goes to `<APP_URL>/#add=<first article>` ("Opens in Reader", the same link as each row's "Open in Reader"), or to the "Get Reader" page when there's no app URL or the first article has no usable link ("Get Reader to listen"), and is left out if neither exists. The scrubber and clock are only an echo of the card; there is no script, audio element or button on the page.
 - **"Open in Reader"** per item converts existing users in one tap.
 - **Listening for recipients.** This is the weak spot: Reader's value is audio, and a recipient with no invite can't generate any (voices run on the owner's DeepInfra budget behind the app secret). Options, cheapest first:
   1. *Leave it:* the page links to the originals, and the call to action is how you get to listen. Free.
