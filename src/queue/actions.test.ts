@@ -2,8 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 // Just enough of Dexie's `articles` table for the reorder actions.
 const fake = vi.hoisted(() => {
-  const rows = new Map<string, { id: string; queueOrder: number }>();
+  const rows = new Map<string, { id: string; queueOrder: number } & Record<string, unknown>>();
+  const copy = () => [...rows.values()].map((r) => ({ ...r }));
   const articles = {
+    where: () => ({ anyOf: (ids: string[]) => ({ toArray: async () => copy().filter((r) => ids.includes(r.id)) }) }),
+    filter: (fn: (r: Record<string, unknown>) => boolean) => ({ primaryKeys: async () => copy().filter(fn).map((r) => r.id) }),
     get: async (id: string) => (rows.has(id) ? { ...rows.get(id)! } : undefined),
     update: async (id: string, patch: object) => (rows.has(id) ? (Object.assign(rows.get(id)!, patch), 1) : 0),
     orderBy: () => ({ toArray: async () => [...rows.values()].sort((a, b) => a.queueOrder - b.queueOrder).map((r) => ({ ...r })) }),
@@ -17,11 +20,13 @@ const fake = vi.hoisted(() => {
   return { db, rows, order, seed };
 });
 
-vi.mock('../db', () => ({ db: fake.db, firstQueueOrder: vi.fn(), nextQueueOrder: vi.fn() }));
-vi.mock('../audio/storage', () => ({ deleteAudio: vi.fn() }));
-vi.mock('../pipeline/runner', () => ({ kick: vi.fn() }));
+const runner = vi.hoisted(() => ({ kick: vi.fn(), retryArticle: vi.fn(), rerenderArticle: vi.fn(), purgeArticle: vi.fn() }));
 
-const { moveBy, orderBetween, parseExport, placeAt, reorder, toExportItem } = await import('./actions');
+vi.mock('../db', () => ({ db: fake.db, firstQueueOrder: vi.fn(), nextQueueOrder: vi.fn(async () => Math.max(0, ...[...fake.rows.values()].map((r) => r.queueOrder)) + 1) }));
+vi.mock('../audio/storage', () => ({ deleteAudio: vi.fn() }));
+vi.mock('../pipeline/runner', () => runner);
+
+const { clearSaved, moveBy, orderBetween, parseExport, placeAt, refreshMany, reorder, requeue, toExportItem } = await import('./actions');
 import type { Article } from '../db';
 
 const base: Article = { id: 'a', source: 'url', url: 'https://x.com/a', title: 'A', savedAt: 1, status: 'ready', sentences: [], positionSec: 12, queueOrder: 3 };
@@ -119,5 +124,60 @@ describe('export / import', () => {
     expect(() => parseExport('{"articles":[]}')).toThrow(/queue export/);
     const json = JSON.stringify({ app: 'read-aloud', articles: [{ source: 'url', url: 'javascript:1', title: 'x' }, { source: 'text', text: ' ', title: 'y' }] });
     expect(parseExport(json)).toEqual([]);
+  });
+});
+
+describe('requeue (Add to queue, from Played)', () => {
+  const seed = () => {
+    fake.rows.clear();
+    fake.rows.set('up', { id: 'up', queueOrder: 5 });
+    fake.rows.set('p1', { id: 'p1', queueOrder: 1, archivedAt: 100 });
+    fake.rows.set('p2', { id: 'p2', queueOrder: 2, archivedAt: 200 });
+  };
+
+  it('puts played rows at the end of Up next, in the order given, and undo puts them back', async () => {
+    seed();
+    const undo = await requeue(['p1', 'p2']);
+    expect(fake.rows.get('p1')).toMatchObject({ queueOrder: 6, archivedAt: undefined });
+    expect(fake.rows.get('p2')).toMatchObject({ queueOrder: 7, archivedAt: undefined });
+    expect(fake.order()).toEqual(['up', 'p1', 'p2']);
+    await undo();
+    expect(fake.rows.get('p1')).toMatchObject({ queueOrder: 1, archivedAt: 100 });
+    expect(fake.rows.get('p2')).toMatchObject({ queueOrder: 2, archivedAt: 200 });
+  });
+
+  it('leaves a row that is already in Up next where it is', async () => {
+    seed();
+    await requeue(['up']);
+    expect(fake.rows.get('up')).toMatchObject({ queueOrder: 5 });
+  });
+});
+
+describe('refreshMany', () => {
+  it('tries failed articles again and makes the audio again for the rest that have text', async () => {
+    runner.retryArticle.mockClear();
+    runner.rerenderArticle.mockClear();
+    fake.rows.clear();
+    fake.rows.set('failed', { id: 'failed', queueOrder: 1, status: 'failed', chunks: [{ i: 0 }] });
+    fake.rows.set('ready', { id: 'ready', queueOrder: 2, status: 'ready', chunks: [{ i: 0 }] });
+    fake.rows.set('fetching', { id: 'fetching', queueOrder: 3, status: 'fetching' });
+    expect(await refreshMany(['failed', 'ready', 'fetching'])).toEqual({ retried: 1, rerendered: 1 });
+    // A failed article is retried, never re-rendered, even though it has text.
+    expect(runner.retryArticle.mock.calls).toEqual([['failed']]);
+    expect(runner.rerenderArticle.mock.calls).toEqual([['ready']]);
+  });
+});
+
+describe('clearSaved (Delete all saved)', () => {
+  it('deletes favorites and played articles, and nothing else', async () => {
+    runner.purgeArticle.mockClear();
+    fake.rows.clear();
+    fake.rows.set('queued', { id: 'queued', queueOrder: 1 });
+    fake.rows.set('loved', { id: 'loved', queueOrder: 2, lovedAt: 5 });
+    fake.rows.set('played', { id: 'played', queueOrder: 3, archivedAt: 6 });
+    fake.rows.set('both', { id: 'both', queueOrder: 4, lovedAt: 5, archivedAt: 6 });
+    fake.rows.set('deleting', { id: 'deleting', queueOrder: 5, lovedAt: 5, deletedAt: 7 });
+    expect(await clearSaved()).toBe(3);
+    expect(runner.purgeArticle.mock.calls.map((c) => c[0]).sort()).toEqual(['both', 'loved', 'played']);
   });
 });

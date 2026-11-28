@@ -144,7 +144,8 @@ export async function refreshFeed(feedId: string): Promise<number | null> {
   const settings = await getSettings();
   if (!settings.proxySecret || settings.inviteRejected) return null;
   const feed = await db.feeds.get(feedId);
-  return feed ? checkOne(feed, settings) : null;
+  // Asking by hand also looks for the blog's picture again, if an earlier look found none.
+  return feed ? checkOne(feed.artKey === '' ? { ...feed, artKey: undefined } : feed, settings) : null;
 }
 
 /** Marks one blog's posts as seen: its dots and its count clear, and the tab's dot goes when no blog has any left. */
@@ -163,6 +164,12 @@ export async function addFeedItem(item: FeedItem): Promise<{ articleId: string; 
   // Already an article, unless that article has since been deleted: then the post can be added again.
   const made = fresh?.articleId ? await db.articles.get(fresh.articleId) : undefined;
   if (made && !made.deletedAt) return { articleId: made.id, existed: true };
+  // Deleted a moment ago and still inside its undo window: bring that one back instead of adding a second,
+  // or Undo would leave two. (The delete's own cleanup only purges rows that are still marked deleted.)
+  if (made) {
+    await db.articles.update(made.id, { deletedAt: undefined });
+    return { articleId: made.id, existed: false };
+  }
   const link = rebaseLink(item.link, (await db.feeds.get(item.feedId))?.linkBase);
   const key = urlKey(link);
   const match = key ? await db.articles.filter((a) => !a.deletedAt && (urlKey(a.url) === key || urlKey(a.canonicalUrl) === key)).first() : undefined;

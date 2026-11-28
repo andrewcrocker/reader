@@ -51,7 +51,7 @@ export function QueueRow(p: RowProps) {
   const partial = p.meta.glyph === 'partial';
 
   const down = (e: RPointerEvent) => {
-    if ((e.target as HTMLElement).closest('.drag-handle, .row-action, .meta-btn, .love-btn')) return;
+    if ((e.target as HTMLElement).closest('.drag-handle, .row-action, .meta-btn, .love-btn, .menu')) return; // .menu: the row's popup is a portal, so its presses still bubble here
     const s = g.current;
     s.x = e.clientX;
     s.y = e.clientY;

@@ -110,7 +110,8 @@ export function parseFeed(xml: string, baseUrl: string): ParsedFeed | null {
         publishedAt: dateOf(child(e, 'pubDate'), child(e, 'date')),
       });
     }
-    const image = child(channel, 'image') ?? child(root, 'image');
+    // The plain <image> is the one with a <url>; a podcast feed's <itunes:image href> shares the name and may come first.
+    const image = [...children(channel, 'image'), ...children(root, 'image')].find((i) => child(i, 'url'));
     return { title: plainText(child(channel, 'title')?.textContent ?? ''), siteUrl: rssLink(channel, baseUrl), imageUrl: httpUrl(image && child(image, 'url')?.textContent, baseUrl), items };
   }
 

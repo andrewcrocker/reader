@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAppData } from '../app/data';
-import { back, showSnack } from '../app/ui';
+import { back, getUi, showSnack } from '../app/ui';
 import { FeedError } from '../feeds/discover';
 import { normalizeAddress } from '../feeds/parse';
 import { subscribe } from '../feeds/store';
@@ -25,6 +25,9 @@ export function SubscribeSheet() {
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  // The lookup takes a few seconds, and the sheet can be closed while it runs.
+  const open = useRef(true);
+  useEffect(() => () => void (open.current = false), []);
 
   // Preview the clipboard only if we may read it silently; otherwise reading waits for the tap.
   useEffect(() => {
@@ -44,9 +47,11 @@ export function SubscribeSheet() {
     setError(undefined);
     try {
       const feed = await subscribe(address);
-      back();
+      // Close this sheet only if it is still the one open: `back()` would otherwise pop whatever the user moved on to.
+      if (getUi().sheet?.kind === 'subscribe') back();
       showSnack({ text: `Subscribed to ${feed.title}` });
     } catch (e) {
+      if (!open.current) return;
       // The address stays in the field so it can be fixed.
       setTyped((t) => t || address);
       setError(e instanceof FeedError || e instanceof ExtractError ? e.message : 'Couldn’t subscribe. Try again.');

@@ -61,7 +61,7 @@ export function feedArtCandidates(home: string | undefined, icons: string[], fee
 
 /**
  * Finds and stores the blog's picture, then records the result on the feed: its art key, or '' for
- * "looked, none found" so it isn't tried again on every check. Never throws.
+ * "looked, none found" so it isn't tried again on every check (Refresh on the blog's row does try again). Never throws.
  */
 export async function fetchFeedArt(feed: Feed, feedImage?: string): Promise<void> {
   const key = feedArtKey(feed.id);
@@ -69,7 +69,9 @@ export async function fetchFeedArt(feed: Feed, feedImage?: string): Promise<void
   try {
     const home = feedHome(feed);
     // The home page says where its icons are. If it can't be read, the usual addresses are still tried.
-    const icons = home ? await fetchHtml(home, await getSettings()).then((r) => (r.html ? pageIcons(r.html, r.finalUrl) : []), () => []) : [];
+    // `null`: the page couldn't be read just now, so we don't know what it offers.
+    const offered = home ? await fetchHtml(home, await getSettings()).then((r) => (r.html ? pageIcons(r.html, r.finalUrl) : []), () => null) : [];
+    const icons = offered ?? [];
     for (const url of feedArtCandidates(home, icons, feedImage)) {
       if ((await storeFrom(url, key, true, MIN_SIDE)) !== undefined) {
         found = true;
@@ -78,6 +80,9 @@ export async function fetchFeedArt(feed: Feed, feedImage?: string): Promise<void
     }
     // Removed while we were looking: don't leave its picture behind.
     if (!(await db.feeds.get(feed.id))) return void (await db.art.delete(key));
+    // Nothing found and the home page didn't answer: that may pass (the service was down, a timeout), so leave it
+    // unset and the next check looks again. '' is only for a blog whose page we read and that had nothing usable.
+    if (!found && offered === null) return;
     await db.feeds.update(feed.id, { artKey: found ? key : '' });
   } catch (err) {
     console.warn('feed art failed', err);

@@ -164,7 +164,7 @@ function BlogRow({ summary: { feed, unseen, latest }, onRefresh, onDelete }: { s
  * The kebab's Show picks which posts are listed: Unplayed (the default), Played, Favorites or All.
  */
 export function FeedPosts({ feedId }: { feedId: string }) {
-  const { feeds, feedItems, articles, settings } = useAppData();
+  const { feeds, feedItems, articles, settings, loaded } = useAppData();
   const feed = feeds.find((f) => f.id === feedId);
   const show: PostShow = settings.feedShow ?? 'unplayed';
   const all = useMemo(() => inboxOrder(feedItems.filter((i) => i.feedId === feedId)), [feedItems, feedId]);
@@ -185,7 +185,7 @@ export function FeedPosts({ feedId }: { feedId: string }) {
   }, []);
 
   // Deleted while open (from another tab, or an undo elsewhere): there is nothing to show.
-  const gone = feeds.length > 0 && !feed;
+  const gone = loaded && !feed;
   useEffect(() => {
     if (gone && getUi().feed === feedId) back();
   }, [gone, feedId]);

@@ -128,7 +128,10 @@ export function setTab(tab: Tab) {
 export const openSettings = () => !state.settings && (markNav('in'), push({ settings: 'menu' }));
 /** Opens one blog's posts, a level into the Subscriptions tab. */
 export const openFeed = (id: string) => !state.feed && (markNav('in'), push({ feed: id }));
-/** Opens a blog's posts from another tab ("Go to subscription" on an article): Subscriptions first, then the blog, so back retraces both. */
+/**
+ * Opens a blog's posts from another tab ("Go to subscription" on an article): Subscriptions first, then the blog.
+ * Tabs swap in place, so back goes to the list of blogs and then Up next, whichever tab this started from.
+ */
 export function goToFeed(id: string) {
   if (state.tab === 'queue') push({ tab: 'subscriptions' });
   else if (state.tab !== 'subscriptions') set({ tab: 'subscriptions' });

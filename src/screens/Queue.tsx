@@ -6,7 +6,7 @@ import { plural } from '../format';
 import { goToFeed, openNowPlaying, openSettings, openSheet, showSnack, useUi, useWide } from '../app/ui';
 import { isPlayable, usePlayer } from '../player/PlayerProvider';
 import { displayState, isBusy, queueSummary, rowMeta, voiceReady, type Ctx } from '../queue/display';
-import { clearSaved, isRefreshable, isRenderable, markPlayed, moveBy, moveToTop, placeAt, purgeDeleted, refreshMany, reorder, requeue, setLoved, softDelete } from '../queue/actions';
+import { clearSaved, isRenderable, markPlayed, moveBy, moveToTop, placeAt, purgeDeleted, refreshMany, reorder, requeue, setLoved, softDelete } from '../queue/actions';
 import { retryArticle } from '../pipeline/runner';
 import { updateSettings } from '../db';
 import { Icon } from '../ui/Icon';
@@ -93,18 +93,25 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
 
   const tap = (a: Article) => {
     if (selecting) return toggle(a.id);
-    // Settings › Playback › Default view: each article you open starts in the view you chose, whatever the last one was left in.
-    const lyricsOn = settings.defaultView === 'read-along';
-    if (settings.lyricsOn !== lyricsOn) void updateSettings({ lyricsOn });
+    // Settings › Playback › Default view: an article you open starts in the view you chose, whatever the last one was left in.
+    // Only when the tap opens a different article: a failed row, a row that isn't ready, or the one already playing leaves the view alone.
+    const useDefaultView = () => {
+      const lyricsOn = settings.defaultView === 'read-along';
+      if (a.id !== player.current?.id && settings.lyricsOn !== lyricsOn) void updateSettings({ lyricsOn });
+    };
     const state = displayState(a, ctx);
     if (state === 'failed') return openSheet({ kind: 'explain', id: a.id });
-    if (isPlayable(a)) return player.play(a.id);
+    if (isPlayable(a)) {
+      useDefaultView();
+      return player.play(a.id);
+    }
     if (a.archivedAt && isRenderable(a)) {
       void moveToTop([a.id]);
       return showSnack({ text: 'Back in Up next. Preparing the audio again.' });
     }
     // The text is in: open it now, so read-along works right away; audio starts once it can.
     if (state === 'rendering' || (state === 'queued' && a.sentences.length)) {
+      useDefaultView();
       player.play(a.id);
       return openNowPlaying();
     }
@@ -320,7 +327,8 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
             </button>
             {/* One action for "this didn't work" and "make this again": failed articles are tried again, the rest get new audio in the current voice. */}
             <button
-              disabled={!online || !chosen.some(isRefreshable)}
+              // Trying a failed article again needs the network. Making audio again does too, unless the voice is on this device.
+              disabled={!chosen.some((a) => (a.status === 'failed' ? online : isRenderable(a) && (online || settings.engineKind === 'device')))}
               onClick={() =>
                 void refreshMany(ids).then(({ retried, rerendered }) => {
                   done();

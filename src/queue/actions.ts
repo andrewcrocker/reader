@@ -118,9 +118,6 @@ export async function moveBy(ids: string[], id: string, delta: number): Promise<
 /** Can this row's audio be made again (it has text to speak)? */
 export const isRenderable = (a: Article) => !!a.chunks?.length;
 
-/** Does Refresh do anything for this row? A failed one is tried again; one with text gets its audio made again. */
-export const isRefreshable = (a: Article) => a.status === 'failed' || isRenderable(a);
-
 /**
  * Refresh (multi-select): one action for "this didn't work" and "make this again". A failed article is
  * tried again from where it stopped. Any other gets its audio made again in the current voice, keeping

@@ -336,6 +336,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     });
   }, [current?.id, current?.title, current?.siteName, artUrl, coverUrl]);
 
+  // The browser tab says what's playing, and goes back to the app's name when playback stops or pauses.
+  // An article whose title hasn't arrived yet (it is still its link) isn't worth showing.
+  useEffect(() => {
+    const named = playing && current && current.title && current.title !== current.url;
+    document.title = named ? `${current.title} · Reader` : 'Reader';
+  }, [playing, current?.id, current?.title, current?.url]);
+
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
     const ms = navigator.mediaSession;
