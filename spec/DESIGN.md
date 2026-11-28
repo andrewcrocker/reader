@@ -218,7 +218,7 @@ Every row shows a 16 dp status glyph at the start of its meta line, then text. E
 - **Header:** "Up next" (Literata 30), then a line with count and total time at speed ("8 articles · 2 h 46 m at 1.4×"). Settings (sliders icon) and Add (filled `accent` circle, 48) on the right.
 - **List:**
   - Up next rows in order. Archived rows are on the Saved tab.
-  - Each row ends with a **heart** button (48 touch target, 22 icon; label `Love “Title”` or `Remove “Title” from loved`). Tapping it loves or unloves without playing. It's hidden in multi-select and on Failed rows (which have Retry). Unloving has no snackbar: the heart's shape is the confirmation.
+  - Each row ends with a **⋮** button (48 touch target), hidden in multi-select. A Failed row has Retry before it. The heart is the first item in its menu (see ⋮ menu below).
   - The currently playing row uses `row-playing`.
   - Rows are separated by space, not dividers. One divider sits under the header.
 - **Mini player and tab bar:** pinned at the bottom, the mini player above the tab bar (see 2 and Navigation).
@@ -230,7 +230,8 @@ Every row shows a 16 dp status glyph at the start of its meta line, then text. E
   - A 36 dp banner under the header on `fill`: cloud-slash glyph and "Offline · ready articles still play."
   - Retry buttons are disabled (`input-border` color, cloud-slash glyph) and described by the row note.
   - Nothing else changes.
-- **From a subscription:** an article added from a blog has a 22 dp mark on the bottom right corner of its art, ringed in the row's background. When the row shows the article's own picture, the mark is the blog's picture. When the row already shows the blog's own art (its icon or its initials), the mark is the feed glyph on `accent`, since the same picture twice would say nothing. It reads "From <blog>" to a screen reader. On wide screens the row's ⋯ menu gains **Go to subscription**.
+- **From a subscription:** an article added from a blog has a 22 dp mark on the bottom right corner of its art, ringed in the row's background. When the row shows the article's own picture, the mark is the blog's picture. When the row already shows the blog's own art (its icon or its initials), the mark is the feed glyph on `accent`, since the same picture twice would say nothing. It reads "From <blog>" to a screen reader. The row's ⋮ menu gains **Go to subscription**.
+- **⋮ menu:** every row ends in a ⋮ button, at every width. It holds **Add to favorites** / **Remove from favorites** (the heart, outline or filled), **Mark played** (not on archived rows), **Go to subscription** (articles from a blog) and **Delete** (`error`). On wide screens it also has **Move up** and **Move down**; on a phone you hold and drag. A favorite shows a small filled `accent` heart at the start of its meta line, since the row itself no longer carries a heart button.
 - **Reorder** (Up next only): hold a row for about 400 ms. It lifts (a light buzz, a shadow, 2% larger) and follows the finger; the rows it passes slide apart to show where it will land, and the list scrolls when the row nears the top or the mini player. Let go to drop it. Moving more than about 8 px before the hold fires scrolls, swipes, or does nothing, as usual, so a long list never reorders by accident. Holding and letting go without moving enters multi-select, as a long-press always did. With a mouse, press and hold the same way. On wide screens each row's ⋯ menu also has **Move up** and **Move down**. Reduced motion: no lift scale, and the slot opens instantly.
 - **Voices busy** (online voices, daily budget spent): the same banner with a clock glyph and "Voices are busy right now. Your articles will finish later." Affected rows read "Waiting for voices"; they start again on their own after the reset (midnight UTC). Offline wins if both apply.
 
@@ -239,7 +240,7 @@ Every row shows a 16 dp status glyph at the start of its meta line, then text. E
 The last tab. The same rows, gestures, and multi-select as Up next, except that rows can't be reordered: a hold goes straight to multi-select. It shows one list at a time, picked from the header's ⋮ menu. Header: "Saved", a line that counts the list on show ("8 favorites" or "12 archived"), a **Share** icon button (the share glyph in a plain 48 icon button, like Settings on Up next; disabled when nothing loved can be shared), and a ⋮ button. Nothing in the header is `accent`-filled.
 
 - **⋮ menu:** a small-caps "Show" label over two choices, with a check mark on the current one: **Favorites** (the default) and **Archived**. The choice is remembered.
-- **Favorites:** every loved article, newest love first, whether or not it's archived. Rows aren't dimmed. With none, a `muted` line: "Tap the heart on an article to keep it here. You can share your favorites."
+- **Favorites:** every loved article, newest love first, whether or not it's archived. Rows aren't dimmed. With none, a `muted` line: "Add an article to your favorites to keep it here. You can share your favorites."
 - **Archived:** every archived article, most recently played first, dimmed as played. A loved one is listed here too, since the two lists are never on screen together. With none, a `muted` line: "Articles you've listened to land here."
 - Swipe left deletes; swipe right marks played unless the row is archived. Multi-select has the same header (including Share as list), Select all and action bar as Up next. Mark played is disabled if every selected row is archived. Move to top returns an archived row to Up next. Select all takes the list on show.
 - **Empty state** (nothing loved or archived): the heart glyph, "Nothing saved yet", "Love an article to keep it here, and share your favorites. Articles you've listened to land here too."
@@ -474,7 +475,7 @@ A snapshot of some articles, sent as one link (SPEC §4). Nothing is uploaded an
 | Interaction | Behavior |
 | --- | --- |
 | Tap a tab | Switch view. Back from Subscriptions or Saved returns to Up next |
-| Tap the heart (row, Now Playing, Lyrics) | Love or unlove, no snackbar |
+| Tap the heart (Now Playing, Lyrics), or Add to / Remove from favorites (row ⋮ menu) | Love or unlove, no snackbar |
 | Tap Share (Saved header) | Open the share sheet |
 | Tap Add (Subscriptions header) | Open the Add a subscription sheet |
 | Tap Subscribe (Add a subscription) | Looks up the feed; on success closes the sheet and shows a "Subscribed to …" snackbar |
@@ -490,7 +491,7 @@ A snapshot of some articles, sent as one link (SPEC §4). Nothing is uploaded an
 | Hold row, then let go (or hold on Saved) | Multi-select |
 | Drag handle (multi-select) | Reorder |
 | Move up / Move down (⋯ menu, wide) | Reorder by one |
-| Go to subscription (⋯ menu, wide; articles added from a blog) | Open that blog's posts in Subscriptions. Back returns the way you came |
+| Go to subscription (⋮ menu; articles added from a blog) | Open that blog's posts in Subscriptions. Back returns the way you came |
 | Tap / swipe up mini player | Expand to Now Playing, shared-element art |
 | Swipe down on Now Playing | Collapse |
 | Long-press back / forward | Previous / next article |

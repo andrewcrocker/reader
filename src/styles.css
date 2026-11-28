@@ -215,6 +215,7 @@ a { color: var(--accent); }
 .post-add { color: var(--accent); }
 .post-added { color: var(--accent); cursor: default; }
 .post-fav { color: var(--accent); }
+.fav-mark { flex: none; color: var(--accent); }
 .q-hint-top { flex: 1; border-top: 1px solid var(--line); padding-top: 20px; }
 
 /* A screen one level into a tab: back arrow, then the title on one line. Same height as the tab headers. */

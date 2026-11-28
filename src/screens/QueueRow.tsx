@@ -4,7 +4,6 @@ import { hasRealTitle, urlTitle, type RowMeta } from '../queue/display';
 import { Art, FeedBadge } from '../ui/Art';
 import { Icon, StatusGlyph } from '../ui/Icon';
 import { MenuButton, type MenuItem } from '../ui/Menu';
-import { LoveButton } from '../ui/LoveButton';
 import type { GrabPoint } from './useDragReorder';
 
 /** Hold this long to grab a row; moving more than SLOP first means scroll or swipe instead. */
@@ -34,12 +33,10 @@ export interface RowProps {
   canMarkPlayed?: boolean;
   onStatus?: () => void;
   onRetry?: () => void;
-  /** Love or unlove. Omitted where loving makes no sense. */
-  onToggleLove?: () => void;
   rowRef?: (el: HTMLElement | null) => void;
   /** The blog this article was added from, if it came from Subscriptions: its art gets a small mark. */
   feed?: Feed;
-  /** "More actions" menu, for pointers that can't swipe (the wide layout). */
+  /** "More actions" menu at the end of the row: favorite, mark played, delete and the like. */
   menu?: MenuItem[];
 }
 
@@ -108,12 +105,14 @@ export function QueueRow(p: RowProps) {
     s.down = false;
   };
 
-  const cls = ['row', p.playing && 'playing', p.played && 'played', (p.selected || p.isNew) && (p.selected ? 'selected' : 'is-new'), p.selecting && 'selecting', (failed || p.onRetry || p.menu || p.onToggleLove) && !p.selecting && 'has-action']
+  const cls = ['row', p.playing && 'playing', p.played && 'played', (p.selected || p.isNew) && (p.selected ? 'selected' : 'is-new'), p.selecting && 'selecting', (failed || p.onRetry || p.menu) && !p.selecting && 'has-action']
     .filter(Boolean)
     .join(' ');
 
   const metaInner = (
     <>
+      {/* The heart moved into the row's menu; this is what still shows that an article is a favorite. */}
+      {a.lovedAt && <Icon name="heart-filled" size={14} className="fav-mark" />}
       <StatusGlyph kind={p.meta.glyph} progress={a.renderProgress} />
       <span className="segs">
         {p.meta.segs.map((s, i) => (
@@ -178,7 +177,7 @@ export function QueueRow(p: RowProps) {
         </span>
         <div className="row-main">
           {/* The whole row is the tap target; this button gives it a name and keyboard access. */}
-          <button className="row-main row-tap" aria-label={p.meta.spoken}>
+          <button className="row-main row-tap" aria-label={a.lovedAt ? `${p.meta.spoken}. Favorite` : p.meta.spoken}>
             <p className={`row-title${urlish ? ' url' : ''}`}>{urlish ? urlTitle(a.url) : a.title}</p>
           </button>
           {partial && p.onStatus && !p.selecting ? (
@@ -209,7 +208,6 @@ export function QueueRow(p: RowProps) {
             {!p.online && <Icon name="cloud-off" size={18} />}Retry
           </button>
         )}
-        {!p.selecting && !p.onRetry && p.onToggleLove && <LoveButton loved={!!a.lovedAt} title={hasRealTitle(a) ? a.title : urlTitle(a.url)} onToggle={p.onToggleLove} />}
         {!p.selecting && p.menu && <MenuButton label={`More actions for ${hasRealTitle(a) ? a.title : urlTitle(a.url)}`} items={p.menu} />}
         {p.selecting && p.onGrab && (
           <button

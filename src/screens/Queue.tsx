@@ -146,20 +146,18 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
         canMarkPlayed={!inArchive}
         onStatus={() => openSheet({ kind: 'explain', id: a.id })}
         onRetry={state === 'failed' ? () => void retryArticle(a.id) : undefined}
-        onToggleLove={() => void setLoved(a.id, !a.lovedAt)}
         onGrab={reorderable ? (p, phase) => drag.grab(a.id, p, phase) : undefined}
         onMove={reorderable ? (delta) => move(a.id, delta) : undefined}
-        menu={
-          wide
-            ? [
-                ...(!reorderable || a.id === upIds[0] ? [] : [{ label: 'Move up', icon: 'arrow-up' as const, run: () => move(a.id, -1) }]),
-                ...(!reorderable || a.id === upIds[upIds.length - 1] ? [] : [{ label: 'Move down', icon: 'arrow-down' as const, run: () => move(a.id, 1) }]),
-                ...(inArchive ? [] : [{ label: 'Mark played', icon: 'mark-played' as const, run: () => markPlayedWithUndo([a.id]) }]),
-                ...(feed ? [{ label: 'Go to subscription', icon: 'rss' as const, run: () => goToFeed(feed.id) }] : []),
-                { label: 'Delete', icon: 'trash' as const, danger: true, run: () => deleteWithUndo([a.id]) },
-              ]
-            : undefined
-        }
+        menu={[
+          // The heart lives here, so a row has one button at the end whatever its width.
+          { label: a.lovedAt ? 'Remove from favorites' : 'Add to favorites', icon: a.lovedAt ? ('heart-filled' as const) : ('heart' as const), run: () => void setLoved(a.id, !a.lovedAt) },
+          // Reordering by menu is for pointers; on a phone you hold a row and drag it.
+          ...(!wide || !reorderable || a.id === upIds[0] ? [] : [{ label: 'Move up', icon: 'arrow-up' as const, run: () => move(a.id, -1) }]),
+          ...(!wide || !reorderable || a.id === upIds[upIds.length - 1] ? [] : [{ label: 'Move down', icon: 'arrow-down' as const, run: () => move(a.id, 1) }]),
+          ...(inArchive ? [] : [{ label: 'Mark played', icon: 'mark-played' as const, run: () => markPlayedWithUndo([a.id]) }]),
+          ...(feed ? [{ label: 'Go to subscription', icon: 'rss' as const, run: () => goToFeed(feed.id) }] : []),
+          { label: 'Delete', icon: 'trash' as const, danger: true, run: () => deleteWithUndo([a.id]) },
+        ]}
 
         rowRef={(el) => (el ? rowEls.current.set(a.id, el) : rowEls.current.delete(a.id))}
       />
@@ -254,7 +252,7 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
           </button>
         </div>
       ) : saved && !savedList.length ? (
-        <p className="q-hint q-hint-top">{savedShow === 'favorites' ? 'Tap the heart on an article to keep it here. You can share your favorites.' : 'Articles you’ve listened to land here.'}</p>
+        <p className="q-hint q-hint-top">{savedShow === 'favorites' ? 'Add an article to your favorites to keep it here. You can share your favorites.' : 'Articles you’ve listened to land here.'}</p>
       ) : saved ? (
         // Favorites: newest first, archived or not, never dimmed. Archived: most recently played first.
         <ul className="q-list" aria-label={savedShow === 'favorites' ? 'Favorites' : 'Archived'}>
