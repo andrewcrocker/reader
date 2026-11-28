@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom';
 import type { Article } from '../db';
 import { useAppData } from '../app/data';
 import { plural } from '../format';
-import { openNowPlaying, openSettings, openSheet, showSnack, useUi, useWide } from '../app/ui';
+import { goToFeed, openNowPlaying, openSettings, openSheet, showSnack, useUi, useWide } from '../app/ui';
 import { isPlayable, usePlayer } from '../player/PlayerProvider';
 import { displayState, isBusy, queueSummary, rowMeta, voiceReady, type Ctx } from '../queue/display';
 import { isRenderable, markPlayed, moveBy, moveToTop, placeAt, purgeDeleted, rerenderMany, retryMany, reorder, setLoved, softDelete } from '../queue/actions';
@@ -44,7 +44,7 @@ export function Saved() {
 }
 
 function QueueView({ view }: { view: 'queue' | 'saved' }) {
-  const { upNext, archive, loved, settings, online } = useAppData();
+  const { upNext, archive, loved, settings, online, feedOf } = useAppData();
   const saved = view === 'saved';
   // Saved shows one list at a time, picked from its kebab: what you loved (the default), or what you've finished.
   const savedShow = settings.savedShow ?? 'favorites';
@@ -126,10 +126,12 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
     const state = displayState(a, ctx);
     const isNew = a.id === newId;
     const meta = rowMeta(a, state, { ...ctx, isNew });
+    const feed = feedOf.get(a.id);
     return (
       <QueueRow
         key={a.id}
         article={a}
+        feed={feed}
         meta={meta}
         playing={a.id === player.current?.id}
         played={dim}
@@ -153,6 +155,7 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
                 ...(!reorderable || a.id === upIds[0] ? [] : [{ label: 'Move up', icon: 'arrow-up' as const, run: () => move(a.id, -1) }]),
                 ...(!reorderable || a.id === upIds[upIds.length - 1] ? [] : [{ label: 'Move down', icon: 'arrow-down' as const, run: () => move(a.id, 1) }]),
                 ...(inArchive ? [] : [{ label: 'Mark played', icon: 'mark-played' as const, run: () => markPlayedWithUndo([a.id]) }]),
+                ...(feed ? [{ label: 'Go to subscription', icon: 'rss' as const, run: () => goToFeed(feed.id) }] : []),
                 { label: 'Delete', icon: 'trash' as const, danger: true, run: () => deleteWithUndo([a.id]) },
               ]
             : undefined

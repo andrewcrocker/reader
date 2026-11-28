@@ -122,15 +122,15 @@ function BlogRow({ summary: { feed, unseen, latest }, onRefresh, onDelete }: { s
   return (
     <div className="row blog-row">
       <button className="blog-open" onClick={open} aria-label={`${feed.title}${unseen ? `, ${plural(unseen, 'new post')}` : ''}`}>
-        <FeedArt feed={feed} />
+        <span className="art-wrap">
+          <FeedArt feed={feed} />
+          {unseen > 0 && <span className="art-dot" aria-hidden="true" />}
+        </span>
         <span className="row-main">
           <span className="row-title one-line">{feed.title}</span>
           <span className="row-meta">
             {unseen > 0 && (
-              <span className="new-count">
-                <span className="new-dot" aria-hidden="true" />
-                {unseen} new
-              </span>
+              <span className="new-count">{unseen} new</span>
             )}
             {feed.lastError ? (
               <>

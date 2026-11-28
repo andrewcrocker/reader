@@ -19,6 +19,8 @@ interface AppData {
   feedItems: FeedItem[];
   /** Any post the user hasn't seen: lights the dot on the Subscriptions tab. */
   hasNewPosts: boolean;
+  /** The blog an article was added from (article id to feed), for articles that came from Subscriptions. */
+  feedOf: ReadonlyMap<string, Feed>;
   settings: Settings;
   online: boolean;
 }
@@ -49,6 +51,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AppData>(() => {
     const all = articles ?? [];
     const live = all.filter((a) => !a.deletedAt);
+    const feedById = new Map((feeds ?? []).map((f) => [f.id, f]));
+    const feedOf = new Map<string, Feed>();
+    for (const i of feedItems ?? []) {
+      const f = i.articleId ? feedById.get(i.feedId) : undefined;
+      if (f) feedOf.set(i.articleId!, f);
+    }
     return {
       loaded: articles !== undefined && settings !== undefined,
       articles: all,
@@ -58,6 +66,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       feeds: [...(feeds ?? [])].sort((a, b) => a.addedAt - b.addedAt),
       feedItems: inboxOrder(feedItems ?? []),
       hasNewPosts: (feedItems ?? []).some((i) => i.seenAt === null),
+      feedOf,
       settings: settings ?? DEFAULT_SETTINGS,
       online,
     };

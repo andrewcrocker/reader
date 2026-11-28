@@ -121,6 +121,15 @@ export function setTab(tab: Tab) {
 export const openSettings = () => !state.settings && (markNav('in'), push({ settings: 'menu' }));
 /** Opens one blog's posts, a level into the Subscriptions tab. */
 export const openFeed = (id: string) => !state.feed && (markNav('in'), push({ feed: id }));
+/** Opens a blog's posts from another tab ("Go to subscription" on an article): Subscriptions first, then the blog, so back retraces both. */
+export function goToFeed(id: string) {
+  if (state.tab === 'queue') push({ tab: 'subscriptions' });
+  else if (state.tab !== 'subscriptions') set({ tab: 'subscriptions' });
+  if (state.feed === id) return;
+  markNav('in');
+  if (state.feed) set({ feed: id });
+  else push({ feed: id });
+}
 export const openSettingsPage = (page: Exclude<SettingsPage, 'menu'>) => (markNav('in'), push({ settings: page }));
 /** Opens the Now Playing overlay. In the wide layout it's already on screen, so this does nothing. */
 export const openNowPlaying = () => !state.nowPlaying && !wideQuery.matches && push({ nowPlaying: true });

@@ -1,7 +1,7 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react';
-import type { Article } from '../db';
+import type { Article, Feed } from '../db';
 import { hasRealTitle, urlTitle, type RowMeta } from '../queue/display';
-import { Art } from '../ui/Art';
+import { Art, FeedBadge } from '../ui/Art';
 import { Icon, StatusGlyph } from '../ui/Icon';
 import { MenuButton, type MenuItem } from '../ui/Menu';
 import { LoveButton } from '../ui/LoveButton';
@@ -37,6 +37,8 @@ export interface RowProps {
   /** Love or unlove. Omitted where loving makes no sense. */
   onToggleLove?: () => void;
   rowRef?: (el: HTMLElement | null) => void;
+  /** The blog this article was added from, if it came from Subscriptions: its art gets a small mark. */
+  feed?: Feed;
   /** "More actions" menu, for pointers that can't swipe (the wide layout). */
   menu?: MenuItem[];
 }
@@ -170,7 +172,10 @@ export function QueueRow(p: RowProps) {
         {p.selecting && (
           <input type="checkbox" className="row-check" checked={p.selected} onChange={p.onTap} aria-label={`Select ${a.title}`} />
         )}
-        <Art article={a} size={52} placeholder={urlish} />
+        <span className="art-wrap">
+          <Art article={a} size={52} placeholder={urlish} />
+          {p.feed && !urlish && <FeedBadge article={a} feed={p.feed} />}
+        </span>
         <div className="row-main">
           {/* The whole row is the tap target; this button gives it a name and keyboard access. */}
           <button className="row-main row-tap" aria-label={p.meta.spoken}>

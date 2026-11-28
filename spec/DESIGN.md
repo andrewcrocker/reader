@@ -230,6 +230,7 @@ Every row shows a 16 dp status glyph at the start of its meta line, then text. E
   - A 36 dp banner under the header on `fill`: cloud-slash glyph and "Offline · ready articles still play."
   - Retry buttons are disabled (`input-border` color, cloud-slash glyph) and described by the row note.
   - Nothing else changes.
+- **From a subscription:** an article added from a blog has a 22 dp mark on the bottom right corner of its art, ringed in the row's background. When the row shows the article's own picture, the mark is the blog's picture. When the row already shows the blog's own art (its icon or its initials), the mark is the feed glyph on `accent`, since the same picture twice would say nothing. It reads "From <blog>" to a screen reader. On wide screens the row's ⋯ menu gains **Go to subscription**.
 - **Reorder** (Up next only): hold a row for about 400 ms. It lifts (a light buzz, a shadow, 2% larger) and follows the finger; the rows it passes slide apart to show where it will land, and the list scrolls when the row nears the top or the mini player. Let go to drop it. Moving more than about 8 px before the hold fires scrolls, swipes, or does nothing, as usual, so a long list never reorders by accident. Holding and letting go without moving enters multi-select, as a long-press always did. With a mouse, press and hold the same way. On wide screens each row's ⋯ menu also has **Move up** and **Move down**. Reduced motion: no lift scale, and the slot opens instantly.
 - **Voices busy** (online voices, daily budget spent): the same banner with a clock glyph and "Voices are busy right now. Your articles will finish later." Affected rows read "Waiting for voices"; they start again on their own after the reset (midnight UTC). Offline wins if both apply.
 
@@ -379,7 +380,7 @@ The first tab. It's pull only: the blogs you follow are listed here with how man
 - **Blogs:** one row per blog, 72 tall.
   - **Picture:** 44, 5 radius. The blog's icon if it has one, else its initials on a color from its address, like article art.
   - **Name:** Literata 16, one line.
-  - **New posts:** under the name, an 8 dp filled `accent` dot and a count in `accent` 600 ("3 new"), then the date of the latest post in `muted` ("· Nov 26"). With nothing new, just the date. A blog that couldn't be checked shows a warning glyph and why in place of the date ("Couldn't check. The page wasn't found (404).").
+  - **New posts:** a 12 dp filled `accent` dot on the picture's top right corner, ringed in the row's background like the tab's dot. Under the name, the count in `accent` 600, then the date of the latest post in `muted`: "3 new · Nov 26". With nothing new, no dot and just the date. A blog that couldn't be checked shows a warning glyph and why in place of the date ("Couldn't check. The page wasn't found (404).").
   - **⋮ and chevron:** a ⋮ menu with **Refresh** (checks this blog now) and **Delete** (`error`; removes the blog and its posts, with an Undo snackbar "Deleted Vitalik Buterin's website"), then a right chevron. The whole row opens the blog; the chevron does the same.
 - **Empty state:** the feed glyph in an 88 circle, "No subscriptions yet", "New posts from the blogs you follow show up here.", and an outline "Add a blog" button that opens the Add sheet. The header's Add button is there too.
 - **When it checks:** on launch, when the app comes back to the front, and on Refresh. A blog checked in the last 30 minutes is skipped, except by Refresh. Only the newest 20 posts of a blog are considered.
@@ -489,6 +490,7 @@ A snapshot of some articles, sent as one link (SPEC §4). Nothing is uploaded an
 | Hold row, then let go (or hold on Saved) | Multi-select |
 | Drag handle (multi-select) | Reorder |
 | Move up / Move down (⋯ menu, wide) | Reorder by one |
+| Go to subscription (⋯ menu, wide; articles added from a blog) | Open that blog's posts in Subscriptions. Back returns the way you came |
 | Tap / swipe up mini player | Expand to Now Playing, shared-element art |
 | Swipe down on Now Playing | Collapse |
 | Long-press back / forward | Previous / next article |

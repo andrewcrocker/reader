@@ -189,7 +189,17 @@ a { color: var(--accent); }
 .feed-none { margin: 0; padding: 24px 20px; font-size: 15px; color: var(--muted); }
 /* New: a small filled accent dot. On a blog's row it comes with a count; on a post it sits in the row's left margin, so titles stay aligned. */
 .new-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--accent); }
-.new-count { flex: none; display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font-weight: 600; }
+.new-count { flex: none; color: var(--accent); font-weight: 600; }
+/* Art with a mark on its corner. The ring is the row's own background, so the mark reads as sitting on top. */
+.art-wrap { position: relative; flex: none; display: flex; --ring: var(--bg); }
+.row.playing .art-wrap { --ring: var(--row-playing); }
+.row.selected .art-wrap, .row.is-new .art-wrap { --ring: color-mix(in srgb, var(--accent) 10%, var(--bg)); }
+/* New posts in this blog: the same accent dot as the tab's, on the picture's top corner. */
+.art-dot { position: absolute; top: -4px; right: -4px; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--ring); }
+/* Came from a subscription: the blog's picture (or the feed glyph on accent) on the art's bottom corner. */
+.art-badge { position: absolute; right: -5px; bottom: -5px; width: 22px; height: 22px; border-radius: 6px; overflow: hidden; background: var(--fill); box-shadow: 0 0 0 2px var(--ring); display: flex; align-items: center; justify-content: center; }
+.art-badge img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.art-badge.glyph-badge { background: var(--accent); color: var(--on-accent); }
 .new-count + .segs::before { content: '·'; margin-right: 6px; }
 .row-title.one-line { display: block; white-space: nowrap; text-overflow: ellipsis; }
 
