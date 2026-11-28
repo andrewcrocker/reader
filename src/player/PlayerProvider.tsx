@@ -293,7 +293,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const mine = ++intent.current;
     // The end chime sounds while the article is filed away; the next one waits for it.
     const chimed = s.chimes ? playChime('end') : Promise.resolve();
-    if (s.keepPlayed === 'delete') await purgeArticle(done.id);
+    // A loved article is one the user wants to keep, so "delete when finished" archives it instead.
+    if (s.keepPlayed === 'delete' && !done.lovedAt) await purgeArticle(done.id);
     else await db.articles.update(done.id, { playedAt: now, archivedAt: done.archivedAt ?? now, positionSec: 0 });
     // Replaying from the Archive starts over.
     if (audioRef.current) audioRef.current.currentTime = 0;
@@ -334,6 +335,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       artwork: art ? [{ src: art, sizes: '512x512', type: 'image/png' }] : [],
     });
   }, [current?.id, current?.title, current?.siteName, artUrl, coverUrl]);
+
+  // The browser tab says what's playing, and goes back to the app's name when playback stops or pauses.
+  // An article whose title hasn't arrived yet (it is still its link) isn't worth showing.
+  useEffect(() => {
+    const named = playing && current && current.title && current.title !== current.url;
+    document.title = named ? `${current.title} · Reader` : 'Reader';
+  }, [playing, current?.id, current?.title, current?.url]);
 
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;

@@ -78,6 +78,16 @@ describe('proxyFailure', () => {
     expect(proxyFailure(502, { error: 'upstream fetch failed' })).toMatchObject({ kind: 'page', message: 'The site couldn’t be reached.' });
     expect(proxyFailure(415, { error: 'unsupported content type: application/pdf' }).message).toMatch(/PDF/);
   });
+  it('says the site answered when the service only declined the page (too large, not a web page)', () => {
+    expect(proxyFailure(413, { error: 'page too large' })).toMatchObject({ kind: 'page', final: true, reached: true });
+    expect(proxyFailure(415, { error: 'unsupported content type: application/pdf' })).toMatchObject({ final: true, reached: true });
+  });
+  it('does not say that when the site never answered, or the address was refused', () => {
+    expect(proxyFailure(502, { error: 'upstream fetch failed' }).reached).toBe(false);
+    expect(proxyFailure(502, { error: 'upstream timed out' }).reached).toBe(false);
+    expect(proxyFailure(400, { error: 'private or local hosts are not allowed' }).reached).toBe(false);
+    expect(siteFailure(404)?.reached).toBe(false);
+  });
 });
 
 describe('siteFailure', () => {

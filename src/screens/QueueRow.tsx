@@ -1,7 +1,7 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react';
-import type { Article } from '../db';
+import type { Article, Feed } from '../db';
 import { hasRealTitle, urlTitle, type RowMeta } from '../queue/display';
-import { Art } from '../ui/Art';
+import { Art, FeedBadge } from '../ui/Art';
 import { Icon, StatusGlyph } from '../ui/Icon';
 import { MenuButton, type MenuItem } from '../ui/Menu';
 import type { GrabPoint } from './useDragReorder';
@@ -29,10 +29,14 @@ export interface RowProps {
   /** Move up / down one place (handle keyboard). */
   onMove?: (delta: number) => void;
   onSwipe?: (dir: 'left' | 'right') => void;
+  /** What a right swipe does: mark it played (Up next, the default), add it back to the queue (a played row), or nothing. */
+  rightSwipe?: 'played' | 'queue' | 'none';
   onStatus?: () => void;
   onRetry?: () => void;
   rowRef?: (el: HTMLElement | null) => void;
-  /** "More actions" menu, for pointers that can't swipe (the wide layout). */
+  /** The blog this article was added from, if it came from Subscriptions: its art gets a small mark. */
+  feed?: Feed;
+  /** "More actions" menu at the end of the row: favorite, mark played, delete and the like. */
   menu?: MenuItem[];
 }
 
@@ -47,7 +51,7 @@ export function QueueRow(p: RowProps) {
   const partial = p.meta.glyph === 'partial';
 
   const down = (e: RPointerEvent) => {
-    if ((e.target as HTMLElement).closest('.drag-handle, .row-action, .meta-btn')) return;
+    if ((e.target as HTMLElement).closest('.drag-handle, .row-action, .meta-btn, .love-btn, .menu')) return; // .menu: the row's popup is a portal, so its presses still bubble here
     const s = g.current;
     s.x = e.clientX;
     s.y = e.clientY;
@@ -76,10 +80,12 @@ export function QueueRow(p: RowProps) {
     const my = e.clientY - s.y;
     if (s.mode === 'idle' && (Math.abs(mx) > SLOP || Math.abs(my) > SLOP)) {
       clearTimeout(s.timer);
-      s.mode = !p.selecting && p.onSwipe && Math.abs(mx) > Math.abs(my) ? 'swipe' : 'scroll';
+      const allowed = mx < 0 || p.rightSwipe !== 'none';
+      s.mode = !p.selecting && p.onSwipe && allowed && Math.abs(mx) > Math.abs(my) ? 'swipe' : 'scroll';
       if (s.mode === 'swipe') (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     }
-    if (s.mode === 'swipe') setDx(mx);
+    // Once a left swipe is under way, dragging back past the start stops at the start instead of showing "Mark played".
+    if (s.mode === 'swipe') setDx(p.rightSwipe === 'none' ? Math.min(0, mx) : mx);
   };
   const up = (e: RPointerEvent) => {
     const s = g.current;
@@ -105,6 +111,8 @@ export function QueueRow(p: RowProps) {
 
   const metaInner = (
     <>
+      {/* The heart moved into the row's menu; this is what still shows that an article is a favorite. */}
+      {a.lovedAt && <Icon name="heart-filled" size={14} className="fav-mark" />}
       <StatusGlyph kind={p.meta.glyph} progress={a.renderProgress} />
       <span className="segs">
         {p.meta.segs.map((s, i) => (
@@ -122,9 +130,15 @@ export function QueueRow(p: RowProps) {
       {dx !== 0 && (
         <div className={`row-swipe-bg ${dx > 0 ? 'right' : 'left'}`} aria-hidden="true">
           {dx > 0 ? (
-            <>
-              <Icon name="mark-played" /> Mark played
-            </>
+            p.rightSwipe === 'queue' ? (
+              <>
+                <Icon name="queue" /> Add to queue
+              </>
+            ) : (
+              <>
+                <Icon name="mark-played" /> Mark played
+              </>
+            )
           ) : (
             <>
               Delete <Icon name="trash" />
@@ -163,10 +177,13 @@ export function QueueRow(p: RowProps) {
         {p.selecting && (
           <input type="checkbox" className="row-check" checked={p.selected} onChange={p.onTap} aria-label={`Select ${a.title}`} />
         )}
-        <Art article={a} size={52} placeholder={urlish} />
+        <span className="art-wrap">
+          <Art article={a} size={52} placeholder={urlish} />
+          {p.feed && !urlish && <FeedBadge article={a} feed={p.feed} />}
+        </span>
         <div className="row-main">
           {/* The whole row is the tap target; this button gives it a name and keyboard access. */}
-          <button className="row-main row-tap" aria-label={p.meta.spoken}>
+          <button className="row-main row-tap" aria-label={a.lovedAt ? `${p.meta.spoken}. Favorite` : p.meta.spoken}>
             <p className={`row-title${urlish ? ' url' : ''}`}>{urlish ? urlTitle(a.url) : a.title}</p>
           </button>
           {partial && p.onStatus && !p.selecting ? (

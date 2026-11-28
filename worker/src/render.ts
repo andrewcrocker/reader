@@ -1,4 +1,5 @@
 import type { Hono } from 'hono';
+import { cacheStats, splitLookups } from './voiceCache';
 
 // Server voices (plan: "Server Kokoro"). The app sends an article's chunks once; a Workflow renders
 // them through the voice host and keeps each chunk's MP3 in R2 until the app downloads it, so the
@@ -21,10 +22,18 @@ export type RenderEnv = {
   RESEND_API_KEY?: string;
   ALERT_EMAIL?: string;
   DAILY_CHAR_CAP?: string;
+  /** The shared voice cache (spec/VOICE_CACHE.md): "on" (or 1, true, yes) turns it on. Off when unset. */
+  VOICE_CACHE?: string;
 };
 
-export type RenderChunk = { i: number; text: string };
+/** True when the owner has turned the voice cache on. */
+export const cacheEnabled = (env: Pick<RenderEnv, 'VOICE_CACHE'>): boolean => /^(1|true|on|yes)$/i.test((env.VOICE_CACHE ?? '').trim());
+
+/** `key` is where a chunk's audio goes in the voice cache; only chunks of a cache job carry one. */
+export type RenderChunk = { i: number; text: string; key?: string };
 export type RenderParams = { voice: string; chunks: RenderChunk[] };
+/** A request to /render. `cacheable` is only ever `true` (the app sends it for articles fetched from a URL). */
+export type RenderRequest = RenderParams & { cacheable?: true };
 /** One Workflow run: a slice of an article's chunks, written under the article's job id. */
 export type PartParams = RenderParams & { job: string };
 
@@ -52,21 +61,32 @@ export function combineStatus(statuses: string[]): string {
 const partId = (job: string, k: number) => `${job}-p${k}`;
 const manifestKey = (job: string) => `jobs/${job}/job.json`;
 
-async function partCount(env: RenderEnv, job: string): Promise<number> {
+/**
+ * What a job's manifest holds. A cache job also lists the chunks the voice cache already had
+ * (`chunks`: index to cache key, `secs`: index to length), which are not copied into jobs/<job>/;
+ * `parts` then counts only the Workflow runs for the chunks that did need rendering (maybe none).
+ */
+export type Manifest = { parts: number; chunks?: Record<string, string>; secs?: Record<string, number> };
+
+async function readManifest(env: RenderEnv, job: string): Promise<Manifest | null> {
   const m = await env.AUDIO.get(manifestKey(job));
-  return m ? ((await m.json()) as { parts: number }).parts : 0;
+  return m ? ((await m.json()) as Manifest) : null;
 }
 
 /** What the quota counter answers for a reservation. */
 export type Reservation = { ok: boolean; used: number; cap: number; alert?: 80 | 100; retryAt: number };
+/** What the voice cache holds for one chunk: its object key, and for a hit its length and size. */
+export type Lookup = { i: number; key: string; sec?: number; bytes?: number };
 export interface QuotaApi {
   reserve(chars: number, cap: number, now: number): Promise<Reservation>;
+  /** Looks each chunk up in the voice cache, then reserves the budget for the chunks it didn't have. */
+  reserveMisses(voice: string, chunks: RenderChunk[], cap: number, now: number): Promise<Reservation & { lookups: Lookup[] }>;
 }
 
 /** Returns the parsed request, or an error message. */
-export function parseRenderRequest(body: unknown): RenderParams | string {
+export function parseRenderRequest(body: unknown): RenderRequest | string {
   if (!body || typeof body !== 'object') return 'expected a JSON body';
-  const { voice, chunks } = body as Partial<RenderParams>;
+  const { voice, chunks, cacheable } = body as Partial<RenderParams> & { cacheable?: unknown };
   if (typeof voice !== 'string' || !(VOICES as readonly string[]).includes(voice)) return `unknown voice: ${String(voice)}`;
   if (!Array.isArray(chunks) || !chunks.length) return 'no chunks';
   if (chunks.length > MAX_CHUNKS) return 'too many chunks';
@@ -80,7 +100,9 @@ export function parseRenderRequest(body: unknown): RenderParams | string {
     total += c.text.length;
   }
   if (total > MAX_ARTICLE_CHARS) return 'article too long';
-  return { voice, chunks: chunks.map((c) => ({ i: c.i, text: c.text })) };
+  const req: RenderRequest = { voice, chunks: chunks.map((c) => ({ i: c.i, text: c.text })) };
+  if (cacheable === true) req.cacheable = true; // anything else, or missing, means "not cacheable"
+  return req;
 }
 
 export const charCount = (p: RenderParams) => p.chunks.reduce((n, c) => n + c.text.length, 0);
@@ -115,11 +137,14 @@ export function applyReservation(
   return { state: s, result: { ok: true, used: s.used, cap, alert, retryAt: resetsAt } };
 }
 
-const chunkKey = (job: string, i: number) => `jobs/${job}/${i}.mp3`;
+export const chunkKey = (job: string, i: number) => `jobs/${job}/${i}.mp3`;
 const JOB_ID = /^[0-9a-f-]{36}$/;
 
 export function registerRenderRoutes<E extends RenderEnv>(app: Hono<{ Bindings: E }>) {
-  /** POST /render {voice, chunks:[{i,text}]} → 202 {job}, or 429 {error:'busy', retryAt} when the day's budget is spent. */
+  /**
+   * POST /render {voice, chunks:[{i,text}], cacheable?} → 202 {job}, or 429 {error:'busy', retryAt} when the day's budget is spent.
+   * With VOICE_CACHE on and `cacheable: true`, chunks the voice cache already has are not rendered or charged (voiceCache.ts).
+   */
   app.post('/render', async (c) => {
     const parsed = parseRenderRequest(await c.req.json().catch(() => null));
     if (typeof parsed === 'string') return c.json({ error: parsed }, 400);
@@ -127,16 +152,42 @@ export function registerRenderRoutes<E extends RenderEnv>(app: Hono<{ Bindings: 
 
     const cap = Number(c.env.DAILY_CHAR_CAP) || DEFAULT_DAILY_CHAR_CAP;
     const quota = c.env.QUOTA.get(c.env.QUOTA.idFromName('global'));
-    const r = await quota.reserve(charCount(parsed), cap, Date.now());
+    const now = Date.now();
+    // Off, or not cacheable: exactly what /render did before the cache existed.
+    if (!(parsed.cacheable && cacheEnabled(c.env))) {
+      const r = await quota.reserve(charCount(parsed), cap, now);
+      if (r.alert) c.executionCtx.waitUntil(sendCapAlert(c.env, r));
+      if (!r.ok) return c.json({ error: 'busy', retryAt: r.retryAt }, 429);
+
+      const job = crypto.randomUUID();
+      const parts = splitParts(parsed.chunks);
+      await c.env.AUDIO.put(manifestKey(job), JSON.stringify({ parts: parts.length }));
+      for (const [k, chunks] of parts.entries()) {
+        await c.env.RENDER.create({ id: partId(job, k), params: { job, voice: parsed.voice, chunks } });
+      }
+      return c.json({ job, chunks: parsed.chunks.length }, 202);
+    }
+
+    // The counter looks every chunk up (a free-plan request has ~10 ms of CPU, a Durable Object 30 s)
+    // and reserves the budget for the misses only, so a cached article costs nothing and is never "busy".
+    const r = await quota.reserveMisses(parsed.voice, parsed.chunks, cap, now);
     if (r.alert) c.executionCtx.waitUntil(sendCapAlert(c.env, r));
     if (!r.ok) return c.json({ error: 'busy', retryAt: r.retryAt }, 429);
 
     const job = crypto.randomUUID();
-    const parts = splitParts(parsed.chunks);
-    await c.env.AUDIO.put(manifestKey(job), JSON.stringify({ parts: parts.length }));
+    const { hits, misses } = splitLookups(parsed.chunks, r.lookups);
+    const parts = splitParts(misses); // 30 voice host calls a part, as before; hits need no Workflow run
+    const manifest: Manifest = { parts: parts.length, chunks: {}, secs: {} };
+    for (const h of hits) {
+      manifest.chunks![h.i] = h.key;
+      manifest.secs![h.i] = h.sec!;
+    }
+    await c.env.AUDIO.put(manifestKey(job), JSON.stringify(manifest));
     for (const [k, chunks] of parts.entries()) {
       await c.env.RENDER.create({ id: partId(job, k), params: { job, voice: parsed.voice, chunks } });
     }
+    // Counts only, no text: so the owner can size the cache from real use (spec/VOICE_CACHE.md).
+    console.log(JSON.stringify({ event: 'voice-cache', job, ...cacheStats(parsed.chunks, r.lookups) }));
     return c.json({ job, chunks: parsed.chunks.length }, 202);
   });
 
@@ -145,7 +196,8 @@ export function registerRenderRoutes<E extends RenderEnv>(app: Hono<{ Bindings: 
     const job = c.req.param('job');
     if (!JOB_ID.test(job)) return c.json({ error: 'bad job id' }, 400);
     // A part we can't look up is 'unknown': finished and cleaned up, or never existed. `ready` still says what's there.
-    const n = await partCount(c.env, job);
+    const manifest = await readManifest(c.env, job);
+    const n = manifest?.parts ?? 0;
     const statuses = await Promise.all(
       Array.from({ length: n }, (_, k) =>
         c.env.RENDER.get(partId(job, k))
@@ -154,7 +206,8 @@ export function registerRenderRoutes<E extends RenderEnv>(app: Hono<{ Bindings: 
           .catch(() => 'unknown'),
       ),
     );
-    const status = combineStatus(statuses);
+    // A job with a manifest but no parts was served entirely from the voice cache: done already.
+    const status = manifest && n === 0 ? 'complete' : combineStatus(statuses);
     const ready: { i: number; sec: number }[] = [];
     let cursor: string | undefined;
     do {
@@ -166,6 +219,8 @@ export function registerRenderRoutes<E extends RenderEnv>(app: Hono<{ Bindings: 
       }
       cursor = page.truncated ? page.cursor : undefined;
     } while (cursor);
+    // Chunks the voice cache served are ready from the start, with the length stored on the cached audio.
+    for (const [i, sec] of Object.entries(manifest?.secs ?? {})) ready.push({ i: Number(i), sec });
     ready.sort((a, b) => a.i - b.i);
     return c.json({ status, ready }, 200, { 'Cache-Control': 'no-store' });
   });
@@ -175,7 +230,12 @@ export function registerRenderRoutes<E extends RenderEnv>(app: Hono<{ Bindings: 
     const job = c.req.param('job');
     const i = Number(c.req.param('i'));
     if (!JOB_ID.test(job) || !Number.isInteger(i)) return c.json({ error: 'bad request' }, 400);
-    const obj = await c.env.AUDIO.get(chunkKey(job, i));
+    let obj = await c.env.AUDIO.get(chunkKey(job, i));
+    if (!obj) {
+      // Not in the job's own folder: it may be one the voice cache served (the manifest says which key).
+      const key = (await readManifest(c.env, job))?.chunks?.[i];
+      obj = key ? await c.env.AUDIO.get(key) : null;
+    }
     if (!obj) return c.json({ error: 'not ready' }, 404);
     return new Response(obj.body, {
       headers: {
@@ -187,11 +247,11 @@ export function registerRenderRoutes<E extends RenderEnv>(app: Hono<{ Bindings: 
     });
   });
 
-  /** DELETE /render/:job → drop the server's copy once the app has it (a 7-day R2 rule catches the rest). */
+  /** DELETE /render/:job → drop the server's copy once the app has it (a 7-day R2 rule catches the rest). Only jobs/<job>/: the voice cache is never touched. */
   app.delete('/render/:job', async (c) => {
     const job = c.req.param('job');
     if (!JOB_ID.test(job)) return c.json({ error: 'bad job id' }, 400);
-    const n = await partCount(c.env, job);
+    const n = (await readManifest(c.env, job))?.parts ?? 0;
     await Promise.all(
       Array.from({ length: n }, (_, k) =>
         c.env.RENDER.get(partId(job, k))
@@ -219,6 +279,27 @@ export async function synthesizeChunk(env: Pick<RenderEnv, 'DEEPINFRA_API_KEY'>,
   });
   if (!res.ok) throw new VoiceHostError(res.status, (await res.text()).slice(0, 200));
   return stripHeaderFrames(new Uint8Array(await res.arrayBuffer()));
+}
+
+/**
+ * One chunk through the voice host into jobs/<job>/<i>.mp3. A chunk of a cache job has a `key`: its
+ * audio is also kept there for the next article with the same text, with its length in the metadata.
+ * This never touches the daily budget, which /render settled up front, so a retried step costs the
+ * voice host a call at most, never the budget twice.
+ */
+export async function renderChunk(
+  env: Pick<RenderEnv, 'AUDIO' | 'DEEPINFRA_API_KEY'>,
+  job: string,
+  voice: string,
+  chunk: RenderChunk,
+  synth: typeof synthesizeChunk = synthesizeChunk,
+): Promise<number> {
+  const { mp3, sec } = await synth(env, voice, chunk.text);
+  const meta = { customMetadata: { sec: sec.toFixed(3) } };
+  await env.AUDIO.put(chunkKey(job, chunk.i), mp3, meta);
+  // Best effort, and never an empty result: the chunk is already safe in the job.
+  if (chunk.key && sec > 0 && mp3.length) await env.AUDIO.put(chunk.key, mp3, meta).catch(() => {});
+  return sec;
 }
 
 export class VoiceHostError extends Error {

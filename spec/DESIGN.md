@@ -16,8 +16,11 @@ Read these first if you've seen the brief.
 | Sleep timer | In Now Playing's secondary row | **Removed** from v1. No button, no mode, no setting |
 | Secondary row | Speed, auto-advance, sleep, lyrics | **Speed, auto-advance, read along** (3 pills) |
 | Tap row | Play, or open a preview | **Plays immediately** (or resumes) |
-| Swipe right | Move to top, or mark played | **Mark played**, which moves the row to Archive |
-| Finished articles | Disappear, dim, or Archive | **Move to Archive** (a section at the bottom of the queue). Settings keeps "delete instead" as an option |
+| Swipe right | Move to top, or mark played | **Mark played**, which moves the row to Played |
+| Finished articles | Disappear, dim, or Archive | **Move to Played** (a list on the Saved tab). Settings keeps "delete instead" as an option, except for loved articles |
+| Navigation | Queue as the only hub | **Bottom tab bar:** Subscriptions, Up next, Saved. Up next is home |
+| Keeping and sharing favorites | Not covered | **Love** an article (a heart) to keep it, apart from Played, which only means done. **Saved** is the place for what you want to keep: loved articles first, then the archive. It can be shared: a **Share** button there sends a list of what you loved this week or all time, with a card image (see Reading lists) |
+| Finding new articles | A feed inbox, not designed yet | **Subscriptions:** pull only. You add a blog's address from the Subscriptions header, the tab lists your blogs with how many posts are new, and nothing joins the queue until you tap Add on a post |
 | Shared text | Not covered | Text (not a URL) shared from another app opens the **Add sheet on the Text tab**, prefilled |
 | Up-next peek | Peek or swipe | **Peek** of the next article at the bottom of Now Playing |
 | Reorder | Handles always, or in edit mode | **Hold a row and drag it.** Handles appear only in multi-select |
@@ -39,7 +42,7 @@ This is a podcast player for articles. Listening is the main job and reading is 
 
 1. **Audio first.** Every screen answers "what's playing and what's next." The player is never more than one tap away.
 2. **One-handed and eyes-free.** Primary controls sit in the bottom third.
-3. **Calm, not busy.** No feeds, badges, streaks, or guilt counts.
+3. **Calm, not busy.** No streaks, badges, or guilt counts, and nothing that pushes: Subscriptions is pull only. New posts are marked one way everywhere: a small `accent` dot. It sits on the Subscriptions tab, on a blog's row (there with a plain count, "3 new"), and beside a post. No red, and no count on the tab bar.
 4. **Honest status.** Always show what's happening, how far along it is, and whether an article plays offline.
 5. **Forgiving.** Destructive actions undo. Everything resumes where you left off.
 6. **Native-feeling.** Standard Android gestures, dark mode, and system text size.
@@ -59,11 +62,23 @@ This is a podcast player for articles. Listening is the main job and reading is 
 
 ## Navigation
 
-The Queue is the hub. Now Playing opens from the mini player on any screen. Lyrics view is a mode inside Now Playing. Settings is a pushed screen from the Queue header. The Add sheet, speed picker, and Partial explainer are bottom sheets.
+A **bottom tab bar** switches between three views: **Subscriptions | Up next | Saved**. Up next is the hub and the home view, in the middle. Archive is a section of Saved, not a tab. Now Playing opens from the mini player on any tab. Lyrics view is a mode inside Now Playing. Settings is a pushed screen from the Up next header, with no tab bar. A blog's posts open one level into Subscriptions, and keep the tab bar. The Add sheet, speed picker, Partial explainer, and the share sheets are bottom sheets.
 
-Ways in: app icon → Queue; share sheet → Queue (URL) or Add sheet on Text (text); invite link → First run → empty Queue.
+Ways in: app icon → Up next; share sheet → Up next (URL) or Add sheet on Text (text); `#add=` link → Up next; `#list=` link → Up next, with the reading-list sheet open (see Reading lists); invite link → First run → empty Up next. The app always opens on Up next. The tab isn't remembered between launches.
 
-**Wide screens (900 px and up):** two panes. The Queue (or Settings) is a column on the left, at most 440 wide; Now Playing (or Lyrics view) stays open on the right. There's no mini player, collapse control, or swipe-down, and the Up next peek isn't a link because the queue is already beside it. The cover shrinks to fit the screen height. Sheets stay bottom sheets.
+**Back:** Up next is the bottom of the back stack. Subscriptions and Saved each sit one step above it, so back from either returns to Up next. Switching between those two swaps in place, and tapping Up next does the same as back. A blog's posts sit one step above Subscriptions, so back from them returns to the list of blogs. Choosing another tab from a blog's posts leaves the blog first, so the stack never holds more than it shows, and tapping Subscriptions there goes back to the list.
+
+**Tab bar:**
+- **Layout:** three equal tabs in a 64 tall bar, plus the bottom safe-area inset, on `bg` with a `line` top border. Each tab is an outline icon over a 12 label.
+- **Current tab:** a `row-selected` pill behind the icon, the icon and label in `accent`, and the label at 600. Other tabs are `muted`. It's marked with `aria-current="page"`, so state isn't carried by color alone.
+- **Dock:** the bar is the last item in the bottom dock. The snackbar and mini player sit above it, and the bar gives way to the multi-select action bar while selecting.
+- **New-post dot:** a 9 dp filled `accent` dot at the top right of the Subscriptions icon, with a 2 dp ring in the background color. The tab's accessible name becomes "Subscriptions, new posts". A blog's posts count as seen when you leave that blog (or the app goes to the background while it's open); the dot goes when no blog has any left.
+
+**Between a phone and two panes (481 to 719 px):** the single column fills the window instead of sitting in the middle. Now Playing fills it too, with the cover held to 46% of the window's height so the controls stay on screen. Sheets stay 480 wide, centered.
+
+**Read-along at any width:** it fills what it's given, the window below 720 and the right pane above. The rules under the header and over the controls run edge to edge; the header, the text and the controls share one column that stops growing at 720, so lines stay a readable length. First run and the invite screen stay phone-width.
+
+**Wide screens (720 px and up):** two panes. At 720 they are 360 each. The Up next, Subscriptions, Saved, or Settings view is a column on the left, at most 440 wide, with the tab bar at the bottom of that column. Now Playing (or Lyrics view) stays open on the right. There's no mini player, collapse control, or swipe-down, and the Up next peek isn't a link because the queue is already beside it. The cover shrinks to fit the screen height. Sheets stay bottom sheets.
 
 
 ## Design tokens
@@ -174,6 +189,8 @@ Two families: **Literata** (serif, for content and titles) and **IBM Plex Sans**
 
 One outline set, 1.8 stroke, round caps (Material Symbols Outlined is fine). Play/pause and the status glyphs below are filled where noted. Never use color alone to carry state.
 
+**Heart:** a soft, rounded outline heart (round lobes, a blunt point), `muted`, when an article isn't loved. Loved is the same shape filled and in `accent`, so the shape changes as well as the color. The same heart is the Saved tab's icon and the share card's eyebrow glyph. It's an app action, not playback, so it uses `accent` and never the article tint.
+
 ## Article states
 
 Every row shows a 16 dp status glyph at the start of its meta line, then text. Each glyph has a distinct shape, so states read in grayscale.
@@ -189,7 +206,7 @@ Every row shows a 16 dp status glyph at the start of its meta line, then text. E
 | Partial | Half-filled circle | "**Partial** · 6 m found · Site" | `warn` | Yes, what was found |
 | Failed | Triangle with ! | "**Couldn't load the page**" + Retry button | `error` | No |
 | Waiting for connection | Cloud with slash | "Will fetch when online" | `muted` | No |
-| Played (Archive) | Check | "Played · Site" | Title and art dimmed (`muted`, art 60% opacity) | Yes, if audio kept |
+| Played | Check | "Played · Site" | Title and art dimmed (`muted`, art 60% opacity), except under Loved on Saved, which stays bright | Yes, if audio kept |
 
 - Fetching, Failed, and Waiting rows show the URL (domain + path) as the title until a real title arrives, with a link glyph on `fill` as placeholder art.
 - Durations are estimated at the current speed and update when speed changes.
@@ -202,20 +219,33 @@ Every row shows a 16 dp status glyph at the start of its meta line, then text. E
 
 - **Header:** "Up next" (Literata 30), then a line with count and total time at speed ("8 articles · 2 h 46 m at 1.4×"). Settings (sliders icon) and Add (filled `accent` circle, 48) on the right.
 - **List:**
-  - Up next rows in order, then an **Archive** section label and archived rows.
+  - Up next rows in order. Played rows are on the Saved tab.
+  - Each row ends with a **⋮** button (48 touch target), hidden in multi-select. A Failed row has Retry before it. The heart is the first item in its menu (see ⋮ menu below).
   - The currently playing row uses `row-playing`.
-  - Rows are separated by space, not dividers. One divider sits under the header and one above Archive.
-- **Mini player:** pinned at the bottom (see 2).
+  - Rows are separated by space, not dividers. One divider sits under the header.
+- **Mini player and tab bar:** pinned at the bottom, the mini player above the tab bar (see 2 and Navigation).
 - **Empty state** · artboard "Empty queue / …":
-  - Share glyph in a 88 circle, "Nothing queued yet", and "Share an article from any app and it lands here, ready to play."
+  - Share glyph in a 88 circle, "Nothing queued yet", and "Share an article from any app and it lands here, ready to play." It also shows when everything left is archived.
   - Then an "or paste a link" text button that opens the Add sheet.
   - No mini player.
 - **Offline:**
   - A 36 dp banner under the header on `fill`: cloud-slash glyph and "Offline · ready articles still play."
   - Retry buttons are disabled (`input-border` color, cloud-slash glyph) and described by the row note.
   - Nothing else changes.
+- **From a subscription:** an article added from a blog has a 22 dp mark on the bottom right corner of its art, ringed in the row's background. When the row shows the article's own picture, the mark is the blog's picture. When the row already shows the blog's own art (its icon or its initials), the mark is the feed glyph on `accent`, since the same picture twice would say nothing. It reads "From <blog>" to a screen reader. The row's ⋮ menu gains **Go to subscription**.
+- **⋮ menu:** every row ends in a ⋮ button, at every width. It holds **Add to favorites** / **Remove from favorites** (the heart, outline or filled), **Mark played** (not on archived rows), **Go to subscription** (articles from a blog) and **Delete** (`error`). On wide screens it also has **Move up** and **Move down**; on a phone you hold and drag. A favorite shows a small filled `accent` heart at the start of its meta line, since the row itself no longer carries a heart button.
 - **Reorder** (Up next only): hold a row for about 400 ms. It lifts (a light buzz, a shadow, 2% larger) and follows the finger; the rows it passes slide apart to show where it will land, and the list scrolls when the row nears the top or the mini player. Let go to drop it. Moving more than about 8 px before the hold fires scrolls, swipes, or does nothing, as usual, so a long list never reorders by accident. Holding and letting go without moving enters multi-select, as a long-press always did. With a mouse, press and hold the same way. On wide screens each row's ⋯ menu also has **Move up** and **Move down**. Reduced motion: no lift scale, and the slot opens instantly.
 - **Voices busy** (online voices, daily budget spent): the same banner with a clock glyph and "Voices are busy right now. Your articles will finish later." Affected rows read "Waiting for voices"; they start again on their own after the reset (midnight UTC). Offline wins if both apply.
+
+### 1a. Saved
+
+The last tab. The same rows, gestures, and multi-select as Up next, except that rows can't be reordered: a hold goes straight to multi-select. It shows one list at a time, picked from the header's ⋮ menu. Header: "Saved", a line that counts the list on show ("8 favorites" or "12 played"), a **Share** icon button (the share glyph in a plain 48 icon button, like Settings on Up next; disabled when nothing loved can be shared), and a ⋮ button. Nothing in the header is `accent`-filled.
+
+- **⋮ menu:** a small-caps "Show" label over two choices, with a check mark on the current one: **Favorites** (the default) and **Played**. The choice is remembered. Under a rule, **Delete all saved…** (`error`, trash glyph; hidden when there is nothing saved). It asks first: a dialog titled "Delete all saved?" says how many favorites and played articles will go, that favorites still in Up next go too, and that it can't be undone, with Cancel and **Delete all** (`error`). Afterwards a snackbar says how many were deleted. There is no undo.
+- **Favorites:** every loved article, newest love first, whether or not it's archived. Rows aren't dimmed. With none, a `muted` line: "Add an article to your favorites to keep it here. You can share your favorites."
+- **Played:** every played article, most recently played first, dimmed as played. A loved one is listed here too, since the two lists are never on screen together. With none, a `muted` line: "Articles you've listened to land here."
+- Swipe left deletes. Swipe right marks played; on a played row it is **Add to queue** instead (`accent` ground, queue glyph), which puts the article back at the end of Up next with an "Added to Up next · Undo" snackbar. The row's ⋮ menu has the same action in place of Mark played. Multi-select has the same header (including Share as list), Select all and action bar as Up next. Mark played is disabled if every selected row is archived. Move to top returns an archived row to Up next. Select all takes the list on show.
+- **Empty state** (nothing loved or archived): the heart glyph, "Nothing saved yet", "Love an article to keep it here, and share your favorites. Articles you've listened to land here too."
 
 ### 2. Mini player
 
@@ -237,7 +267,7 @@ Top to bottom:
      - Site name in caps (top left) and the site mark (top right).
      - A short rule, then the title in Literata 33, bottom-aligned.
      - Text in a light tone of the hue.
-3. **Title** (Literata 21/600) and **byline** ("Author · Site").
+3. **Title** (Literata 21/600) and **byline** ("Author · Site"), with the **heart** button at the end of the title block, aligned to the 32 gutter. Lyrics view has the same heart before the open-original link.
 4. **Scrubber:**
    - 4 dp `track`, `tint` fill, 14 thumb.
    - Elapsed left, remaining right ("−14:05"). Remaining time accounts for speed.
@@ -310,15 +340,15 @@ Bottom sheet on `surface-sheet`, scrim behind. Header: "Add to queue" and close.
 
 ### 7. Multi-select · artboard "Multi-select …"
 
-- **Enter:** hold a row and let go without moving it (holding and moving reorders; see Queue).
-- **Header** (on a slightly darker `bg`): close, "N selected," Share as list (share glyph; see 12), Select all.
+- **Enter:** hold a row and let go without moving it (holding and moving reorders; see Queue). On Saved a hold goes straight to multi-select, since nothing there reorders.
+- **Header** (on a slightly darker `bg`): close, "N selected," Share as list (share glyph; see 14), Select all.
 - **Rows:** a checkbox (accent-colored) leads; selected rows use `row-selected`; drag handles appear at the trailing edge. A focused handle moves its row with the up and down arrow keys.
-- **Bottom action bar** (replaces the mini player): Delete (`error`), Move to top, Mark played, Re-render, Retry. Each has an icon over a label.
-  - Disable Retry if no failed row is selected.
-  - Disable Re-render if nothing renderable is selected.
+- **Bottom action bar** (replaces the mini player and the tab bar): Delete (`error`), Move to top, Mark played, Refresh. Each has an icon over a label.
+  - **Refresh** is one action for "this didn't work" and "make this again": a failed article is tried again, and any other gets its audio made again in the current voice, keeping its text and position. The snackbar says which ("Trying again" or "Preparing the audio again").
+  - Disable Refresh offline, or if nothing selected is failed or has text to speak.
 - **Delete:** exits selection and shows the "N articles deleted · Undo" snackbar for 6 s.
 - **Swipe left on a row:** delete, with the same snackbar.
-- **Swipe right:** mark played, with a "Moved to Archive · Undo" snackbar.
+- **Swipe right:** mark played, with a "Marked as played · Undo" snackbar. A played row swipes right to Add to queue instead (see Saved).
 - **"Clear all"** (Settings only) is the one action with a confirmation dialog.
 
 ### 8. Speed picker · artboard "Speed picker / …"
@@ -344,7 +374,36 @@ Tapping a Partial row's status (or a Failed row) opens a sheet:
   - Heading "Couldn't load this page," with a one-line reason.
   - Actions: Retry (primary), Paste the text, Open original.
 
-### 10. Settings · artboard "Settings …"
+### 10. Subscriptions
+
+The first tab. It's pull only: the blogs you follow are listed here with how many posts are new, and nothing is added to the queue, fetched, or rendered until you tap **Add** on a post.
+
+- **Header:** the same as Up next. "Subscriptions" (Literata 30) and a line such as "4 blogs · Checked 12 m ago". On the right, a ⋮ button (48, plain, shown once there's a subscription) and **Add** (48, `accent`-filled, plus glyph; `aria-label` "Add a subscription").
+- **⋮ menu:** the popup menu rows use. **Refresh** (circular arrow) checks every blog now: a snackbar says "Checking for new posts…", then "3 new posts" or "No new posts". Under a `line` rule and a small-caps "Sort by" label, two choices with a check mark on the current one: **Recent** (the blog that posted last comes first; the default) and **Alphabetical**. The choice is remembered.
+- **Blogs:** one row per blog, 72 tall.
+  - **Picture:** 44, 5 radius. The blog's icon if it has one, else its initials on a color from its address, like article art.
+  - **Name:** Literata 16, one line.
+  - **New posts:** a 12 dp filled `accent` dot on the picture's top right corner, ringed in the row's background like the tab's dot. Under the name, the count in `accent` 600, then the date of the latest post in `muted`: "3 new · Nov 26". With nothing new, no dot and just the date. A blog that couldn't be checked shows a warning glyph and why in place of the date ("Couldn't check. The page wasn't found (404).").
+  - **⋮ and chevron:** a ⋮ menu with **Refresh** (checks this blog now) and **Delete** (`error`; removes the blog and its posts, with an Undo snackbar "Deleted Vitalik Buterin's website"), then a right chevron. The whole row opens the blog; the chevron does the same.
+- **Empty state:** the feed glyph in an 88 circle, "No subscriptions yet", "New posts from the blogs you follow show up here.", and an outline "Add a blog" button that opens the Add sheet. The header's Add button is there too.
+- **When it checks:** on launch, when the app comes back to the front, and on Refresh. A blog checked in the last 30 minutes is skipped, except by Refresh. Only the newest 20 posts of a blog are considered.
+
+**Add a subscription** (bottom sheet, built like Add to queue's Link tab): a large `accent` **Paste address** button ("From your clipboard", or the address when it can be read), an "or type it" divider, a "Blog address" field (`type="text"`, so a bare domain like `vitalik.eth.limo` works) with a **Subscribe** button, and a hint ("Paste a blog's address, or its feed address. New posts show up in Subscriptions, and you pick which ones to add."). Subscribe is disabled while the field is empty, while it's looking ("Looking…"), and offline. Errors show as a `fill` note ("Couldn't find a feed at that address.", "You're already subscribed to that.") and the text stays so it can be fixed. On success the sheet closes and a snackbar says "Subscribed to Vitalik Buterin's website". The posts already on the blog count as seen, so subscribing doesn't light a dot.
+
+### 11. A blog's posts
+
+One level into Subscriptions, opened from a blog's row. The tab bar stays.
+
+- **Header:** the same height as the tab headers. A back arrow ("Back to subscriptions"), then the blog's name (Literata 24, one line) over a line such as "3 new · 12 of 20 posts · Checked 12 m ago", and a ⋮ button at the end.
+- **⋮ menu:** a small-caps "Show" label over four choices, with a check mark on the current one: **Unplayed** (the default), **Played**, **Favorites** and **All**. The choice is remembered, and is the same for every blog. A post is played once the article made from it has been listened to; a post never added is unplayed. Favorites are posts whose article has a heart.
+- **Posts:** newest first. A row has the title (Literata 16, 2 lines) and a short date ("Nov 26").
+  - **New:** an 8 dp `accent` dot in the row's left margin, level with the title, so titles stay aligned whether or not a post is new. It reads "New." to a screen reader. Posts stay marked until you leave the blog.
+  - **Add:** a 48 icon button at the end, a plus in a ring, in `accent` (`aria-label` "Add <title> to your queue"). A snackbar says "Saved to your queue". A post that's already an article isn't added twice: the snackbar says "Already in your queue".
+  - **Added:** the button becomes a filled `accent` disc with a check, which isn't a button ("Added to your queue").
+  - **Played and favorite:** each post has two states, added or not and played or not, and they show separately. A played post has a `muted` 400-weight title, like a played row in Up next, and its meta line starts "Played ·". A favorite has a small filled `accent` heart and "Favorite ·" there. The button at the end still says whether it is in the queue: a played post that was cleared from the queue shows Add again.
+- **Empty:** a `muted` line: "No posts yet.", or for a view with nothing in it "No unplayed posts.", "No played posts yet.", "No favorites from this blog yet."
+
+### 12. Settings · artboard "Settings …"
 
 Pushed screen: back arrow and "Settings." The top level is a menu: **Voice**, **Playback**, and **Storage** rows (each with a one-line summary and a chevron), then an outline "Invite a friend" button, and the version at the foot. Each row pushes its own page with a back arrow; back returns to the menu. Pages use caps section labels and `line` dividers. The Voice page is just the three voices.
 
@@ -356,17 +415,18 @@ Pushed screen: back arrow and "Settings." The top level is a menu: **Voice**, **
   - Skip interval (segmented 10s / 15s / 30s).
   - Auto-advance switch.
   - Chimes switch ("A short sound when an article starts and ends").
-  - "When an article finishes": Archive / Delete.
+  - "Default view": Player / Read along (Player by default), with "What an article opens in when you tap it" under it. Each article you tap in a list starts in that view, whatever the last one was left in; the Read-along pill still switches for the one you're in.
+  - "When an article finishes": Keep / Delete. The line under it says what the choice does: "Moves to Played, where you can replay it" or "Deleted with its audio, except loved articles". A loved article is archived instead of deleted, because loving it says you want to keep it.
 - **Storage:**
   - Total used (Literata 28).
   - A stacked bar plus legend (Audio, Voice, Art; legend uses shape and color).
   - Persistent storage status ("Storage is protected" with a shield glyph, or a warning plus "Allow" if not granted).
-  - "Delete audio for archived articles" (shows space freed; text is kept).
+  - "Delete audio for played articles" (shows space freed; text is kept).
   - Export queue, Import queue.
   - "Clear all articles…" (`error`, confirms).
 - **About:** "Invite a friend" with a Share button (system share of the invite link), and the version.
 
-### 11. First run · artboard "First run …"
+### 13. First run · artboard "First run …"
 
 Two steps with Online voices (the default): Welcome, then Save from anywhere. The voice download step appears only for on-device voices, making three. Progress dots: the active dot is 20 wide, done/active dots are `accent`, and pending dots are `fill`.
 
@@ -387,15 +447,28 @@ Two steps with Online voices (the default): Welcome, then Save from anywhere. Th
 
 With on-device voices, saved articles stay in "Queued for audio" until the voice is ready, with a meta note: "Waiting for voice download."
 
-### 12. Reading lists
+### 14. Reading lists
 
-A snapshot of some articles, sent as one link (SPEC §4). Nothing is uploaded and nothing stays in sync: the link holds the list.
+A snapshot of some articles, sent as one link (SPEC §4). Nothing is uploaded and nothing stays in sync: the link holds the list. There are two ways to make one: **hand-picked** (Share as list, from multi-select) and **from Saved** (This week or All time). Both make the same link and open the same way.
 
 - **Share as list** (multi-select header, share glyph): a sheet with a line on what it does, an optional **List name** field (placeholder "Reading list"), the articles in queue order (title in Literata, site under it), and **Share N articles** (primary). It opens the system share sheet with just the link (no extra text, so Copy gives a clean URL; the name travels inside the link), or copies the link where there isn't one.
   - Only links can go in. Pasted text is left out, with a `status-note` in the sheet ("1 pasted article wasn't included: only links can be shared.") and the same note in the snackbar afterwards.
   - Past about 2,000 characters the note also warns that some apps may cut the link off. The link still works.
   - Sharing exits selection and shows "Link copied" or "List shared" in the snackbar.
+- **Share from Saved** (the Saved header's Share button): a bottom sheet that builds the list from what you've loved, with the card attached. Top to bottom:
+  - **Range:** a two-segment control, **This week** (the calendar week so far: loved since Monday 00:00, local time, through Sunday 23:59, so the count resets on Monday) and **All time**, each with its count. A range with 0 items is disabled; the sheet opens on This week, or All time if that's empty (as it is on a Monday morning). A line under it says what the range means.
+  - **Preview** of the card (1200 × 630: Reader's teal with the headline on the left and a dark player on the right). It's drawn live: it changes with the range, the name, and with anything the card shows about an article (title, site, color, art, length) as those arrive. It's an image, not a link preview, and the play mark is part of the picture.
+    - The player's top part is the first article: its tile (100), dimmed, with a light play triangle on it so the art still shows, its title in Literata 34 and its site under it. Below is a scrubber at 0:00, with the article's length at the right end.
+    - Under that, on a slightly darker step, are up to three more articles as roomy rows: a 66 tile, the title in Literata 26 (two lines at most, then an ellipsis) and "site · N min" in `muted`. Then one "+ N more" in `accent`, in line with the titles.
+    - There is no big play button, no skip buttons and no total time.
+    - A list of one is just the first article, drawn larger. A list of two has one row and no "+ N more". Titles that wrap take more room, so the card shows fewer rows rather than clipping any.
+  - **Your name** (optional, 40 characters, remembered on the device) and **A note** (optional, one line, 140). The list is named "Zach's reading this week" / "Zach's all-time favorites", or "Worth reading this week" / "All-time favorites" with no name. The name is the headline on the card and the title of the list when it's opened.
+  - If the range holds more than fits in one link, a `status-note` says so plainly: "Only the 18 most recently loved fit in one link. The other 22 aren't included." The card shows the ones that are included.
+  - **Share** (primary, full width): opens the system share sheet with the card image and the link, and nothing else. Where the device can't share files, or sharing the image fails, it shares the plain link, or copies it. If the share sheet is dismissed the sheet stays open. Done, it closes with "List shared" or "Link copied" in the snackbar.
+  - **Copy link** and **Save image**: two quiet text buttons under Share, for desktop and for apps that drop attachments. Each shows "Link copied" or "Image saved" in place of its label for a moment.
+  - A one-line note: it sends the card with one link, nothing is uploaded, and it's a snapshot, so hearts you add or remove later don't change it.
 - **Opening a list link:** the Queue opens with a sheet titled with the list name (or "Reading list"), then "A reading list someone shared · N articles · M already in your queue."
+  - If the sender added a **note**, it sits under that line as quiet text (`muted`, 14.5, with a `line` rule at its left), above the articles. Links made without one look as they always did.
   - Each article is a checkbox row: title, then site. All start checked. Articles already in the queue (by URL, Archive included) show unchecked and disabled, with "Already in your queue."
   - **Add all to Up next** (primary) becomes "Add N to Up next" when some are unchecked. Each one is added like a pasted link, at the end of Up next, and the snackbar says "N articles added to Up next."
   - A damaged link shows a snackbar instead: "That reading list link is damaged. Ask for it again."
@@ -404,14 +477,24 @@ A snapshot of some articles, sent as one link (SPEC §4). Nothing is uploaded an
 
 | Interaction | Behavior |
 | --- | --- |
+| Tap a tab | Switch view. Back from Subscriptions or Saved returns to Up next |
+| Tap the heart (Now Playing, Lyrics), or Add to / Remove from favorites (row ⋮ menu) | Love or unlove, no snackbar |
+| Tap Share (Saved header) | Open the share sheet |
+| Tap Add (Subscriptions header) | Open the Add a subscription sheet |
+| Tap Subscribe (Add a subscription) | Looks up the feed; on success closes the sheet and shows a "Subscribed to …" snackbar |
+| Tap a blog's row or chevron | Open that blog's posts. Back returns to the list of blogs |
+| ⋮ on a blog › Refresh / Delete | Check that blog now / remove it and its posts, undo snackbar |
+| ⋮ in the Subscriptions header | Refresh every blog, or sort by Recent or Alphabetical |
+| Tap Add on a post | Add it to Up next ("Saved to your queue" snackbar) |
 | Tap row | Play (or resume) immediately |
 | Tap Partial/Failed status | Open the explainer sheet |
 | Swipe row left | Delete, undo snackbar |
-| Swipe row right | Mark played → Archive, undo snackbar |
+| Swipe row right | Mark played, undo snackbar. On a played row: Add to queue, undo snackbar |
 | Hold row, then drag (Up next) | Reorder |
-| Hold row, then let go | Multi-select |
+| Hold row, then let go (or hold on Saved) | Multi-select |
 | Drag handle (multi-select) | Reorder |
 | Move up / Move down (⋯ menu, wide) | Reorder by one |
+| Go to subscription (⋮ menu; articles added from a blog) | Switch to Subscriptions and open that blog's posts. Back goes to the list of blogs, then to Up next, as from any tab |
 | Tap / swipe up mini player | Expand to Now Playing, shared-element art |
 | Swipe down on Now Playing | Collapse |
 | Long-press back / forward | Previous / next article |
@@ -420,7 +503,8 @@ A snapshot of some articles, sent as one link (SPEC §4). Nothing is uploaded an
 | Scroll (lyrics) | Pause follow, show Back to current |
 | Pull to refresh | None |
 
-- **Motion:** most transitions under 250 ms, standard easing; sheets slide up at 250 ms.
+- **Browser tab title:** while an article is playing, its title and the app's name ("Elevated line to Ballard · Reader"); "Reader" when paused or stopped.
+- **Motion:** most transitions under 250 ms, standard easing; sheets slide up at 250 ms. Going a level in (a blog's posts, Settings, a Settings page) the new screen fades in while sliding 32 from the right over 280 ms; coming back out, the screen you return to does the same from the left. The dock stays still. Switching tabs pans the new list in the same way, 44 over 190 ms, from the side its tab is on, and the pressed tab's icon dips, twists and bounces back over 420 ms.
 - **Snackbars:** stay 6 s; only one at a time, and a newer one replaces the older.
 - **Reduced motion:** removes the shared-element transition (crossfade instead), lyrics easing, and the tint crossfade.
 
@@ -447,7 +531,7 @@ Target WCAG 2.2 AA.
 - **Exception (lyrics):** already-read text uses `past` at about 2.6:1.
   - It's intentional: the text has been heard, it isn't needed to operate the UI, and Lyrics view is off by default for screen-reader users.
   - If this needs to be strict, set `past` = `muted` and let the underline alone carry emphasis.
-- **State:** every state shows a glyph and text, never color alone.
+- **State:** every state shows a glyph and text, never color alone. The current tab has a pill and a heavier label. The new-post dot is a shape, and the Subscriptions tab is named "Subscriptions, new posts".
 - **TalkBack:**
   - Rows read "Title, site, duration, state."
   - The scrubber and speed controls announce values.
@@ -461,7 +545,8 @@ Target WCAG 2.2 AA.
 **Out of scope for v1:**
 - Accounts and sync, saving from a laptop
 - Highlights and notes, tags and search
-- A feed, a reading mode without audio
+- A reading mode without audio
+- Notifications, background checks, or auto-adding posts from a feed
 - **Sleep timer**, per-article voices
 
 **Still open:**

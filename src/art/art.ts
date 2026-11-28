@@ -79,7 +79,7 @@ function dominantColor(ctx: OffscreenCanvasRenderingContext2D, w: number, h: num
   return rgbToHex([best.r / best.n / 255, best.g / best.n / 255, best.b / best.n / 255]);
 }
 
-async function storeFrom(url: string, key: string, square: boolean, minSide: number): Promise<string | undefined> {
+export async function storeFrom(url: string, key: string, square: boolean, minSide: number): Promise<string | undefined> {
   const existing = await db.art.get(key);
   if (existing) return existing.color ?? '';
   const raw = await fetchAsset(url);

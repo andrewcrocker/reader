@@ -1,4 +1,4 @@
-import type { Chunk, Settings } from '../db';
+import type { Article, Chunk, Settings } from '../db';
 import { SAMPLE_RATE } from '../audio/pcm';
 import { noteInviteRejected } from '../app/invite';
 
@@ -34,12 +34,19 @@ async function call(input: string, init: RequestInit): Promise<Response> {
   return res;
 }
 
-/** Starts a server render; returns the job id. */
-export async function submitJob(s: Settings, voice: string, chunks: Chunk[]): Promise<string> {
+/**
+ * May the server keep this article's audio so others can reuse it (spec/VOICE_CACHE.md)? Only text
+ * fetched from a public URL. Pasted text and uploaded files can be private, so they never are, and
+ * an article whose text was pasted over a URL's (`source` becomes 'text') isn't either.
+ */
+export const isCacheable = (a: Pick<Article, 'source' | 'pastedText'>): boolean => a.source === 'url' && !a.pastedText;
+
+/** Starts a server render; returns the job id. `cacheable` lets the server's voice cache serve and store these chunks (it can ignore it). */
+export async function submitJob(s: Settings, voice: string, chunks: Chunk[], cacheable = false): Promise<string> {
   const res = await call(base(s), {
     method: 'POST',
     headers: { ...auth(s), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ voice, chunks: chunks.map((c) => ({ i: c.i, text: c.text })) }),
+    body: JSON.stringify({ voice, chunks: chunks.map((c) => ({ i: c.i, text: c.text })), ...(cacheable ? { cacheable: true } : {}) }),
   });
   const body = (await res.json().catch(() => ({}))) as { job?: string; error?: string; retryAt?: number };
   if (res.status === 429) throw new ServerBusyError(body.retryAt ?? Date.now() + 3_600_000);

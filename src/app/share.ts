@@ -39,6 +39,8 @@ export interface ListItem {
 
 export interface ReadingList {
   name?: string;
+  /** One line from whoever shared it, shown above the articles. Optional, so a link without one opens as it always did. */
+  note?: string;
   items: ListItem[];
 }
 
@@ -46,6 +48,8 @@ export interface ReadingList {
 export const LIST_LINK_LIMIT = 2000;
 const MAX_ITEMS = 500;
 const MAX_TEXT = 300;
+/** The most a note can say. The sender's field stops here; a longer one in a link is cut to this. */
+export const MAX_NOTE = 140;
 
 async function pipe(bytes: Uint8Array, stream: CompressionStream | DecompressionStream): Promise<Uint8Array> {
   const out = new Blob([bytes as BlobPart]).stream().pipeThrough(stream);
@@ -65,10 +69,14 @@ function fromBase64Url(s: string): Uint8Array {
 
 const isHttp = (u: unknown): u is string => typeof u === 'string' && /^https?:\/\/[^\s]+$/i.test(u) && u.length <= 4000;
 const text = (t: unknown) => (typeof t === 'string' ? t.trim().slice(0, MAX_TEXT) : '');
+/** A note is one line: runs of whitespace (and line breaks) become a single space. Anything that isn't text is no note. */
+const oneLine = (t: unknown) => (typeof t === 'string' ? t.replace(/\s+/g, ' ').trim().slice(0, MAX_NOTE).trim() : '');
 
 export async function encodeList(list: ReadingList): Promise<string> {
+  const note = oneLine(list.note);
   const json = JSON.stringify({
     ...(list.name?.trim() ? { name: list.name.trim() } : {}),
+    ...(note ? { note } : {}),
     items: list.items.map((x) => ({ url: x.url, title: x.title, ...(x.site ? { site: x.site } : {}) })),
   });
   return toBase64Url(await pipe(new TextEncoder().encode(json), new CompressionStream('deflate-raw')));
@@ -78,14 +86,15 @@ export async function encodeList(list: ReadingList): Promise<string> {
 export async function decodeList(encoded: string): Promise<ReadingList | null> {
   try {
     const json = new TextDecoder().decode(await pipe(fromBase64Url(encoded), new DecompressionStream('deflate-raw')));
-    const data = JSON.parse(json) as { name?: unknown; items?: unknown };
+    const data = JSON.parse(json) as { name?: unknown; note?: unknown; items?: unknown };
     if (!data || !Array.isArray(data.items)) return null;
     const items = data.items
       .filter((x): x is { url: string; title?: unknown; site?: unknown } => !!x && isHttp((x as { url?: unknown }).url))
       .slice(0, MAX_ITEMS)
       .map((x) => ({ url: x.url, title: text(x.title) || x.url, ...(text(x.site) ? { site: text(x.site) } : {}) }));
     const name = text(data.name);
-    return { ...(name ? { name } : {}), items };
+    const note = oneLine(data.note);
+    return { ...(name ? { name } : {}), ...(note ? { note } : {}), items };
   } catch {
     return null;
   }
@@ -95,4 +104,35 @@ export async function decodeList(encoded: string): Promise<ReadingList | null> {
 export async function listLink(origin: string, list: ReadingList): Promise<{ url: string; tooLong: boolean }> {
   const url = `${origin}/#list=${await encodeList(list)}`;
   return { url, tooLong: url.length > LIST_LINK_LIMIT };
+}
+
+/**
+ * The longest start of `list` whose link stays within `limit` (LIST_LINK_LIMIT), for lists built from a
+ * range rather than hand-picked: the items are already in the order to keep, so the ones that don't fit
+ * are cut from the end. `dropped` is how many were cut. One article whose own link is over the limit is
+ * still kept (with `tooLong` set), because a list needs something in it.
+ */
+export async function fitList(origin: string, list: ReadingList, limit = LIST_LINK_LIMIT): Promise<{ list: ReadingList; url: string; tooLong: boolean; dropped: number }> {
+  const link = async (n: number) => {
+    const { url } = await listLink(origin, { ...list, items: list.items.slice(0, n) });
+    return { url, tooLong: url.length > limit };
+  };
+  const all = await link(list.items.length);
+  if (!all.tooLong || list.items.length <= 1) return { list, ...all, dropped: 0 };
+  // `lo` always fits (0 stands for "none"); `hi` never does. Compression isn't perfectly steady, so only a length we've measured is kept.
+  let lo = 0;
+  let hi = list.items.length;
+  let fits: { url: string; tooLong: boolean } | null = null;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    const l = await link(mid);
+    if (l.tooLong) {
+      hi = mid;
+    } else {
+      lo = mid;
+      fits = l;
+    }
+  }
+  const kept = Math.max(lo, 1);
+  return { list: { ...list, items: list.items.slice(0, kept) }, ...(fits ?? (await link(1))), dropped: list.items.length - kept };
 }

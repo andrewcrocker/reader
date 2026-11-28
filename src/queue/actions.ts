@@ -21,7 +21,7 @@ export async function purgeDeleted(ids?: string[]): Promise<void> {
   for (const a of rows) if (a.deletedAt) await purgeArticle(a.id);
 }
 
-/** Mark played: moves the rows to Archive. Undo restores what each row had before. */
+/** Mark played: moves the rows to Played (stored as `archivedAt`). Undo restores what each row had before. */
 export async function markPlayed(ids: string[]): Promise<Undo> {
   const before = await db.articles.where('id').anyOf(ids).toArray();
   const now = Date.now();
@@ -37,12 +37,32 @@ export async function markPlayed(ids: string[]): Promise<Undo> {
   };
 }
 
+/** Love or unlove. Loved means "worth revisiting or sharing"; it's independent of Archive, which only means done. */
+export async function setLoved(id: string, loved: boolean): Promise<void> {
+  await db.articles.update(id, { lovedAt: loved ? Date.now() : undefined });
+}
+
 /** Move to the top of Up next, keeping the rows' relative order. Archived rows come back out. */
 export async function moveToTop(ids: string[]): Promise<Undo> {
   const rows = (await db.articles.where('id').anyOf(ids).toArray()).sort((a, b) => a.queueOrder - b.queueOrder);
   const top = await firstQueueOrder();
   await db.transaction('rw', db.articles, async () => {
     for (const [i, a] of rows.entries()) await db.articles.update(a.id, { queueOrder: top - rows.length + 1 + i, archivedAt: undefined });
+  });
+  void kick();
+  return async () => {
+    await db.transaction('rw', db.articles, async () => {
+      for (const a of rows) await db.articles.update(a.id, { queueOrder: a.queueOrder, archivedAt: a.archivedAt });
+    });
+  };
+}
+
+/** Add to queue, from Played: back to the end of Up next, in the order given. Audio that was cleared is made again. */
+export async function requeue(ids: string[]): Promise<Undo> {
+  const rows = (await db.articles.where('id').anyOf(ids).toArray()).filter((a) => a.archivedAt);
+  const end = await nextQueueOrder();
+  await db.transaction('rw', db.articles, async () => {
+    for (const [i, a] of rows.entries()) await db.articles.update(a.id, { queueOrder: end + i, archivedAt: undefined });
   });
   void kick();
   return async () => {
@@ -95,21 +115,41 @@ export async function moveBy(ids: string[], id: string, delta: number): Promise<
   return true;
 }
 
-export async function retryMany(ids: string[]): Promise<void> {
-  for (const id of ids) await retryArticle(id);
-}
-
-export async function rerenderMany(ids: string[]): Promise<void> {
-  for (const id of ids) await rerenderArticle(id);
-}
-
-/** Can this row be re-rendered (it has text to speak)? */
+/** Can this row's audio be made again (it has text to speak)? */
 export const isRenderable = (a: Article) => !!a.chunks?.length;
+
+/**
+ * Refresh (multi-select): one action for "this didn't work" and "make this again". A failed article is
+ * tried again from where it stopped. Any other gets its audio made again in the current voice, keeping
+ * its text and position. Returns how many of each, for the snackbar.
+ */
+export async function refreshMany(ids: string[]): Promise<{ retried: number; rerendered: number }> {
+  const rows = await db.articles.where('id').anyOf(ids).toArray();
+  let retried = 0;
+  let rerendered = 0;
+  for (const a of rows) {
+    if (a.status === 'failed') {
+      await retryArticle(a.id);
+      retried++;
+    } else if (isRenderable(a)) {
+      await rerenderArticle(a.id);
+      rerendered++;
+    }
+  }
+  return { retried, rerendered };
+}
 
 /** "Clear all articles…" in Settings (confirmed there). */
 export async function clearAll(): Promise<void> {
   const ids = await db.articles.toCollection().primaryKeys();
   for (const id of ids) await purgeArticle(id);
+}
+
+/** "Delete all saved" on the Saved tab (confirmed there): every favorite and every played article, with its audio. Returns how many went. */
+export async function clearSaved(): Promise<number> {
+  const ids = await db.articles.filter((a) => !a.deletedAt && !!(a.lovedAt || a.archivedAt)).primaryKeys();
+  for (const id of ids) await purgeArticle(id);
+  return ids.length;
 }
 
 /** Space "Delete audio for archived articles" would free. */
@@ -144,6 +184,7 @@ export interface ExportItem {
   positionSec: number;
   playedAt?: number;
   archivedAt?: number;
+  lovedAt?: number;
 }
 
 export interface ExportFile {
@@ -167,6 +208,7 @@ export function toExportItem(a: Article): ExportItem | null {
     positionSec: a.positionSec,
     playedAt: a.playedAt,
     archivedAt: a.archivedAt,
+    lovedAt: a.lovedAt,
   };
 }
 
@@ -203,7 +245,7 @@ export async function importQueue(json: string): Promise<number> {
   for (const x of items) {
     if (x.source === 'url' && existing.has(x.url!)) continue;
     const id = x.source === 'url' ? await addUrl(x.url!, x.title) : await addText(x.text!, x.title);
-    await db.articles.update(id, { queueOrder: order++, savedAt: x.savedAt, positionSec: x.positionSec ?? 0, playedAt: x.playedAt, archivedAt: x.archivedAt });
+    await db.articles.update(id, { queueOrder: order++, savedAt: x.savedAt, positionSec: x.positionSec ?? 0, playedAt: x.playedAt, archivedAt: x.archivedAt, lovedAt: typeof x.lovedAt === 'number' ? x.lovedAt : undefined });
     added++;
   }
   void kick();

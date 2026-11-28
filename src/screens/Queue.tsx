@@ -2,18 +2,21 @@ import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import type { Article } from '../db';
 import { useAppData } from '../app/data';
-import { openNowPlaying, openSettings, openSheet, showSnack, useUi, useWide } from '../app/ui';
+import { plural } from '../format';
+import { goToFeed, openNowPlaying, openSettings, openSheet, showSnack, useUi, useWide } from '../app/ui';
 import { isPlayable, usePlayer } from '../player/PlayerProvider';
 import { displayState, isBusy, queueSummary, rowMeta, voiceReady, type Ctx } from '../queue/display';
-import { isRenderable, markPlayed, moveBy, moveToTop, placeAt, purgeDeleted, rerenderMany, retryMany, reorder, softDelete } from '../queue/actions';
+import { clearSaved, isRenderable, markPlayed, moveBy, moveToTop, placeAt, purgeDeleted, refreshMany, reorder, requeue, setLoved, softDelete } from '../queue/actions';
 import { retryArticle } from '../pipeline/runner';
+import { updateSettings } from '../db';
 import { Icon } from '../ui/Icon';
+import { MenuButton } from '../ui/Menu';
 import { Snackbar } from '../ui/Snackbar';
+import { isShareable } from '../share/lists';
 import { MiniPlayer } from './MiniPlayer';
 import { QueueRow } from './QueueRow';
+import { TabBar } from './TabBar';
 import { useDragReorder } from './useDragReorder';
-
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 export function deleteWithUndo(ids: string[]) {
   void softDelete(ids).then((undo) =>
@@ -27,17 +30,36 @@ export function deleteWithUndo(ids: string[]) {
 
 export function markPlayedWithUndo(ids: string[]) {
   void markPlayed(ids).then((undo) =>
-    showSnack({ text: ids.length === 1 ? 'Moved to Archive' : `${plural(ids.length, 'article')} moved to Archive`, actions: [{ label: 'Undo', run: undo }] }),
+    showSnack({ text: ids.length === 1 ? 'Marked as played' : `${plural(ids.length, 'article')} marked as played`, actions: [{ label: 'Undo', run: undo }] }),
   );
 }
 
+/** Add to queue, from Played: back to the end of Up next. */
+export function requeueWithUndo(ids: string[]) {
+  void requeue(ids).then((undo) => showSnack({ text: ids.length === 1 ? 'Added to Up next' : `${plural(ids.length, 'article')} added to Up next`, actions: [{ label: 'Undo', run: undo }] }));
+}
+
 export function Queue() {
-  const { upNext, archive, settings, online } = useAppData();
+  return <QueueView view="queue" />;
+}
+
+/** The Saved tab: what you loved, pinned at the top, and below it what you've finished. Same rows and actions as Up next, minus reordering. */
+export function Saved() {
+  return <QueueView view="saved" />;
+}
+
+function QueueView({ view }: { view: 'queue' | 'saved' }) {
+  const { upNext, archive, loved, settings, online, feedOf } = useAppData();
+  const saved = view === 'saved';
+  // Saved shows one list at a time, picked from its kebab: what you loved (the default), or what you've finished.
+  const savedShow = settings.savedShow ?? 'favorites';
+  const savedList = savedShow === 'favorites' ? loved : archive;
   const player = usePlayer();
   const { newId } = useUi();
   const wide = useWide();
   const [selected, setSelected] = useState<Set<string> | null>(null);
   const [preview, setPreview] = useState<string[] | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
   const rowEls = useRef(new Map<string, HTMLElement>());
   const listRef = useRef<HTMLUListElement>(null);
 
@@ -45,6 +67,9 @@ export function Queue() {
   const selecting = selected !== null;
   const byId = new Map([...upNext, ...archive].map((a) => [a.id, a]));
   const shownUpNext = preview ? preview.map((id) => byId.get(id)!).filter(Boolean) : upNext;
+  // What this tab lists, top to bottom: the rows Select all and Share as list work on.
+  const inView = saved ? savedList : upNext;
+  const canShare = loved.some(isShareable);
 
   // Share arrival: scroll the new row into view (DESIGN §6).
   useEffect(() => {
@@ -68,15 +93,25 @@ export function Queue() {
 
   const tap = (a: Article) => {
     if (selecting) return toggle(a.id);
+    // Settings › Playback › Default view: an article you open starts in the view you chose, whatever the last one was left in.
+    // Only when the tap opens a different article: a failed row, a row that isn't ready, or the one already playing leaves the view alone.
+    const useDefaultView = () => {
+      const lyricsOn = settings.defaultView === 'read-along';
+      if (a.id !== player.current?.id && settings.lyricsOn !== lyricsOn) void updateSettings({ lyricsOn });
+    };
     const state = displayState(a, ctx);
     if (state === 'failed') return openSheet({ kind: 'explain', id: a.id });
-    if (isPlayable(a)) return player.play(a.id);
+    if (isPlayable(a)) {
+      useDefaultView();
+      return player.play(a.id);
+    }
     if (a.archivedAt && isRenderable(a)) {
       void moveToTop([a.id]);
       return showSnack({ text: 'Back in Up next. Preparing the audio again.' });
     }
     // The text is in: open it now, so read-along works right away; audio starts once it can.
     if (state === 'rendering' || (state === 'queued' && a.sentences.length)) {
+      useDefaultView();
       player.play(a.id);
       return openNowPlaying();
     }
@@ -100,17 +135,22 @@ export function Queue() {
   });
   const move = (id: string, delta: number) => void moveBy(upIds, id, delta);
 
-  const row = (a: Article, inArchive: boolean) => {
+  // `inArchive`: the row is played (a right swipe adds it back to the queue instead of marking it played). `dim`: draw it as played. Loved rows aren't dimmed, so the top of Saved stays bright.
+  // Only Up next rows can be reordered; in Saved a hold goes straight to multi-select.
+  const row = (a: Article, inArchive: boolean, dim = inArchive) => {
+    const reorderable = !saved && !inArchive;
     const state = displayState(a, ctx);
     const isNew = a.id === newId;
     const meta = rowMeta(a, state, { ...ctx, isNew });
+    const feed = feedOf.get(a.id);
     return (
       <QueueRow
         key={a.id}
         article={a}
+        feed={feed}
         meta={meta}
         playing={a.id === player.current?.id}
-        played={inArchive}
+        played={dim}
         isNew={isNew}
         online={online}
         selecting={selecting}
@@ -118,28 +158,30 @@ export function Queue() {
         lifted={drag.liftedId === a.id}
         onTap={() => tap(a)}
         onLongPress={() => setSelected((s) => new Set(s).add(a.id))}
-        onSwipe={(dir) => (dir === 'left' ? deleteWithUndo([a.id]) : !inArchive && markPlayedWithUndo([a.id]))}
+        onSwipe={(dir) => (dir === 'left' ? deleteWithUndo([a.id]) : inArchive ? requeueWithUndo([a.id]) : markPlayedWithUndo([a.id]))}
+        rightSwipe={inArchive ? 'queue' : 'played'}
         onStatus={() => openSheet({ kind: 'explain', id: a.id })}
         onRetry={state === 'failed' ? () => void retryArticle(a.id) : undefined}
-        onGrab={inArchive ? undefined : (p, phase) => drag.grab(a.id, p, phase)}
-        onMove={inArchive ? undefined : (delta) => move(a.id, delta)}
-        menu={
-          wide
-            ? [
-                ...(inArchive || a.id === upIds[0] ? [] : [{ label: 'Move up', icon: 'arrow-up' as const, run: () => move(a.id, -1) }]),
-                ...(inArchive || a.id === upIds[upIds.length - 1] ? [] : [{ label: 'Move down', icon: 'arrow-down' as const, run: () => move(a.id, 1) }]),
-                ...(inArchive ? [] : [{ label: 'Mark played', icon: 'mark-played' as const, run: () => markPlayedWithUndo([a.id]) }]),
-                { label: 'Delete', icon: 'trash' as const, danger: true, run: () => deleteWithUndo([a.id]) },
-              ]
-            : undefined
-        }
+        onGrab={reorderable ? (p, phase) => drag.grab(a.id, p, phase) : undefined}
+        onMove={reorderable ? (delta) => move(a.id, delta) : undefined}
+        menu={[
+          // The heart lives here, so a row has one button at the end whatever its width.
+          { label: a.lovedAt ? 'Remove from favorites' : 'Add to favorites', icon: a.lovedAt ? ('heart-filled' as const) : ('heart' as const), run: () => void setLoved(a.id, !a.lovedAt) },
+          // Reordering by menu is for pointers; on a phone you hold a row and drag it.
+          ...(!wide || !reorderable || a.id === upIds[0] ? [] : [{ label: 'Move up', icon: 'arrow-up' as const, run: () => move(a.id, -1) }]),
+          ...(!wide || !reorderable || a.id === upIds[upIds.length - 1] ? [] : [{ label: 'Move down', icon: 'arrow-down' as const, run: () => move(a.id, 1) }]),
+          inArchive ? { label: 'Add to queue', icon: 'queue' as const, run: () => requeueWithUndo([a.id]) } : { label: 'Mark played', icon: 'mark-played' as const, run: () => markPlayedWithUndo([a.id]) },
+          ...(feed ? [{ label: 'Go to subscription', icon: 'rss' as const, run: () => goToFeed(feed.id) }] : []),
+          { label: 'Delete', icon: 'trash' as const, danger: true, run: () => deleteWithUndo([a.id]) },
+        ]}
 
         rowRef={(el) => (el ? rowEls.current.set(a.id, el) : rowEls.current.delete(a.id))}
       />
     );
   };
 
-  const empty = !upNext.length && !archive.length;
+  // Archive isn't listed in Up next, so an Up next with only finished articles is empty; Saved is empty when nothing is loved or archived.
+  const empty = saved ? !loved.length && !archive.length : !upNext.length;
   const chosen = [...(selected ?? [])].map((id) => byId.get(id)!).filter(Boolean);
   const done = () => setSelected(null);
   const ids = chosen.map((a) => a.id);
@@ -152,10 +194,10 @@ export function Queue() {
             <Icon name="close" />
           </button>
           <h1 aria-live="polite">{selected.size} selected</h1>
-          <button className="icon-btn" aria-label="Share as list" title="Share as list" onClick={() => openSheet({ kind: 'share-list', ids: [...upNext, ...archive].filter((a) => selected.has(a.id)).map((a) => a.id), onShared: done })}>
+          <button className="icon-btn" aria-label="Share as list" title="Share as list" onClick={() => openSheet({ kind: 'share-list', ids: inView.filter((a) => selected.has(a.id)).map((a) => a.id), onShared: done })}>
             <Icon name="share" />
           </button>
-          <button className="text-btn" onClick={() => setSelected(new Set([...upNext, ...archive].map((a) => a.id)))}>
+          <button className="text-btn" onClick={() => setSelected(new Set(inView.map((a) => a.id)))}>
             Select all
           </button>
         </div>
@@ -164,33 +206,58 @@ export function Queue() {
           {/* Buttons sit centered against the title and its summary line together. */}
           <div className="q-header-row">
             <div style={{ minWidth: 0 }}>
-              <h1 className="screen-title">Up next</h1>
-              {!empty && <p className="q-sub">{queueSummary(upNext, ctx)}</p>}
+              <h1 className="screen-title">{saved ? 'Saved' : 'Up next'}</h1>
+              {!empty && <p className="q-sub">{saved ? (savedShow === 'favorites' ? plural(loved.length, 'favorite') : `${archive.length} played`) : queueSummary(upNext, ctx)}</p>}
             </div>
-            <div className="q-actions">
-              <button className="icon-btn" aria-label="Settings" onClick={openSettings}>
-                <Icon name="settings" />
-              </button>
-              <button className="icon-btn accent" aria-label="Add article" onClick={() => openSheet({ kind: 'add', tab: 'link' })}>
-                <Icon name="add" stroke={2} />
-              </button>
-            </div>
+            {saved ? (
+              <div className="q-actions">
+                <button className="icon-btn" disabled={!canShare} onClick={() => openSheet({ kind: 'share-saved' })} aria-label={canShare ? 'Share loved articles' : 'Share loved articles, love an article first'} title="Share loved articles">
+                  <Icon name="share" />
+                </button>
+                <MenuButton
+                  header
+                  label="Which articles to show"
+                  items={[
+                    { heading: 'Show' },
+                    { label: 'Favorites', checked: savedShow === 'favorites', run: () => void updateSettings({ savedShow: 'favorites' }) },
+                    { label: 'Played', checked: savedShow === 'archived', run: () => void updateSettings({ savedShow: 'archived' }) },
+                    ...(loved.length || archive.length ? [{ label: 'Delete all saved…', icon: 'trash' as const, danger: true, separated: true, run: () => setConfirmClear(true) }] : []),
+                  ]}
+                />
+              </div>
+            ) : (
+              <div className="q-actions">
+                <button className="icon-btn" aria-label="Settings" onClick={openSettings}>
+                  <Icon name="settings" />
+                </button>
+                <button className="icon-btn accent" aria-label="Add article" onClick={() => openSheet({ kind: 'add', tab: 'link' })}>
+                  <Icon name="add" stroke={2} />
+                </button>
+              </div>
+            )}
           </div>
         </header>
-
       )}
 
       {!online ? (
         <div className="offline-banner" role="status">
           <Icon name="cloud-off" size={18} /> Offline · ready articles still play
         </div>
-      ) : upNext.some((a) => isBusy(a)) ? (
+      ) : !saved && upNext.some((a) => isBusy(a)) ? (
         <div className="offline-banner" role="status">
           <Icon name="clock" size={18} /> Voices are busy right now. Your articles will finish later.
         </div>
       ) : null}
 
-      {empty ? (
+      {empty && saved ? (
+        <div className="empty">
+          <div className="empty-icon">
+            <Icon name="heart" size={36} />
+          </div>
+          <h2>Nothing saved yet</h2>
+          <p>Love an article to keep it here, and share your favorites. Articles you’ve listened to land here too.</p>
+        </div>
+      ) : empty ? (
         <div className="empty">
           <div className="empty-icon">
             <Icon name="share" size={36} />
@@ -201,19 +268,48 @@ export function Queue() {
             or paste a link
           </button>
         </div>
+      ) : saved && !savedList.length ? (
+        <p className="q-hint q-hint-top">{savedShow === 'favorites' ? 'Add an article to your favorites to keep it here. You can share your favorites.' : 'Articles you’ve listened to land here.'}</p>
+      ) : saved ? (
+        // Favorites: newest first, played or not, never dimmed. Played: most recently played first.
+        <ul className="q-list" aria-label={savedShow === 'favorites' ? 'Favorites' : 'Played'}>
+          {savedList.map((a) => (savedShow === 'favorites' ? row(a, !!a.archivedAt, false) : row(a, true)))}
+        </ul>
       ) : (
         <ul className="q-list" aria-label="Queue" ref={listRef}>
           {shownUpNext.map((a) => row(a, false))}
-          {archive.length > 0 && (
-            <li className="q-section" aria-hidden="true">
-              Archive
-            </li>
-          )}
-          {archive.map((a) => row(a, true))}
         </ul>
       )}
 
-      <div className="dock">
+      {confirmClear && (
+        <>
+          <div className="scrim" style={{ zIndex: 50 }} onClick={() => setConfirmClear(false)} aria-hidden="true" />
+          <div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="clear-saved-title" aria-describedby="clear-saved-desc">
+            <h2 id="clear-saved-title">Delete all saved?</h2>
+            <p id="clear-saved-desc">
+              This deletes {[loved.length ? plural(loved.length, 'favorite') : '', archive.some((a) => !a.lovedAt) ? plural(archive.filter((a) => !a.lovedAt).length, 'played article') : ''].filter(Boolean).join(' and ')}, with the audio.
+              {loved.some((a) => !a.archivedAt) ? ' Favorites still in Up next are deleted too.' : ''} It can’t be undone.
+            </p>
+            <div className="actions">
+              <button className="text-btn" autoFocus onClick={() => setConfirmClear(false)}>
+                Cancel
+              </button>
+              <button
+                className="text-btn danger"
+                onClick={() => {
+                  setConfirmClear(false);
+                  void clearSaved().then((n) => showSnack({ text: `${plural(n, 'article')} deleted` }));
+                }}
+              >
+                Delete all
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* The tab bar goes in the dock under the mini player, and gives way to the action bar while selecting. */}
+      <div className={selecting ? 'dock' : 'dock has-tabs'}>
         <Snackbar />
         {selecting ? (
           <div className="action-bar" role="toolbar" aria-label="Selected articles">
@@ -225,24 +321,30 @@ export function Queue() {
               <Icon name="move-top" />
               Move to top
             </button>
-            <button onClick={() => (markPlayedWithUndo(ids), done())}>
+            <button disabled={chosen.every((a) => a.archivedAt)} onClick={() => (markPlayedWithUndo(chosen.filter((a) => !a.archivedAt).map((a) => a.id)), done())}>
               <Icon name="mark-played" />
               Mark played
             </button>
+            {/* One action for "this didn't work" and "make this again": failed articles are tried again, the rest get new audio in the current voice. */}
             <button
-              disabled={!chosen.some(isRenderable)}
-              onClick={() => void rerenderMany(ids.filter((id) => isRenderable(byId.get(id)!))).then(() => (done(), showSnack({ text: 'Preparing the audio again' })))}
+              // Trying a failed article again needs the network. Making audio again does too, unless the voice is on this device.
+              disabled={!chosen.some((a) => (a.status === 'failed' ? online : isRenderable(a) && (online || settings.engineKind === 'device')))}
+              onClick={() =>
+                void refreshMany(ids).then(({ retried, rerendered }) => {
+                  done();
+                  showSnack({ text: rerendered ? 'Preparing the audio again' : retried ? 'Trying again' : 'Nothing to refresh' });
+                })
+              }
             >
               <Icon name="re-render" />
-              Re-render
-            </button>
-            <button disabled={!online || !chosen.some((a) => a.status === 'failed')} onClick={() => void retryMany(chosen.filter((a) => a.status === 'failed').map((a) => a.id)).then(done)}>
-              <Icon name="retry" />
-              Retry
+              Refresh
             </button>
           </div>
         ) : (
-          <MiniPlayer />
+          <>
+            <MiniPlayer />
+            <TabBar />
+          </>
         )}
       </div>
     </div>

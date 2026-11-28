@@ -4,9 +4,11 @@ import type { Article } from '../db';
 import { usePlayer } from '../player/PlayerProvider';
 import { sentenceAt } from '../player/sentences';
 import { siteLabel } from '../queue/display';
+import { setLoved } from '../queue/actions';
 import { Art } from '../ui/Art';
 import { Icon } from '../ui/Icon';
 import { Scrubber, Times } from '../ui/Scrubber';
+import { LoveButton } from '../ui/LoveButton';
 import { PlayButton, ReadAlongPill, SkipButton, SpeedPill } from './Transport';
 
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -106,7 +108,7 @@ export function Lyrics({ embedded }: { embedded?: boolean }) {
   };
 
   return (
-    <div className={`np${embedded ? ' embedded' : ''}`} role={embedded ? 'region' : 'dialog'} aria-label="Now playing, read along">
+    <div className={`np lyrics${embedded ? ' embedded' : ''}`} role={embedded ? 'region' : 'dialog'} aria-label="Now playing, read along">
       <div className="np-inner" style={{ height: '100%', minHeight: 0 }}>
         <div className="lyrics-head">
           {!embedded && (
@@ -120,6 +122,7 @@ export function Lyrics({ embedded }: { embedded?: boolean }) {
             <p className="t">{a.title}</p>
             {byline && <p className="b">{byline}</p>}
           </div>
+          <LoveButton loved={!!a.lovedAt} title={a.title} onToggle={() => void setLoved(a.id, !a.lovedAt)} />
           {a.url && (
             <a className="icon-btn" href={a.url} target="_blank" rel="noreferrer" aria-label="Open original article">
               <Icon name="external" />

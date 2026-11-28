@@ -48,6 +48,16 @@ describe('/fetch', () => {
     expect(await res.text()).toContain('hi');
   });
 
+  // Feed discovery (SPEC §4 "Feed inbox") reads RSS and Atom through this route too.
+  it.each(['application/rss+xml; charset=utf-8', 'application/atom+xml', 'application/xml', 'text/xml; charset=utf-8'])('streams a feed served as %s', async (type) => {
+    const xml = '<?xml version="1.0"?><rss version="2.0"><channel><title>Blog</title></channel></rss>';
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(xml, { headers: { 'Content-Type': type } })));
+    const res = await req('/fetch?url=https://example.com/feed.xml');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toBe(type);
+    expect(await res.text()).toBe(xml);
+  });
+
   it('passes PDFs through for the app to read', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('%PDF-1.7', { headers: { 'Content-Type': 'application/pdf' } })));
     const res = await req('/fetch?url=https://example.com/a.pdf');

@@ -99,8 +99,10 @@ a { color: var(--accent); }
 .tabular { font-variant-numeric: tabular-nums; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-/* The app is a single phone-width column, centered on larger screens. */
+/* One column. First run and the invite screen stay phone-width and centered; the app itself fills the window
+   until it is wide enough for two panes (720 px, below). */
 .app { position: relative; max-width: 480px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; }
+.app.fluid { max-width: none; }
 .screen { position: relative; flex: 1; display: flex; flex-direction: column; min-height: 100dvh; padding-top: env(safe-area-inset-top); }
 
 /* ---------- Buttons ---------- */
@@ -112,6 +114,7 @@ a { color: var(--accent); }
 .icon-btn.filled { background: var(--fill); }
 .text-btn { height: 48px; padding: 0 14px; border: 0; background: transparent; color: var(--accent); font-weight: 600; font-size: 14px; border-radius: 24px; }
 .text-btn:disabled { color: var(--input-border); }
+.text-btn.danger { color: var(--error); }
 .btn {
   height: 52px; border: 0; border-radius: 26px; padding: 0 20px; font-weight: 600; font-size: 15.5px;
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
@@ -125,7 +128,8 @@ a { color: var(--accent); }
 
 /* ---------- Queue header ---------- */
 .q-header { padding: 10px 8px 12px 20px; flex: none; }
-.q-header-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* Tall enough for the title and its summary line, so the header is the same height on every tab and when a list is empty. */
+.q-header-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 58px; }
 
 .screen-title { margin: 0; font-family: var(--serif); font-weight: 500; font-size: 30px; line-height: 1.2; letter-spacing: -0.01em; }
 .q-sub { margin: 2px 0 0; font-size: 13.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -141,7 +145,6 @@ a { color: var(--accent); }
 
 /* ---------- Queue list ---------- */
 .q-list { list-style: none; margin: 0; padding: 0 0 8px; border-top: 1px solid var(--line); flex: 1; }
-.q-section { padding: 18px 20px 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; }
 .caps { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 
 .row-wrap { position: relative; overflow: hidden; }
@@ -181,6 +184,47 @@ a { color: var(--accent); }
 .row-check { width: 22px; height: 22px; margin: 0 2px 0 0; flex: none; accent-color: var(--accent); }
 .drag-handle { width: 44px; height: 48px; flex: none; border: 0; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; padding: 0; cursor: grab; touch-action: none; }
 
+/* ---------- Subscriptions: the blogs you follow, then one blog's posts (DESIGN §10) ---------- */
+.feed-list { list-style: none; margin: 0; padding: 0 0 8px; border-top: 1px solid var(--line); flex: 1; }
+.feed-none { margin: 0; padding: 24px 20px; font-size: 15px; color: var(--muted); }
+/* New: a small filled accent dot. On a blog's row it comes with a count; on a post it sits in the row's left margin, so titles stay aligned. */
+.new-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--accent); }
+.new-count { flex: none; color: var(--accent); font-weight: 600; }
+/* Art with a mark on its corner. The ring is the row's own background, so the mark reads as sitting on top. */
+.art-wrap { position: relative; flex: none; display: flex; --ring: var(--bg); }
+.row.playing .art-wrap { --ring: var(--row-playing); }
+.row.selected .art-wrap, .row.is-new .art-wrap { --ring: color-mix(in srgb, var(--accent) 10%, var(--bg)); }
+/* New posts in this blog: the same accent dot as the tab's, on the picture's top corner. */
+.art-dot { position: absolute; top: -4px; right: -4px; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--ring); }
+/* Came from a subscription: the blog's picture (or the feed glyph on accent) on the art's bottom corner. */
+.art-badge { position: absolute; right: -5px; bottom: -5px; width: 22px; height: 22px; border-radius: 6px; overflow: hidden; background: var(--fill); box-shadow: 0 0 0 2px var(--ring); display: flex; align-items: center; justify-content: center; }
+.art-badge img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.art-badge.glyph-badge { background: var(--accent); color: var(--on-accent); }
+.new-count + .segs::before { content: '·'; margin-right: 6px; }
+.row-title.one-line { display: block; white-space: nowrap; text-overflow: ellipsis; }
+
+.blog-row { align-items: center; padding: 0 0 0 20px; gap: 0; min-height: 72px; }
+/* The art and the name are one button that opens the blog; the kebab and the chevron sit after it. */
+.blog-open { flex: 1; min-width: 0; align-self: stretch; display: flex; align-items: center; gap: 14px; padding: 12px 4px 12px 0; border: 0; background: none; color: inherit; text-align: left; }
+.blog-open .row-main { gap: 4px; }
+.blog-row .icon-btn { width: 40px; }
+.blog-row .blog-chevron { margin-right: 4px; }
+
+.post-row { align-items: center; padding-right: 8px; }
+.post-dot { position: absolute; left: 6px; top: 19px; }
+.post-add { color: var(--accent); }
+.post-added { color: var(--accent); cursor: default; }
+.post-fav { color: var(--accent); }
+.fav-mark { flex: none; color: var(--accent); }
+.q-hint-top { flex: 1; border-top: 1px solid var(--line); padding-top: 20px; }
+
+/* A screen one level into a tab: back arrow, then the title on one line. Same height as the tab headers. */
+.q-header.pushed { padding-left: 8px; }
+.q-header.pushed .q-header-row { justify-content: flex-start; gap: 4px; }
+.pushed-text { flex: 1; min-width: 0; }
+.pushed-text .screen-title { font-size: 24px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pushed-text .screen-title:focus { outline: none; }
+
 /* ---------- Art ---------- */
 .art {
   flex: none; display: flex; align-items: center; justify-content: center; overflow: hidden;
@@ -212,6 +256,8 @@ a { color: var(--accent); }
 /* ---------- Bottom dock: snackbar + mini player / action bar ---------- */
 .dock { position: sticky; bottom: 0; z-index: 10; padding-bottom: env(safe-area-inset-bottom); pointer-events: none; }
 .dock > * { pointer-events: auto; }
+/* With the tab bar in the dock, the bar itself carries the safe-area inset so its background reaches the screen edge. */
+.dock.has-tabs { padding-bottom: 0; }
 .snackbar {
   margin: 8px 12px; padding: 6px 8px 6px 16px; min-height: 56px; border-radius: 14px; background: var(--toast-bg); color: var(--toast-fg);
   display: flex; align-items: center; gap: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
@@ -236,7 +282,7 @@ a { color: var(--accent); }
 
 .action-bar {
   border-top: 1px solid var(--line); background: var(--select-bar); padding: 6px 6px 22px;
-  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px;
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px;
 }
 .action-bar button {
   min-height: 64px; border: 0; border-radius: 12px; background: transparent; color: var(--fg);
@@ -244,6 +290,24 @@ a { color: var(--accent); }
 }
 .action-bar button.danger { color: var(--error); }
 .action-bar button:disabled { color: var(--input-border); }
+
+/* ---------- Bottom tab bar: Subscriptions, Up next, Saved (DESIGN "Navigation") ---------- */
+.tabbar {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: var(--bg); border-top: 1px solid var(--line);
+  padding: 4px 8px calc(4px + env(safe-area-inset-bottom));
+}
+.tab {
+  min-height: 56px; border: 0; background: transparent; color: var(--muted); padding: 4px 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 12px; font-weight: 500;
+}
+.tab-ico { position: relative; width: 56px; height: 28px; border-radius: 14px; display: flex; align-items: center; justify-content: center; transition: background-color 150ms; }
+.tab-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The current tab is told apart by more than color: a filled pill behind the icon, a heavier label. */
+.tab[aria-current='page'] { color: var(--accent); font-weight: 600; }
+.tab[aria-current='page'] .tab-ico { background: var(--row-selected); }
+/* The one indicator (DESIGN principle 3): a small filled accent dot on Subscriptions. Never red, never a count. */
+.tab-dot { position: absolute; top: 1px; right: 12px; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--bg); }
+.tab[aria-current='page'] .tab-dot { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 10%, var(--bg)); }
 
 /* ---------- Now Playing ---------- */
 .np { position: fixed; inset: 0; z-index: 30; background: var(--bg); overflow-y: auto; display: flex; justify-content: center; animation: slide-up 250ms var(--ease); }
@@ -445,6 +509,30 @@ textarea.input { height: auto; padding: 12px 14px; font: 400 15px/1.5 var(--seri
 @keyframes rise { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 
+/* ---------- Going in and out: a blog's posts, Settings, a Settings page ---------- */
+/* The screen that arrives fades in while it slides a short way from the side it came from: from the right going in,
+   from the left coming back. The dock (tab bar, mini player) stays put. `data-nav` is set by ui.ts for the length of the animation. */
+@keyframes nav-in { from { opacity: 0; transform: translateX(32px); } to { opacity: 1; transform: none; } }
+@keyframes nav-out { from { opacity: 0; transform: translateX(-32px); } to { opacity: 1; transform: none; } }
+:root[data-nav] .screen { overflow-x: clip; }
+:root[data-nav='in'] .screen > :not(.dock) { animation: nav-in 280ms var(--ease) both; }
+:root[data-nav='out'] .screen > :not(.dock) { animation: nav-out 280ms var(--ease) both; }
+
+/* Switching tabs: the same idea, quicker and a little further, from the side the new tab is on. */
+@keyframes tab-next { from { opacity: 0; transform: translateX(44px); } to { opacity: 1; transform: none; } }
+@keyframes tab-prev { from { opacity: 0; transform: translateX(-44px); } to { opacity: 1; transform: none; } }
+:root[data-nav='tab-next'] .screen > :not(.dock) { animation: tab-next 190ms var(--ease) both; }
+:root[data-nav='tab-prev'] .screen > :not(.dock) { animation: tab-prev 190ms var(--ease) both; }
+/* The tab you pressed: its icon dips, twists and bounces back. Only during a switch, so it doesn't replay when the bar remounts. */
+@keyframes tab-pop {
+  0% { transform: none; }
+  30% { transform: scale(0.84) rotate(-14deg); }
+  62% { transform: scale(1.14) rotate(9deg); }
+  82% { transform: scale(0.97) rotate(-3deg); }
+  100% { transform: none; }
+}
+:root[data-nav^='tab'] .tab[aria-current='page'] .tab-ico svg { animation: tab-pop 420ms ease-out both; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
 }
@@ -476,8 +564,9 @@ textarea.input { height: auto; padding: 12px 14px; font: 400 15px/1.5 var(--seri
 .icon-btn:disabled { opacity: 0.45; }
 .chip-btn:disabled { color: var(--input-border); }
 
-/* ---------- Wide layout (≥ 900 px): queue left, Now Playing right ---------- */
-.app.wide { max-width: none; display: grid; grid-template-columns: minmax(360px, 440px) minmax(0, 1fr); align-items: start; }
+/* ---------- Wide layout (≥ 720 px): queue left, Now Playing right ---------- */
+/* At 720 the panes are 360 each (the narrowest phone the design holds at); the list grows to 440, then the player takes the rest. */
+.app.wide { max-width: none; display: grid; grid-template-columns: minmax(360px, 440px) minmax(360px, 1fr); align-items: start; }
 .pane-left { min-width: 0; border-right: 1px solid var(--line); }
 .pane-right { position: sticky; top: 0; height: 100dvh; min-width: 0; overflow: hidden; }
 .np.embedded { position: relative; inset: auto; z-index: auto; height: 100%; animation: none; }
@@ -489,6 +578,17 @@ textarea.input { height: auto; padding: 12px 14px; font: 400 15px/1.5 var(--seri
 .np-empty { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 40px; }
 .np-empty h2 { margin: 0; font-family: var(--serif); font-weight: 500; font-size: 26px; }
 .np-empty p { margin: 10px 0 0; color: var(--muted); font-size: 15.5px; }
+
+/* ---------- Now Playing and read-along in wider windows ---------- */
+/* Read-along fills whatever it's given (the window below 720, the right pane above): the rules run edge to edge,
+   and the header, the text and the controls share one column that stops growing at 720 so lines stay readable. */
+.np.lyrics .np-inner { max-width: none; --gutter: max(0px, calc((100% - 720px) / 2)); }
+.np.lyrics .lyrics-head { padding-inline: calc(8px + var(--gutter)); }
+.np.lyrics .lyrics-scroll { padding-inline: calc(28px + var(--gutter)); }
+.np.lyrics .lyrics-transport { padding-inline: calc(20px + var(--gutter)); }
+/* The player as an overlay (below 720): it fills the window too. The cover gives way to the window's height, like in the right pane. */
+.np:not(.embedded):not(.lyrics) .np-inner { max-width: none; }
+.np:not(.embedded):not(.lyrics) .np-cover { width: min(calc(100% - 64px), 46dvh); margin-inline: auto; }
 
 /* Settings menu: the version sits at the foot of the page, above the dock. */
 .s-menu { display: flex; flex-direction: column; min-height: calc(100dvh - 60px - 140px); }
@@ -516,6 +616,12 @@ textarea.input { height: auto; padding: 12px 14px; font: 400 15px/1.5 var(--seri
 }
 .menu button:hover, .menu button:focus-visible { background: var(--fill); outline: none; }
 .menu button.danger { color: var(--error); }
+.menu-heading { margin: 0; padding: 10px 14px 4px 12px; border-top: 1px solid var(--line); margin-top: 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.menu-slot { width: 20px; flex: none; }
+/* An entry set apart from the ones above it: a rule in the gap, drawn outside the button so its hover fill stays rounded. */
+.menu button.separated { margin-top: 13px; position: relative; }
+.menu button.separated::before { content: ''; position: absolute; left: -6px; right: -6px; top: -7px; height: 1px; background: var(--line); }
+.menu-heading:first-child { border-top: 0; margin-top: 0; }
 .row .icon-btn.row-action { color: var(--muted); }
 
 /* Invite needed (SPEC §10a): the empty-state layout, full height, no header above it. */
@@ -536,7 +642,7 @@ textarea.input { height: auto; padding: 12px 14px; font: 400 15px/1.5 var(--seri
   .q-list.reordering .row-wrap:not(.lifted) { transition: none; }
 }
 
-/* ---------- Reading lists: Share as list, and a list that arrived (DESIGN §12) ---------- */
+/* ---------- Reading lists: Share as list, and a list that arrived (DESIGN §14) ---------- */
 .list-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; max-height: 40dvh; overflow-y: auto; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .list-items li { padding: 10px 0; display: flex; flex-direction: column; gap: 2px; }
 .list-items .t { margin: 0; font-family: var(--serif); font-size: 15.5px; font-weight: 500; line-height: 1.3; overflow-wrap: anywhere; }
@@ -544,3 +650,27 @@ textarea.input { height: auto; padding: 12px 14px; font: 400 15px/1.5 var(--seri
 .list-items.checks label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
 .list-items.checks .t { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .list-items li.dup .t { color: var(--muted); font-weight: 400; }
+
+/* ---------- Hearts, the Saved tab and sharing from it (SPEC §4 and §10, DESIGN §1a and §14) ---------- */
+/* Loved is a filled accent heart; not loved an outline in muted. The shape changes too, so it never rides on color alone. */
+.love-btn { color: var(--muted); }
+.love-btn.on { color: var(--accent); }
+.np-meta { display: flex; align-items: flex-start; gap: 8px; }
+.np-meta-text { flex: 1; min-width: 0; }
+.np-meta .love-btn { margin: -10px -14px 0 0; }
+.lyrics-head .love-btn { width: 44px; }
+
+.q-hint { margin: 0; padding: 14px 20px 24px; font-size: 14.5px; line-height: 1.5; color: var(--muted); }
+
+.seg button .seg-n { margin-left: 8px; color: var(--muted); font-weight: 500; }
+.seg button:disabled, .seg button:disabled .seg-n { color: var(--input-border); cursor: default; }
+.share-hint { margin-top: -6px; }
+/* A tall sheet scrolls rather than squeezing its buttons and fields. */
+.sheet > * { flex-shrink: 0; }
+/* The card is always dark (it's drawn that way), so give it a dark ground while it loads. */
+.card-preview { display: block; width: 100%; height: auto; aspect-ratio: 1200 / 630; border-radius: 14px; border: 1px solid var(--line); background: #151413; flex: none; }
+.status-note.error { color: var(--error); }
+/* A line from whoever shared the list, set above its articles like the app's other quiet text. */
+.list-note { margin: 0; padding-left: 12px; border-left: 2px solid var(--line); font-size: 14.5px; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
+/* Copy link and Save image: quiet, side by side under the main button. */
+.share-quiet { display: flex; justify-content: center; gap: 8px; }

@@ -3,6 +3,7 @@ import { getSettings, updateSettings } from './db';
 import { AppDataProvider, useAppData } from './app/data';
 import { classifyShare, decodeList, readHash, type Shared } from './app/share';
 import { openNowPlaying, openSheet, setNewId, showSnack, useUi, useWide } from './app/ui';
+import { startFeedChecks } from './feeds/store';
 import { addUrl, kick, startRunner } from './pipeline/runner';
 import { acceptInvite, checkInvite } from './app/invite';
 import { InviteNeeded } from './screens/InviteNeeded';
@@ -10,10 +11,13 @@ import { moveToTop, purgeDeleted } from './queue/actions';
 import { PlayerProvider, usePlayer } from './player/PlayerProvider';
 import { FirstRun } from './screens/FirstRun';
 import { NowPlaying } from './screens/NowPlaying';
-import { Queue } from './screens/Queue';
+import { Queue, Saved } from './screens/Queue';
 import { Settings } from './screens/Settings';
 import { AddSheet, ExplainSheet, SpeedSheet } from './screens/sheets';
 import { ReadingListSheet, ShareListSheet } from './screens/listSheets';
+import { ShareSavedSheet } from './screens/ShareSheet';
+import { SubscribeSheet } from './screens/SubscribeSheet';
+import { FeedPosts, Subscriptions } from './screens/Subscriptions';
 import { Spike } from './pages/Spike';
 
 export function App() {
@@ -74,6 +78,8 @@ function boot(): Promise<string | undefined> {
     // Rows left soft-deleted when the app closed mid-undo.
     await purgeDeleted();
     startRunner();
+    // Pull-only: looks for new posts now and each time the app comes back to the front (SPEC §4).
+    startFeedChecks();
     if (shared?.kind === 'text') openSheet({ kind: 'add', tab: 'text', text: shared.text, title: shared.title, shared: true });
     if (shared?.kind === 'link') return addUrl(shared.url, shared.title);
     if (shared?.kind === 'added') return shared.id;
@@ -131,22 +137,26 @@ function Shell() {
       {sheet?.kind === 'speed' && <SpeedSheet />}
       {sheet?.kind === 'explain' && <ExplainSheet id={sheet.id} />}
       {sheet?.kind === 'share-list' && <ShareListSheet ids={sheet.ids} onShared={sheet.onShared} />}
+      {sheet?.kind === 'share-saved' && <ShareSavedSheet />}
+      {sheet?.kind === 'subscribe' && <SubscribeSheet />}
       {sheet?.kind === 'list' && <ReadingListSheet list={sheet.list} />}
     </>
   );
+  // Settings is its own screen; otherwise the tab bar picks the list. A blog's posts sit one level into Subscriptions. Up next is the home view.
+  const screen = ui.settings ? <Settings key={ui.settings} /> : ui.tab === 'subscriptions' ? ui.feed ? <FeedPosts key={ui.feed} feedId={ui.feed} /> : <Subscriptions /> : ui.tab === 'saved' ? <Saved /> : <Queue />;
   if (wide) {
-    // Wide screens: the queue (or Settings) on the left, Now Playing always open on the right.
+    // Wide screens: the queue, Subscriptions, Saved or Settings on the left, Now Playing always open on the right.
     return (
       <div className="app wide">
-        <div className="pane-left">{ui.settings ? <Settings /> : <Queue />}</div>
+        <div className="pane-left">{screen}</div>
         <div className="pane-right">{player.current ? <NowPlaying embedded /> : <NothingPlaying />}</div>
         {sheets}
       </div>
     );
   }
   return (
-    <div className="app">
-      {ui.settings ? <Settings /> : <Queue />}
+    <div className="app fluid">
+      {screen}
       {ui.nowPlaying && <NowPlaying />}
       {sheets}
     </div>

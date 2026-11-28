@@ -2,17 +2,18 @@ import { useEffect, useMemo, useState } from 'react';
 import { domainOf, type Article } from '../db';
 import { useAppData } from '../app/data';
 import { listLink, type ListItem, type ReadingList } from '../app/share';
+import { sendLink } from '../app/sendLink';
 import { back, showSnack } from '../app/ui';
 import { addUrl } from '../pipeline/runner';
 import { hasRealTitle } from '../queue/display';
 import { Icon } from '../ui/Icon';
 import { Sheet } from '../ui/Sheet';
 
-// Reading lists (SPEC §4 "Sharing a reading list", DESIGN §12): a snapshot of links sent as one link.
+// Reading lists (SPEC §4 "Sharing a reading list", DESIGN §14): a snapshot of links sent as one link.
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-const toItem = (a: Article): ListItem => ({ url: a.url, title: hasRealTitle(a) ? a.title : a.url, ...((a.siteName || a.domain) ? { site: a.siteName || a.domain } : {}) });
+export const toItem = (a: Article): ListItem => ({ url: a.url, title: hasRealTitle(a) ? a.title : a.url, ...((a.siteName || a.domain) ? { site: a.siteName || a.domain } : {}) });
 
 // ---------- Share as list (from multi-select) ----------
 
@@ -45,23 +46,11 @@ export function ShareListSheet({ ids, onShared }: { ids: string[]; onShared?: ()
       onShared?.();
       showSnack({ text: [how, skippedNote, link.tooLong ? 'It’s a long link; some apps may cut it off' : ''].filter(Boolean).join('. ') });
     };
-    if (navigator.share) {
-      try {
-        // Only the link: Android's Copy (and many apps) prepend any text, which makes pasting it messier.
-        // The list's name and articles travel inside the link and show when it's opened.
-        await navigator.share({ url: link.url });
-        return done('List shared');
-      } catch (e) {
-        // Closing the share sheet isn't an error; stay here so they can try again.
-        if ((e as Error).name === 'AbortError') return;
-      }
-    }
-    try {
-      await navigator.clipboard.writeText(link.url);
-      done('Link copied');
-    } catch {
-      showSnack({ text: 'Couldn’t share or copy the link' });
-    }
+    // Only the link (see sendLink). Closing the share sheet isn't an error; stay here so they can try again.
+    const outcome = await sendLink(link.url);
+    if (outcome === 'shared') done('List shared');
+    else if (outcome === 'copied') done('Link copied');
+    else if (outcome === 'failed') showSnack({ text: 'Couldn’t share or copy the link' });
   };
 
   return (
@@ -131,6 +120,7 @@ export function ReadingListSheet({ list }: { list: ReadingList }) {
         A reading list someone shared · {plural(list.items.length, 'article')}
         {fresh.length < list.items.length && ` · ${list.items.length - fresh.length} already in your queue`}
       </p>
+      {list.note && <p className="list-note">{list.note}</p>}
       {list.items.length ? (
         <ul className="list-items checks" aria-label="Articles">
           {list.items.map((x, i) => {

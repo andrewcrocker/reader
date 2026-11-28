@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
+import { HEART_PATH } from './heart';
 
 // Outline set, 1.8 stroke, round caps (DESIGN "Icons"). Paths taken from the design canvas.
 
@@ -9,7 +10,8 @@ type Name =
   | 'add' | 'settings' | 'pause' | 'play' | 'chevron-down' | 'chevron-right' | 'back' | 'close' | 'external'
   | 'prev-sentence' | 'next-sentence' | 'auto-advance' | 'read-along' | 'link' | 'clipboard' | 'share'
   | 'cloud-off' | 'check' | 'arrow-up' | 'arrow-down' | 'trash' | 'move-top' | 'mark-played' | 're-render' | 'retry' | 'drag'
-  | 'minus' | 'plus' | 'shield' | 'warn' | 'download' | 'upload' | 'speaker' | 'more' | 'clock';
+  | 'minus' | 'plus' | 'shield' | 'warn' | 'download' | 'upload' | 'speaker' | 'more' | 'clock'
+  | 'rss' | 'queue' | 'heart' | 'heart-filled' | 'add-circle' | 'check-circle';
 
 const P: Record<Name, ReactNode> = {
   add: <path d="M12 5v14M5 12h14" />,
@@ -19,6 +21,22 @@ const P: Record<Name, ReactNode> = {
       <circle cx="15" cy="7" r="2" />
       <circle cx="9" cy="17" r="2" />
     </>
+  ),
+  // Add this post: a plus in a ring.
+  'add-circle': (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 8v8M8 12h8" />
+    </>
+  ),
+  // Added: a filled disc with the check cut out of it, so it reads on any background.
+  'check-circle': (
+    <path
+      fillRule="evenodd"
+      fill="currentColor"
+      stroke="none"
+      d="M12 2.25a9.75 9.75 0 1 0 0 19.5 9.75 9.75 0 0 0 0-19.5Zm4.78 7.53a.9.9 0 0 0-1.27-1.27l-4.67 4.66-1.85-1.85a.9.9 0 0 0-1.27 1.28l2.49 2.48a.9.9 0 0 0 1.27 0l5.3-5.3Z"
+    />
   ),
   pause: (
     <g fill="currentColor" stroke="none">
@@ -140,6 +158,22 @@ const P: Record<Name, ReactNode> = {
     </>
   ),
   upload: <path d="M12 16V5M7 10l5-5 5 5M5 20h14" />,
+  // Bottom tab bar: a feed (dot and two arcs), a list with a play mark (Up next).
+  rss: (
+    <>
+      <circle cx="6.5" cy="17.5" r="1.4" fill="currentColor" />
+      <path d="M5 11a8 8 0 0 1 8 8M5 5a14 14 0 0 1 14 14" />
+    </>
+  ),
+  queue: (
+    <>
+      <path d="M4 6h12M4 11h12M4 16h7" />
+      <path d="M15 14l5 3-5 3z" fill="currentColor" />
+    </>
+  ),
+  // Loved is the same shape filled in, so state reads without color too (DESIGN "Icons").
+  heart: <path d={HEART_PATH} />,
+  'heart-filled': <path d={HEART_PATH} fill="currentColor" />,
   speaker: (
     <>
       <path d="M4 10v4h4l5 4V6L8 10z" />

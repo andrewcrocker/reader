@@ -14,7 +14,7 @@ Status: reconciled with DESIGN.md (Oct 28, 2026). DESIGN.md owns screens, states
 - Display-state mapping for the queue rows (§9a).
 - One global playback speed; skip interval is 10/15/30 s (§7).
 - Voice quality (model size) is separate from voice choice (§6.3).
-- Feed inbox moved out of Phase 2 to "Later" (§14).
+- Feed inbox moved out of Phase 2 to "Later" (§14). It has since been built (§4c).
 - Answered open questions: voice preference, finished articles, reading mode (§15).
 
 ---
@@ -30,6 +30,7 @@ Status: reconciled with DESIGN.md (Oct 28, 2026). DESIGN.md owns screens, states
 5. Optional "lyrics view": article text that highlights and scrolls in sync with the audio.
 6. Full offline playback (airplane mode) for anything already saved.
 7. Basic CRUD: multi-select, delete with undo, archive, clear, reorder.
+7a. **Save what you love.** Heart an article to keep it. Saved is the place for things you want to keep, and Saved can be shared as a list (§4 "Sharing a reading list").
 8. Extraction handles most sites well, escalates through fallbacks when it doesn't, and gets past soft paywalls where possible.
 9. **Shareable with friends.** Send someone a URL and they can use it, with no account. Voices run on a server the owner pays for (about 1¢ an article), capped per day so the cost can't run away (§6.3).
 10. **Pocket-style saving.** Share an article and close the app; the audio is waiting the next time it opens.
@@ -37,7 +38,7 @@ Status: reconciled with DESIGN.md (Oct 28, 2026). DESIGN.md owns screens, states
 **Non-goals (for now)**
 
 - Accounts, logins, or sync. A person's queue and settings live on their device.
-- Anything the owner has to look after. The server may keep things when that makes the app better, as long as they expire on their own, can be switched off, and need no watching or cleanup by hand. Today that is rendered audio, which waits in R2 until the app downloads it and is then deleted (7 days at most).
+- Anything the owner has to look after. The server may keep things when that makes the app better, as long as they expire on their own, can be switched off, and need no watching or cleanup by hand. Today that is rendered audio, which waits in R2 until the app downloads it and is then deleted (7 days at most). And, only if the owner turns on the voice cache (off by default, §6.4), the audio of articles fetched from a URL, kept for months so a repeat costs nothing. Pasted text and uploaded files are never cached.
 - Multi-device support. One phone (Pixel 8 / Chrome).
 - Highlights, notes, tags, search. These might come later.
 - A reading mode without audio.
@@ -124,7 +125,7 @@ Status: reconciled with DESIGN.md (Oct 28, 2026). DESIGN.md owns screens, states
 | **Paste text** | v1 | Paste the article body itself. The escape hatch for anything extraction can't reach. Also used to complete a partial article (below). |
 | **PDF** | v1 | A link to a PDF (Link tab or share), a PDF shared from Files or a browser, or one chosen on the Add sheet's PDF tab. Its text is pulled out and read like an article (§4b). |
 | **Reading list link** | v1 | A friend's `#list=` link (below). Opens a sheet of its articles; the chosen ones are added like pasted links. |
-| **Feed inbox** (discovery) | Later | Subscribe to RSS/Atom feeds. New items land in an **Inbox**, separate from the queue. Inbox items are **not** auto-rendered. Not designed yet. |
+| **Feed inbox** (discovery) | v1 | Subscribe to a blog's RSS/Atom feed by pasting its address (a site address works: the feed is found from the page). **Subscriptions**, a tab separate from the queue, lists the blogs with how many posts are new; a blog opens its posts, and none is added or rendered until the user taps Add. Pull only: checked on launch, when the app comes back to the front, and on Refresh. See §4c. |
 | **Desktop bookmarklet** | Out of scope for v1 | See "Saving from another device" below. |
 
 **v1 = share sheet (URL, text, PDF file) + paste URL + paste text + PDF upload.**
@@ -156,14 +157,18 @@ A link adds a row and opens the Queue with the arrival highlight (DESIGN.md §6)
 - iPhone: no PWA share target. Use an Apple Shortcut in the share sheet that opens `app/#add=<url>`.
 
 **Sharing a reading list**
-Multi-select → **Share as list** turns the chosen articles into one link, so a friend can add them to their own queue. Still no server and no accounts: the list lives in the URL fragment, which browsers never send to a server.
+One feature, two ways in. Either one turns some articles into one link, so a friend can add them to their own queue. Still no server and no accounts: the list lives in the URL fragment, which browsers never send to a server.
 
-- Format: `https://app/#list=<payload>`, where the payload is base64url of `deflate-raw` (`CompressionStream`) of JSON `{ name?, items: [{ url, title, site? }] }`. Codec and tests in `src/app/share.ts`.
-- Only URL articles go in. Pasted text stays on the phone, and the snackbar says how many were left out.
-- Shared with `navigator.share`, or copied to the clipboard where that's missing.
-- About 10 articles fit in 2,000 characters. Longer lists still work, but the sheet warns that some apps cut long links.
-- Opening the link shows the list as a sheet with a checkbox per article (all on). Links already in the queue are skipped. The rest go through the same add-URL path as a pasted link, in list order. The fragment is cleared from the address bar on open, like `#add=`. Decoding drops anything that isn't an http(s) link.
+- **Hand-picked.** Multi-select → **Share as list**, in Up next or on Saved. You choose the articles, and can name the list.
+- **From Saved.** The **Share** button on the Saved tab builds the list for you from what you've loved: **This week** (loved since Monday: the calendar week, Monday 00:00 to Sunday 23:59 local time, so it resets on Monday) or **All time**. Each shows how many articles it holds, and a range with none can't be picked. The sender can add their name, which is remembered (`Settings.shareName`), and a one-line note. The list is named from them: "Zach’s reading this week", "Zach’s all-time favorites", or "Worth reading this week" and "All-time favorites" with no name.
+- **The card.** Sharing from Saved also makes an image: a 1200 × 630 PNG that the app draws itself. It shows a Reader player: the first article with a play mark on its tile and a scrubber, then up to three more articles, then "+ N more" for the rest. The sheet shows it as a live preview. It's attached to the share where the device can share files, and **Save image** downloads it. It's an image, not a link preview: a pasted link looks like any other link.
+- Format: `https://app/#list=<payload>`, where the payload is base64url of `deflate-raw` (`CompressionStream`) of JSON `{ name?, note?, items: [{ url, title, site? }] }`. Codec and tests in `src/app/share.ts`. `note` is optional, one line, and at most 140 characters. A link made before notes existed has none and opens exactly as it did. A note that isn't text is ignored, and a longer one is cut.
+- Only URL articles go in. Pasted text and uploaded files stay on the phone. Share as list says how many were left out; the Saved share leaves them out of its counts.
+- Shared with `navigator.share` as a bare link (no extra text, so Copy gives a clean URL), or copied to the clipboard where that's missing. From Saved, the card is attached as a file when the device can share files (`navigator.canShare`); the link still goes alone as text. If the device can't, or sharing the file fails for any reason except the person closing the sheet, the plain link is shared or copied. **Copy link** in the sheet covers desktop and apps that drop attachments.
+- About 10 articles fit in 2,000 characters. A hand-picked list longer than that still works, but the sheet warns that some apps cut long links. From Saved the list is cut to fit instead: the most recently loved that fit are shared, the card shows only those, and the sheet says how many were left out.
+- Opening the link shows the list as a sheet: its name, the note when there is one (quiet text above the articles), and a checkbox per article (all on). Links already in the queue are skipped. The rest go through the same add-URL path as a pasted link, in list order. The fragment is cleared from the address bar on open, like `#add=`. Decoding drops anything that isn't an http(s) link.
 - It's a snapshot: nothing syncs, and the sender's queue isn't touched.
+- Not built: a public page for the list, with a real link preview, for people who don't have Reader. See [SHARING.md](SHARING.md).
 
 **Saving from another device (the catch with "everything local")**
 Because the queue lives only on the phone, a laptop has nowhere to send an article. Options, in order of simplicity:
@@ -201,6 +206,43 @@ The title is the PDF's metadata title unless it's junk ("Microsoft Word - draft.
 - **Tint source color:** after storing art, compute the dominant non-neutral color of the art shown in Now Playing (article art, else site art, else the generated cover color). Store it as `tintSource` (hex). The per-theme clamp (OKLCH) happens at render time, as specified in DESIGN.md "Article tint." No site art: derive a color from a hash of the domain into the fixed 8-hue palette in DESIGN.md.
 
 ---
+
+## 4c. Feed inbox
+
+A way to find articles, not a way to save them. It follows the same rules as the rest of the app: everything stays on the device, nothing is added or rendered by itself, and nothing pushes.
+
+**Subscribe.** The user pastes a site address or a feed address into the **Add a subscription** sheet (the Add button in the Subscriptions header; see The list of blogs below). Discovery goes through the Worker's `/fetch`, which already passes RSS, Atom and other XML through unchanged:
+
+1. Fetch the address. If it's RSS 2.0, RSS 1.0 or Atom, that's the feed.
+2. If it's HTML, take the page's `<link rel="alternate" type="application/rss+xml">` (or `atom+xml`) addresses, resolved against the page's address, first three in page order.
+3. Otherwise try `/feed.xml`, `/feed`, `/rss.xml`, `/atom.xml` and `/index.xml` on the same site.
+4. If none of those is a feed: "Couldn't find a feed at that address."
+
+The feed is stored under the address it ended up at, so `http://` and `https://` don't make two subscriptions. The latest 20 posts are stored and marked seen, so subscribing doesn't light the new-post dot.
+
+**The list of blogs.** The Subscriptions tab lists the blogs, one row each: its picture, its name, a dot with a count when it has unseen posts ("3 new"), the date of its latest post, a ⋮ menu (**Refresh** checks that one blog now, **Delete** removes it with an Undo snackbar) and a chevron. A blog whose last check failed shows its `lastError` in place of the date ("Couldn't check. …"). The header has a ⋮ menu (**Refresh** checks every blog now; **Sort by** Recent or Alphabetical, kept in `Settings.feedSort`, Recent by default) and an Add button that opens the **Add a subscription** sheet: paste from the clipboard or type the address (a text input, so a bare domain works; the validation, errors, loading state and wording above). After a successful subscribe the sheet closes and a snackbar says "Subscribed to …". Recent orders blogs by their latest post (a blog with none, by when it was added); Alphabetical ignores case and a leading "The" (`summarizeFeeds()` in `feeds/list.ts`).
+
+**A blog's posts.** Tapping a row opens that blog's posts one level in: one history entry, a back arrow, and the blog's name as the header. Each post has its title, its date, a dot if it is unseen, and an Add button (a plus in a ring) that becomes a filled check once the post is in the queue. The tab bar stays; choosing another tab from here leaves the blog first. The header's ⋮ menu picks which posts are listed, kept in `Settings.feedShow`: **Unplayed** (the default), **Played**, **Favorites** or **All**. A post's state comes from the article made from it (`postState()` in `feeds/list.ts`): added while that article exists, played once it has `playedAt` or `archivedAt`, favorite while it has `lovedAt`. A post whose article has since been deleted counts as played and can be added again.
+
+**Pictures.** A blog's picture is looked for once, when it is subscribed to (or on its next check, for a blog saved before this existed): the icons its home page offers, largest first, then the feed's own image, then `/apple-touch-icon.png` and `/favicon.ico` (`feeds/art.ts`). Anything under 48 px is skipped. It is fetched through `/asset`, stored in the art table as `feed:<id>` like article art, and `Feed.artKey` records the result ('' for "looked, none found"). A blog with none shows its initials on a color from its host. Deleting a blog deletes its picture.
+
+**Check (pull).** `checkFeeds()` runs on launch and whenever the app becomes visible. A feed checked in the last 30 minutes is skipped; Refresh in the Subscriptions header ignores that, and Refresh on a blog's row checks just that blog (`refreshFeed()`). It does nothing offline or without an invite. For each feed it fetches and parses, and stores only posts not stored yet, as unseen. Only a feed's newest 20 posts are ever considered, so a long feed doesn't flood the inbox on its first check, and stored posts are trimmed to the newest 40 per feed. A feed that fails records a one-line `lastError` (cleared by the next good check) and its check time, so it isn't retried on every launch. A good check also refreshes the feed's title and site address, so a blog that renames itself follows. There are no banners, and nothing is retried in the background.
+
+A check that is already running covers a later one (launch and "back in front" can land together), except Refresh: it waits for that run to end and then checks every feed, so a tap never comes back "No new posts" because of what an earlier, narrower run skipped.
+
+**Moved hosts.** Some blogs move but keep serving their feed from the new host, so the links in it point at a host that no longer answers (Vitalik's feed is on `vitalik.eth.limo` and links to `vitalik.ca`). To read those posts, the feed gets a `linkBase`: the feed's own origin, which post links are rebased onto (same path, query and hash; `rebaseLink()` in `feeds/diff.ts`). It's worked out once, from the newest post only (`probeLinkBase()` in `feeds/discover.ts`), when subscribing, or on the first check of a feed saved before the field existed:
+- If that post's link is already on the feed's own host, or the original link answers: `linkBase = null`, keep the links.
+- If the original fails and the same path and query on the feed's host answers: `linkBase` is that host's origin.
+- If both fail: `null` too. The feed's own host just answered, so it isn't the network.
+- If the feed has no posts to judge by: left unset, and looked at again on the next check.
+
+A page the Worker declines to return (too large, not HTML) still counts as answering, since the site did. Rebasing changes only the stored link: a post's id still hashes the guid or link as the feed gave it, so ids don't move when `linkBase` is set. Posts stored before it was set are rebased when they're added to the queue (Add), and the Your subscriptions row shows the host the posts are read from.
+
+**New-post indicators.** A post is new while its `seenAt` is null. That drives three things: the dot on the Subscriptions tab (any blog has one), the dot and count on a blog's row, and the dot on the post itself. A blog's posts are marked seen when the user leaves that blog (back, or another tab), or when the app goes to the background while it is open (`markFeedSeen()`). Marking them on arrival would clear the dots before anyone could read them. Opening the Subscriptions tab alone marks nothing.
+
+**Add.** Tapping Add on a post checks the existing articles by address (ignoring the scheme, `www.`, a trailing slash, the `#fragment`, and `utm_` parameters, against both `url` and `canonicalUrl`). If one exists, the post links to it. Otherwise it goes through the normal save flow above (`addUrl`, with the post's title as the provisional title). Either way the post stores `articleId`, and its button reads "Added".
+
+**Out of scope for now:** background or push checks (they'd need a server and state, which breaks the no-accounts rule), OPML import and JSON Feed.
 
 ## 5. Extraction pipeline (escalation ladder)
 
@@ -264,6 +306,16 @@ Both engines run the same model (**Kokoro-82M**) and the same three voices, **He
 - Spike: a 7.9-minute article rendered in 78 s for 0.73¢; requests take 3–12 s each, mostly queueing at the host.
 - **Budget:** one global counter (a Durable Object) allows 330,000 characters a day (about 33 articles, $0.33), which keeps a month under $10. Refused requests get `429 {error:"busy", retryAt}`; the app shows "Voices are busy" and retries after the reset (midnight UTC). The owner gets an email (Resend) at 80% and when the budget runs out, once each per day. DeepInfra's own spending limit is the backstop.
 - Article text goes to the voice host; DeepInfra lists zero retention.
+- **Cache (off by default):** an article that was already rendered costs nothing and skips the queue (§6.4).
+
+### 6.4 Voice cache (behind `VOICE_CACHE`, off by default)
+
+Details, cost math and the free-plan limits are in [VOICE_CACHE.md](VOICE_CACHE.md). The rules:
+
+- **Per chunk, by content.** A chunk's MP3 is kept at `cache/<voice>/<sha256>.mp3` in the same R2 bucket (no new binding). The hash covers a hand-set `VOICE_CACHE_VERSION`, the voice and the chunk's exact text. Another voice, a changed sentence or a new version is a new key, so there's nothing to invalidate. The length (`sec`) is stored with the audio and sent back on a hit.
+- **Only URL articles.** The app sends `cacheable: true` for articles fetched from a URL (`source: 'url'`, text not pasted over). Pasted text and uploaded files (`source: 'text'` or `'file'`) never read or write the cache. Invited users only: there is no public route and no "does this exist" check.
+- **Hits are free.** `POST /render` looks every chunk up before it reserves budget, and reserves only the characters the voice host will be asked to say. A hit is listed as ready in the job's manifest at once, and only the misses go to the Workflow. An article that is all hits is done at once, and is never "busy". Without the flag, or without `cacheable`, `/render` works exactly as before.
+- **Expiry.** `jobs/` keeps its 7-day rule. `cache/` gets a longer age-based rule (180 days); older entries just re-render.
 
 **Former default: on-device neural TTS.** Removed from Settings on 2026-10-28; the engine stays in the code for the `/spike` benchmark.
 - **Kokoro-82M** via `kokoro-js` (transformers.js), running in the browser on WebGPU, falling back to WASM. Open weights (Apache 2.0). Piper is a lighter fallback with lower quality.
@@ -374,9 +426,34 @@ interface Article {
   voice?: string;
   positionSec: number;        // resume point
   playedAt?: number;          // finished listening
-  archivedAt?: number;        // in the Archive section
+  archivedAt?: number;        // in the Archive section of Saved
+  lovedAt?: number;           // loved (a heart): worth keeping or sharing. Independent of archivedAt; not indexed
   deletedAt?: number;         // soft delete; purge after the undo window
   queueOrder: number;         // fractional index for cheap reordering
+}
+
+/** A blog the user subscribes to (§4c). */
+interface Feed {
+  id: string;
+  feedUrl: string;            // the RSS/Atom address, after redirects
+  siteUrl?: string;
+  title: string;              // refreshed by every good check, so a renamed blog follows
+  addedAt: number;
+  lastCheckedAt?: number;     // set after every attempt, good or bad
+  lastError?: string;         // one line; cleared by the next good check
+  linkBase?: string | null;   // the blog's moved host (an origin) that post links are rebased onto; null = checked, keep links; unset = not checked yet
+}
+
+/** One post from a feed. */
+interface FeedItem {
+  id: string;                 // stable hash of feedId + (guid or link)
+  feedId: string;
+  link: string;
+  title: string;
+  publishedAt?: number;
+  firstSeenAt: number;
+  seenAt: number | null;      // null until the user has left Subscriptions with it listed
+  articleId?: string;         // set once added to the queue
 }
 
 interface Settings {
@@ -393,6 +470,7 @@ interface Settings {
   keepPlayed: "archive" | "delete";   // default "archive"
   lyricsOn: boolean;
   lastPlayingArticleId?: string;  // restored on launch (§11a)
+  shareName?: string;         // "Your name" when sharing from Saved (§4)
 }
 ```
 
@@ -405,7 +483,7 @@ The queue row state in DESIGN.md comes from these fields. First match wins.
 | Display state | Condition |
 |---|---|
 | Deleted (hidden) | `deletedAt` set |
-| Archive section | `archivedAt` set |
+| Archive section (Saved) | `archivedAt` set. Loved rows are listed under Loved instead, whether or not they're archived |
 | Waiting for connection | `status = "waiting"`, or `"fetching"` while offline |
 | Fetching | `status = "fetching"` |
 | Failed | `status = "failed"` |
@@ -421,11 +499,13 @@ The queue row state in DESIGN.md comes from these fields. First match wins.
 
 ## 10. Queue & CRUD
 
-- **Queue screen** (home): Up next in `queueOrder`, then an **Archive** section. Row anatomy and states are in DESIGN.md.
-- **Gestures:** tap plays immediately; swipe left deletes (undo); swipe right marks played and archives (undo); long-press enters multi-select.
-- **Reorder:** drag handles, shown in multi-select mode.
-- **Multi-select actions:** delete, move to top, mark played, re-render (e.g. after changing voice), retry extraction.
-- **Clear:** "Clear all" in Settings, with confirm. "Clear archive" isn't designed yet; an action on the Archive section header is the natural place.
+- **Queue screen** (home): Up next in `queueOrder`. Archived articles aren't listed here; they're on the **Saved** tab. A bottom tab bar switches between Subscriptions, Up next and Saved (DESIGN.md "Navigation"). The tab isn't saved: the app opens on Up next. Row anatomy and states are in DESIGN.md.
+- **Saved tab:** one list at a time, picked from the header's ⋮ menu and kept in `Settings.savedShow`: **Favorites** (every article with a heart, newest love first, archived or not; the default) or **Played** (every played article, most recently played first; stored as `archivedAt`, and called Archive in older notes). A right swipe or the ⋮ menu on a played row is **Add to queue** (`requeue()`), which returns it to the end of Up next. Rows are the same and have the same actions, except that they can't be reordered: a hold goes straight to multi-select.
+- **Love:** every row, Now Playing and the Lyrics header have a heart toggle (`lovedAt`). A loved article is never auto-deleted by "When an article finishes: Delete": it's archived instead, and Settings says so.
+- **Gestures:** tap plays immediately; swipe left deletes (undo); swipe right marks played and archives (undo), except on archived rows, which only swipe left; hold a row to drag it into place (Up next), or hold and let go to enter multi-select.
+- **Reorder:** hold a row and drag it (Up next only). Drag handles also work in multi-select mode, and on wide screens the row's ⋯ menu has Move up and Move down.
+- **Multi-select actions:** delete, move to top, mark played, re-render (e.g. after changing voice), retry extraction, and Share as list (§4). The same set in Up next and Saved; on Saved, Move to top brings an archived article back into Up next, and Mark played is off when every chosen article is already archived.
+- **Clear:** "Clear all" in Settings, with confirm. "Clear archive" isn't designed yet; the Saved tab's ⋮ menu has "Delete all saved…", which clears favorites and played together (`clearSaved()`).
 - **Storage:** Settings shows total size split into audio, voice model, and art, plus "Delete audio for archived articles" (keeps text; re-renders on replay).
 
 ---
@@ -479,7 +559,7 @@ Requirement: hard-close the browser or reboot the phone, reopen the app, and pic
 - **Unfinished work resumes.** Any article left in `fetching` or `rendering` restarts its pipeline on launch. Rendered chunks are saved as they finish, so a re-render picks up from the last completed chunk. An interrupted voice-model download resumes too.
 - **Protection against eviction.** Call `navigator.storage.persist()` on first launch. Settings shows whether it was granted ("Storage is protected").
 - **What actually wipes data:** clearing Chrome's site data for the app, or (possibly) uninstalling the PWA.
-- **Export / Import:** "Export queue" downloads a small JSON of URLs (and pasted text), titles, order, positions, and archive state; "Import" restores it. Audio isn't included and re-renders.
+- **Export / Import:** "Export queue" downloads a small JSON of URLs (and pasted text), titles, order, positions, and archive and loved state; "Import" restores it. Audio isn't included and re-renders.
 
 ---
 
@@ -512,16 +592,17 @@ GET  /asset?url=<encoded>
 GET  /archive?url=<encoded>
   → 200 { wayback?: string, archiveToday?: string }   // snapshot URLs, if any
 
-POST /render   { voice, chunks: [{ i, text }] }       // voice: af_heart | af_bella | am_michael
+POST /render   { voice, chunks: [{ i, text }], cacheable? }  // voice: af_heart | af_bella | am_michael
+                                                      // cacheable: true only for URL articles; used only if VOICE_CACHE is on (§6.4)
   → 202 { job, chunks }
   → 429 { error: "busy", retryAt }                  // day's voice budget spent
   → 400 { error }                                   // bad voice, empty/too long chunk, >400 chunks
-GET    /render/:job      → 200 { status, ready: [{ i, sec }] }   // status from the Workflow
+GET    /render/:job      → 200 { status, ready: [{ i, sec }] }   // status from the Workflow; chunks served from the voice cache are ready from the start
 GET    /render/:job/:i   → 200 audio/mpeg (one chunk, header frame stripped) + X-Chunk-Seconds
-DELETE /render/:job      → 204 (deletes the chunks; an R2 lifecycle rule expires leftovers after 7 days)
+DELETE /render/:job      → 204 (deletes the chunks, never the voice cache; an R2 lifecycle rule expires leftovers after 7 days)
 ```
 
-Only rendered audio is stored, and only until the app downloads it. No logging of URLs or content beyond Cloudflare's defaults.
+Only rendered audio is stored, and only until the app downloads it, except the voice cache (§6.4) when it's on. No logging of URLs or content beyond Cloudflare's defaults; the cache logs only counts (hits, misses, characters and bytes saved).
 
 ---
 
@@ -560,14 +641,14 @@ Only rendered audio is stored, and only until the app downloads it. No logging o
 - [ ] Optional word-level emphasis
 
 **Later**
-- [ ] Feed inbox (RSS/Atom via Worker); needs design
+- [ ] Feed inbox follow-ups: OPML import, JSON Feed. (The inbox itself is built, §4c.)
 - [ ] Saving from another device (relay inbox)
 
 ---
 
 ## 15. Open questions
 
-1. **Discovery:** is a feed inbox what you had in mind, or something more like recommendations? (Parked under Later.)
+1. ~~Discovery~~ **Decided:** a pull-only feed inbox (§4c): subscribe to blogs, new posts wait in Subscriptions, nothing is added or rendered until the user taps Add. No recommendations.
 2. **Voice quality bar:** if on-device Kokoro is good but noticeably below the best cloud voices, is that acceptable as the default for you too, or would you personally use BYO-key?
 2a. **Friends' phones:** roughly how many are on iPhone? That determines how much the PWA route matters compared with a native Android app.
 3. ~~Voice preference~~ **Decided:** one global voice, chosen in Settings.

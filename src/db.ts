@@ -77,6 +77,8 @@ export interface Article {
   positionSec: number;
   playedAt?: number;
   archivedAt?: number;
+  /** When the user loved it: something to revisit or share, apart from archived, which only means done. Unset = not loved. */
+  lovedAt?: number;
   /** Soft delete for undo; purged after the snackbar window. */
   deletedAt?: number;
   queueOrder: number;
@@ -120,6 +122,44 @@ export interface ArtRow {
   color?: string;
 }
 
+/** A blog the user subscribes to (SPEC §4 "Feed inbox"). Lives on the device like everything else. */
+export interface Feed {
+  id: string;
+  /** The RSS/Atom address we fetch. */
+  feedUrl: string;
+  /** The blog's home page, if the feed says. */
+  siteUrl?: string;
+  title: string;
+  addedAt: number;
+  /** Set after every attempt, good or bad, so a broken feed isn't retried on every launch. */
+  lastCheckedAt?: number;
+  /** One-line reason the last check failed; cleared by the next good one. */
+  lastError?: string;
+  /**
+   * Where post links are rebased to (an origin), for a blog that moved hosts but still serves its
+   * feed from the new one: the feed's own links point at a host that no longer answers. `null`
+   * means the links were checked and are kept as they are; unset means not checked yet. Not indexed.
+   */
+  linkBase?: string | null;
+  /** The blog's picture in the art table (`feed:<id>`). '' means we looked and found none; unset means not looked yet. Not indexed. */
+  artKey?: string;
+}
+
+/** One post from a feed. `id` is a stable hash of the feed id and the post's guid or link as the feed gave them. */
+export interface FeedItem {
+  id: string;
+  feedId: string;
+  /** Where the post is read. The feed's link, or that link moved onto the feed's host (see `Feed.linkBase`). */
+  link: string;
+  title: string;
+  publishedAt?: number;
+  firstSeenAt: number;
+  /** null until the user has looked at it: that is what lights the dot on the Subscriptions tab. */
+  seenAt: number | null;
+  /** The queue article made from this post, once the user added it. */
+  articleId?: string;
+}
+
 export type EnginePref = 'auto' | 'webgpu' | 'wasm';
 export type VoiceQuality = 'high' | 'standard';
 export type EngineKind = 'server' | 'device';
@@ -156,6 +196,16 @@ export interface Settings {
   persistRequested?: boolean;
   /** First run finished (or skipped). */
   onboarded?: boolean;
+  /** "Your name" on the share sheet, remembered for the next list. */
+  shareName?: string;
+  /** How the list of blogs on Subscriptions is ordered. Unset means 'recent'. */
+  feedSort?: 'recent' | 'alpha';
+  /** Which posts a blog's page shows. Unset means 'unplayed'. */
+  feedShow?: 'unplayed' | 'played' | 'favorites' | 'all';
+  /** What an article opens in when you tap it: the player, or read-along. Unset means 'player'. */
+  defaultView?: 'player' | 'read-along';
+  /** Which list the Saved tab shows. Unset means 'favorites'. */
+  savedShow?: 'favorites' | 'archived';
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -184,6 +234,8 @@ class ReaderDb extends Dexie {
   audio!: Table<AudioBlobRow, string>;
   art!: Table<ArtRow, string>;
   settings!: Table<Settings, string>;
+  feeds!: Table<Feed, string>;
+  feedItems!: Table<FeedItem, string>;
 
   constructor() {
     super('reader');
@@ -242,6 +294,11 @@ class ReaderDb extends Dexie {
     });
     // Chunks the service worker downloads in the background, waiting to be decoded; PDFs waiting to be read.
     this.version(5).stores({ serverAudio: '[articleId+i], articleId', files: 'id' });
+    // The Subscriptions inbox. `seenAt` is null for unseen posts, which IndexedDB can't index, so unseen is found in memory.
+    this.version(6).stores({
+      feeds: 'id, feedUrl',
+      feedItems: 'id, feedId',
+    });
   }
 }
 
@@ -252,9 +309,16 @@ export async function getSettings(): Promise<Settings> {
   return { ...DEFAULT_SETTINGS, ...s };
 }
 
+/**
+ * Merges `patch` into the stored settings. Read and write happen in one transaction: two updates made in
+ * the same moment (tapping an article sets the view while the player saves what's playing) would otherwise
+ * both read the old row, and the second write would undo the first.
+ */
 export async function updateSettings(patch: Partial<Settings>): Promise<void> {
-  const current = await getSettings();
-  await db.settings.put({ ...current, ...patch, id: 'app' });
+  await db.transaction('rw', db.settings, async () => {
+    const current = await getSettings();
+    await db.settings.put({ ...current, ...patch, id: 'app' });
+  });
 }
 
 /** End of Up next. */
