@@ -504,7 +504,7 @@ The queue row state in DESIGN.md comes from these fields. First match wins.
 - **Gestures:** tap plays immediately; swipe left deletes (undo); swipe right marks played and archives (undo), except on archived rows, which only swipe left; hold a row to drag it into place (Up next), or hold and let go to enter multi-select.
 - **Reorder:** hold a row and drag it (Up next only). Drag handles also work in multi-select mode, and on wide screens the row's ⋯ menu has Move up and Move down.
 - **Multi-select actions:** delete, move to top, mark played, re-render (e.g. after changing voice), retry extraction, and Share as list (§4). The same set in Up next and Saved; on Saved, Move to top brings an archived article back into Up next, and Mark played is off when every chosen article is already archived.
-- **Clear:** "Clear all" in Settings, with confirm. "Clear archive" isn't designed yet; an action in the Saved tab's ⋮ menu is the natural place.
+- **Clear:** "Clear all" in Settings, with confirm. "Clear archive" isn't designed yet; the Saved tab's ⋮ menu has "Delete all saved…", which clears favorites and played together (`clearSaved()`).
 - **Storage:** Settings shows total size split into audio, voice model, and art, plus "Delete audio for archived articles" (keeps text; re-renders on replay).
 
 ---

@@ -7,6 +7,8 @@ export interface MenuItem {
   /** Left out for a choice (`checked`), which shows a check mark in the icon's place instead. */
   icon?: IconName;
   danger?: boolean;
+  /** Draws a rule above this entry, to set it apart from the ones before it. */
+  separated?: boolean;
   /** Set (true or false) for one of a group of choices: the chosen one has a check mark, and it reads as a radio item. */
   checked?: boolean;
   run: () => void;
@@ -111,7 +113,7 @@ export function MenuButton({ label, items, header }: { label: string; items: Men
                   key={it.label}
                   role={it.checked === undefined ? 'menuitem' : 'menuitemradio'}
                   aria-checked={it.checked}
-                  className={it.danger ? 'danger' : undefined}
+                  className={[it.danger && 'danger', it.separated && 'separated'].filter(Boolean).join(' ') || undefined}
                   onClick={() => {
                     setOpen(false);
                     it.run();

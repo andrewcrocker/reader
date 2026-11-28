@@ -148,6 +148,13 @@ export async function clearAll(): Promise<void> {
   for (const id of ids) await purgeArticle(id);
 }
 
+/** "Delete all saved" on the Saved tab (confirmed there): every favorite and every played article, with its audio. Returns how many went. */
+export async function clearSaved(): Promise<number> {
+  const ids = await db.articles.filter((a) => !a.deletedAt && !!(a.lovedAt || a.archivedAt)).primaryKeys();
+  for (const id of ids) await purgeArticle(id);
+  return ids.length;
+}
+
 /** Space "Delete audio for archived articles" would free. */
 export async function archivedAudioBytes(): Promise<number> {
   let n = 0;

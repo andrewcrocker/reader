@@ -618,6 +618,9 @@ textarea.input { height: auto; padding: 12px 14px; font: 400 15px/1.5 var(--seri
 .menu button.danger { color: var(--error); }
 .menu-heading { margin: 0; padding: 10px 14px 4px 12px; border-top: 1px solid var(--line); margin-top: 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .menu-slot { width: 20px; flex: none; }
+/* An entry set apart from the ones above it: a rule in the gap, drawn outside the button so its hover fill stays rounded. */
+.menu button.separated { margin-top: 13px; position: relative; }
+.menu button.separated::before { content: ''; position: absolute; left: -6px; right: -6px; top: -7px; height: 1px; background: var(--line); }
 .menu-heading:first-child { border-top: 0; margin-top: 0; }
 .row .icon-btn.row-action { color: var(--muted); }
 

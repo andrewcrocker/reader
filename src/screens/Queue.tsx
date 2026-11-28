@@ -6,7 +6,7 @@ import { plural } from '../format';
 import { goToFeed, openNowPlaying, openSettings, openSheet, showSnack, useUi, useWide } from '../app/ui';
 import { isPlayable, usePlayer } from '../player/PlayerProvider';
 import { displayState, isBusy, queueSummary, rowMeta, voiceReady, type Ctx } from '../queue/display';
-import { isRefreshable, isRenderable, markPlayed, moveBy, moveToTop, placeAt, purgeDeleted, refreshMany, reorder, requeue, setLoved, softDelete } from '../queue/actions';
+import { clearSaved, isRefreshable, isRenderable, markPlayed, moveBy, moveToTop, placeAt, purgeDeleted, refreshMany, reorder, requeue, setLoved, softDelete } from '../queue/actions';
 import { retryArticle } from '../pipeline/runner';
 import { updateSettings } from '../db';
 import { Icon } from '../ui/Icon';
@@ -59,6 +59,7 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
   const wide = useWide();
   const [selected, setSelected] = useState<Set<string> | null>(null);
   const [preview, setPreview] = useState<string[] | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
   const rowEls = useRef(new Map<string, HTMLElement>());
   const listRef = useRef<HTMLUListElement>(null);
 
@@ -213,6 +214,7 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
                     { heading: 'Show' },
                     { label: 'Favorites', checked: savedShow === 'favorites', run: () => void updateSettings({ savedShow: 'favorites' }) },
                     { label: 'Played', checked: savedShow === 'archived', run: () => void updateSettings({ savedShow: 'archived' }) },
+                    ...(loved.length || archive.length ? [{ label: 'Delete all saved…', icon: 'trash' as const, danger: true, separated: true, run: () => setConfirmClear(true) }] : []),
                   ]}
                 />
               </div>
@@ -270,6 +272,33 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
         <ul className="q-list" aria-label="Queue" ref={listRef}>
           {shownUpNext.map((a) => row(a, false))}
         </ul>
+      )}
+
+      {confirmClear && (
+        <>
+          <div className="scrim" style={{ zIndex: 50 }} onClick={() => setConfirmClear(false)} aria-hidden="true" />
+          <div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="clear-saved-title" aria-describedby="clear-saved-desc">
+            <h2 id="clear-saved-title">Delete all saved?</h2>
+            <p id="clear-saved-desc">
+              This deletes {[loved.length ? plural(loved.length, 'favorite') : '', archive.some((a) => !a.lovedAt) ? plural(archive.filter((a) => !a.lovedAt).length, 'played article') : ''].filter(Boolean).join(' and ')}, with the audio.
+              {loved.some((a) => !a.archivedAt) ? ' Favorites still in Up next are deleted too.' : ''} It can’t be undone.
+            </p>
+            <div className="actions">
+              <button className="text-btn" autoFocus onClick={() => setConfirmClear(false)}>
+                Cancel
+              </button>
+              <button
+                className="text-btn danger"
+                onClick={() => {
+                  setConfirmClear(false);
+                  void clearSaved().then((n) => showSnack({ text: `${plural(n, 'article')} deleted` }));
+                }}
+              >
+                Delete all
+              </button>
+            </div>
+          </div>
+        </>
       )}
 
       {/* The tab bar goes in the dock under the mini player, and gives way to the action bar while selecting. */}
