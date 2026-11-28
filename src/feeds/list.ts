@@ -1,4 +1,4 @@
-import type { Feed, FeedItem } from '../db';
+import type { Article, Feed, FeedItem } from '../db';
 
 // The list of blogs on Subscriptions (DESIGN §10): what each row counts and how the rows are ordered.
 // Pure, so it's testable without IndexedDB.
@@ -35,4 +35,34 @@ export function summarizeFeeds(feeds: Feed[], items: Pick<FeedItem, 'feedId' | '
   const byName = (a: FeedSummary, b: FeedSummary) => nameKey(a.feed.title).localeCompare(nameKey(b.feed.title), undefined, { sensitivity: 'base' }) || a.feed.id.localeCompare(b.feed.id);
   const recency = (r: FeedSummary) => r.latest ?? r.feed.addedAt;
   return rows.sort(sort === 'alpha' ? byName : (a, b) => recency(b) - recency(a) || byName(a, b));
+}
+
+// ---- One blog's posts: what each post's article has been through, and the Show filter ----
+
+export type PostShow = 'unplayed' | 'played' | 'favorites' | 'all';
+
+export interface PostState {
+  /** In the queue or the archive right now: the row shows the check instead of Add. */
+  added: boolean;
+  /** Listened to. A post whose article was added and is gone (deleted, or cleared after playing) counts too: it has been dealt with. */
+  played: boolean;
+  favorite: boolean;
+}
+
+type ArticleLike = Pick<Article, 'playedAt' | 'archivedAt' | 'lovedAt' | 'deletedAt'>;
+
+/** A post's state, from the article made from it (if any). A post never added is unplayed. */
+export function postState(item: Pick<FeedItem, 'articleId'>, articles: ReadonlyMap<string, ArticleLike>): PostState {
+  if (!item.articleId) return { added: false, played: false, favorite: false };
+  const a = articles.get(item.articleId);
+  if (!a || a.deletedAt) return { added: false, played: true, favorite: false };
+  return { added: true, played: !!(a.playedAt || a.archivedAt), favorite: !!a.lovedAt };
+}
+
+/** Whether a post belongs in the chosen view. Unplayed and Played split every post between them. */
+export function showsPost(state: PostState, show: PostShow): boolean {
+  if (show === 'unplayed') return !state.played;
+  if (show === 'played') return state.played;
+  if (show === 'favorites') return state.favorite;
+  return true;
 }

@@ -143,7 +143,7 @@ function Shell() {
     </>
   );
   // Settings is its own screen; otherwise the tab bar picks the list. A blog's posts sit one level into Subscriptions. Up next is the home view.
-  const screen = ui.settings ? <Settings /> : ui.tab === 'subscriptions' ? ui.feed ? <FeedPosts key={ui.feed} feedId={ui.feed} /> : <Subscriptions /> : ui.tab === 'saved' ? <Saved /> : <Queue />;
+  const screen = ui.settings ? <Settings key={ui.settings} /> : ui.tab === 'subscriptions' ? ui.feed ? <FeedPosts key={ui.feed} feedId={ui.feed} /> : <Subscriptions /> : ui.tab === 'saved' ? <Saved /> : <Queue />;
   if (wide) {
     // Wide screens: the queue, Subscriptions, Saved or Settings on the left, Now Playing always open on the right.
     return (

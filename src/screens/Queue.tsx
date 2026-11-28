@@ -8,7 +8,9 @@ import { isPlayable, usePlayer } from '../player/PlayerProvider';
 import { displayState, isBusy, queueSummary, rowMeta, voiceReady, type Ctx } from '../queue/display';
 import { isRenderable, markPlayed, moveBy, moveToTop, placeAt, purgeDeleted, rerenderMany, retryMany, reorder, setLoved, softDelete } from '../queue/actions';
 import { retryArticle } from '../pipeline/runner';
+import { updateSettings } from '../db';
 import { Icon } from '../ui/Icon';
+import { MenuButton } from '../ui/Menu';
 import { Snackbar } from '../ui/Snackbar';
 import { isShareable } from '../share/lists';
 import { MiniPlayer } from './MiniPlayer';
@@ -44,8 +46,9 @@ export function Saved() {
 function QueueView({ view }: { view: 'queue' | 'saved' }) {
   const { upNext, archive, loved, settings, online } = useAppData();
   const saved = view === 'saved';
-  // An article that's both loved and archived is listed once, under Loved.
-  const archiveRest = archive.filter((a) => !a.lovedAt);
+  // Saved shows one list at a time, picked from its kebab: what you loved (the default), or what you've finished.
+  const savedShow = settings.savedShow ?? 'favorites';
+  const savedList = savedShow === 'favorites' ? loved : archive;
   const player = usePlayer();
   const { newId } = useUi();
   const wide = useWide();
@@ -59,7 +62,7 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
   const byId = new Map([...upNext, ...archive].map((a) => [a.id, a]));
   const shownUpNext = preview ? preview.map((id) => byId.get(id)!).filter(Boolean) : upNext;
   // What this tab lists, top to bottom: the rows Select all and Share as list work on.
-  const inView = saved ? [...loved, ...archiveRest] : upNext;
+  const inView = saved ? savedList : upNext;
   const canShare = loved.some(isShareable);
 
   // Share arrival: scroll the new row into view (DESIGN §6).
@@ -187,13 +190,22 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
           <div className="q-header-row">
             <div style={{ minWidth: 0 }}>
               <h1 className="screen-title">{saved ? 'Saved' : 'Up next'}</h1>
-              {!empty && <p className="q-sub">{saved ? [loved.length ? `${loved.length} loved` : '', archiveRest.length ? `${archiveRest.length} archived` : ''].filter(Boolean).join(' · ') : queueSummary(upNext, ctx)}</p>}
+              {!empty && <p className="q-sub">{saved ? (savedShow === 'favorites' ? plural(loved.length, 'favorite') : `${archive.length} archived`) : queueSummary(upNext, ctx)}</p>}
             </div>
             {saved ? (
               <div className="q-actions">
                 <button className="icon-btn" disabled={!canShare} onClick={() => openSheet({ kind: 'share-saved' })} aria-label={canShare ? 'Share loved articles' : 'Share loved articles, love an article first'} title="Share loved articles">
                   <Icon name="share" />
                 </button>
+                <MenuButton
+                  header
+                  label="Which articles to show"
+                  items={[
+                    { heading: 'Show' },
+                    { label: 'Favorites', checked: savedShow === 'favorites', run: () => void updateSettings({ savedShow: 'favorites' }) },
+                    { label: 'Archived', checked: savedShow === 'archived', run: () => void updateSettings({ savedShow: 'archived' }) },
+                  ]}
+                />
               </div>
             ) : (
               <div className="q-actions">
@@ -238,32 +250,13 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
             or paste a link
           </button>
         </div>
+      ) : saved && !savedList.length ? (
+        <p className="q-hint q-hint-top">{savedShow === 'favorites' ? 'Tap the heart on an article to keep it here. You can share your favorites.' : 'Articles you’ve listened to land here.'}</p>
       ) : saved ? (
-        <div className="q-sections">
-          {/* Loved first, newest love first, archived or not. Then the archive, minus what's loved, so nothing shows twice. */}
-          <section aria-labelledby="loved-h">
-            <h2 className="q-section" id="loved-h">
-              Loved
-            </h2>
-            {loved.length ? (
-              <ul className="q-list under" aria-label="Loved">
-                {loved.map((a) => row(a, !!a.archivedAt, false))}
-              </ul>
-            ) : (
-              <p className="q-hint">Tap the heart on an article to keep it here. You can share what you love.</p>
-            )}
-          </section>
-          {archiveRest.length > 0 && (
-            <section aria-labelledby="archive-h">
-              <h2 className="q-section" id="archive-h">
-                Archive
-              </h2>
-              <ul className="q-list under" aria-label="Archive">
-                {archiveRest.map((a) => row(a, true))}
-              </ul>
-            </section>
-          )}
-        </div>
+        // Favorites: newest first, archived or not, never dimmed. Archived: most recently played first.
+        <ul className="q-list" aria-label={savedShow === 'favorites' ? 'Favorites' : 'Archived'}>
+          {savedList.map((a) => (savedShow === 'favorites' ? row(a, !!a.archivedAt, false) : row(a, true)))}
+        </ul>
       ) : (
         <ul className="q-list" aria-label="Queue" ref={listRef}>
           {shownUpNext.map((a) => row(a, false))}

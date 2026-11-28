@@ -160,7 +160,9 @@ export async function markFeedSeen(feedId: string): Promise<void> {
  */
 export async function addFeedItem(item: FeedItem): Promise<{ articleId: string; existed: boolean }> {
   const fresh = await db.feedItems.get(item.id);
-  if (fresh?.articleId) return { articleId: fresh.articleId, existed: true };
+  // Already an article, unless that article has since been deleted: then the post can be added again.
+  const made = fresh?.articleId ? await db.articles.get(fresh.articleId) : undefined;
+  if (made && !made.deletedAt) return { articleId: made.id, existed: true };
   const link = rebaseLink(item.link, (await db.feeds.get(item.feedId))?.linkBase);
   const key = urlKey(link);
   const match = key ? await db.articles.filter((a) => !a.deletedAt && (urlKey(a.url) === key || urlKey(a.canonicalUrl) === key)).first() : undefined;

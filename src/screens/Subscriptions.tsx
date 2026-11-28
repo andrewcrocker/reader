@@ -7,7 +7,7 @@ import { useArtUrl } from '../art/useArtUrl';
 import { plural } from '../format';
 import { inboxOrder } from '../feeds/diff';
 import { ago, feedHost, shortDate } from '../feeds/format';
-import { summarizeFeeds, type FeedSort, type FeedSummary } from '../feeds/list';
+import { postState, showsPost, summarizeFeeds, type FeedSort, type FeedSummary, type PostShow, type PostState } from '../feeds/list';
 import { addFeedItem, checkFeeds, markFeedSeen, refreshFeed, removeFeed } from '../feeds/store';
 import { coverInk, domainColor } from '../theme/color';
 import { Icon } from '../ui/Icon';
@@ -161,11 +161,18 @@ function BlogRow({ summary: { feed, unseen, latest }, onRefresh, onDelete }: { s
 /**
  * One blog's posts, a level into Subscriptions: the header carries the blog's name and a back arrow.
  * Posts you haven't seen have a dot; they count as seen once you leave (or the app goes to the background).
+ * The kebab's Show picks which posts are listed: Unplayed (the default), Played, Favorites or All.
  */
 export function FeedPosts({ feedId }: { feedId: string }) {
-  const { feeds, feedItems } = useAppData();
+  const { feeds, feedItems, articles, settings } = useAppData();
   const feed = feeds.find((f) => f.id === feedId);
-  const posts = useMemo(() => inboxOrder(feedItems.filter((i) => i.feedId === feedId)), [feedItems, feedId]);
+  const show: PostShow = settings.feedShow ?? 'unplayed';
+  const all = useMemo(() => inboxOrder(feedItems.filter((i) => i.feedId === feedId)), [feedItems, feedId]);
+  // Each post with what its article has been through (added, played, favorite), then the Show filter.
+  const posts = useMemo(() => {
+    const byId = new Map(articles.map((a) => [a.id, a]));
+    return all.map((item) => ({ item, state: postState(item, byId) })).filter((p) => showsPost(p.state, show));
+  }, [all, articles, show]);
   // `adding` disables the buttons; `pending` is what a second tap checks, since state only updates after the render.
   const [adding, setAdding] = useState<ReadonlySet<string>>(new Set());
   const pending = useRef(new Set<string>());
@@ -213,7 +220,8 @@ export function FeedPosts({ feedId }: { feedId: string }) {
     }
   };
 
-  const unseen = posts.filter((p) => p.seenAt === null).length;
+  const unseen = all.filter((p) => p.seenAt === null).length;
+  const choice = (label: string, value: PostShow) => ({ label, checked: show === value, run: () => void updateSettings({ feedShow: value }) });
   return (
     <div className="screen">
       <header className="q-header pushed">
@@ -225,22 +233,23 @@ export function FeedPosts({ feedId }: { feedId: string }) {
             <h1 className="screen-title" tabIndex={-1} ref={title}>
               {feed?.title}
             </h1>
-            {feed && <p className="q-sub">{[unseen ? `${unseen} new` : '', plural(posts.length, 'post'), feed.lastCheckedAt ? `Checked ${ago(feed.lastCheckedAt)}` : ''].filter(Boolean).join(' · ')}</p>}
+            {feed && <p className="q-sub">{[unseen ? `${unseen} new` : '', show === 'all' ? plural(all.length, 'post') : `${posts.length} of ${plural(all.length, 'post')}`, feed.lastCheckedAt ? `Checked ${ago(feed.lastCheckedAt)}` : ''].filter(Boolean).join(' · ')}</p>}
           </div>
+          <MenuButton header label="Which posts to show" items={[{ heading: 'Show' }, choice('Unplayed', 'unplayed'), choice('Played', 'played'), choice('Favorites', 'favorites'), choice('All', 'all')]} />
         </div>
       </header>
 
       {posts.length > 0 ? (
         <ul className="feed-list" aria-label="Posts">
-          {posts.map((item) => (
+          {posts.map(({ item, state }) => (
             <li key={item.id} className="row-wrap">
-              <PostRow item={item} busy={adding.has(item.id)} onAdd={() => void add(item)} />
+              <PostRow item={item} state={state} busy={adding.has(item.id)} onAdd={() => void add(item)} />
             </li>
           ))}
         </ul>
       ) : (
         <div className="feed-list">
-          <p className="feed-none">No posts yet.</p>
+          <p className="feed-none">{!all.length ? 'No posts yet.' : show === 'unplayed' ? 'No unplayed posts.' : show === 'played' ? 'No played posts yet.' : 'No favorites from this blog yet.'}</p>
         </div>
       )}
 
@@ -249,11 +258,10 @@ export function FeedPosts({ feedId }: { feedId: string }) {
   );
 }
 
-function PostRow({ item, busy, onAdd }: { item: FeedItem; busy: boolean; onAdd: () => void }) {
+function PostRow({ item, state: { added, played, favorite }, busy, onAdd }: { item: FeedItem; state: PostState; busy: boolean; onAdd: () => void }) {
   const unseen = item.seenAt === null;
-  const added = !!item.articleId;
   return (
-    <div className="row post-row">
+    <div className={`row post-row${played ? ' played' : ''}`}>
       {unseen && <span className="new-dot post-dot" aria-hidden="true" />}
       <div className="row-main">
         <p className="row-title">
@@ -261,7 +269,8 @@ function PostRow({ item, busy, onAdd }: { item: FeedItem; busy: boolean; onAdd: 
           {item.title}
         </p>
         <p className="row-meta">
-          <span className="segs">{shortDate(item.publishedAt ?? item.firstSeenAt)}</span>
+          {favorite && <Icon name="heart-filled" size={14} className="glyph post-fav" />}
+          <span className="segs">{[favorite ? 'Favorite' : '', played ? 'Played' : '', shortDate(item.publishedAt ?? item.firstSeenAt)].filter(Boolean).join(' · ')}</span>
         </p>
       </div>
       {added ? (

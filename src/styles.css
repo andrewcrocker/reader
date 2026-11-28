@@ -145,7 +145,6 @@ a { color: var(--accent); }
 
 /* ---------- Queue list ---------- */
 .q-list { list-style: none; margin: 0; padding: 0 0 8px; border-top: 1px solid var(--line); flex: 1; }
-.q-section { padding: 18px 20px 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; }
 .caps { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 
 .row-wrap { position: relative; overflow: hidden; }
@@ -205,6 +204,8 @@ a { color: var(--accent); }
 .post-dot { position: absolute; left: 6px; top: 19px; }
 .post-add { color: var(--accent); }
 .post-added { color: var(--accent); cursor: default; }
+.post-fav { color: var(--accent); }
+.q-hint-top { flex: 1; border-top: 1px solid var(--line); padding-top: 20px; }
 
 /* A screen one level into a tab: back arrow, then the title on one line. Same height as the tab headers. */
 .q-header.pushed { padding-left: 8px; }
@@ -497,6 +498,15 @@ textarea.input { height: auto; padding: 12px 14px; font: 400 15px/1.5 var(--seri
 @keyframes rise { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 
+/* ---------- Going in and out: a blog's posts, Settings, a Settings page ---------- */
+/* The screen that arrives fades in while it slides a short way from the side it came from: from the right going in,
+   from the left coming back. The dock (tab bar, mini player) stays put. `data-nav` is set by ui.ts for the length of the animation. */
+@keyframes nav-in { from { opacity: 0; transform: translateX(32px); } to { opacity: 1; transform: none; } }
+@keyframes nav-out { from { opacity: 0; transform: translateX(-32px); } to { opacity: 1; transform: none; } }
+:root[data-nav] .screen { overflow-x: clip; }
+:root[data-nav='in'] .screen > :not(.dock) { animation: nav-in 280ms var(--ease) both; }
+:root[data-nav='out'] .screen > :not(.dock) { animation: nav-out 280ms var(--ease) both; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
 }
@@ -571,6 +581,7 @@ textarea.input { height: auto; padding: 12px 14px; font: 400 15px/1.5 var(--seri
 .menu button.danger { color: var(--error); }
 .menu-heading { margin: 0; padding: 10px 14px 4px 12px; border-top: 1px solid var(--line); margin-top: 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .menu-slot { width: 20px; flex: none; }
+.menu-heading:first-child { border-top: 0; margin-top: 0; }
 .row .icon-btn.row-action { color: var(--muted); }
 
 /* Invite needed (SPEC §10a): the empty-state layout, full height, no header above it. */
@@ -609,8 +620,6 @@ textarea.input { height: auto; padding: 12px 14px; font: 400 15px/1.5 var(--seri
 .np-meta .love-btn { margin: -10px -14px 0 0; }
 .lyrics-head .love-btn { width: 44px; }
 
-.q-sections { flex: 1; }
-.q-list.under { border-top: 0; flex: none; }
 .q-hint { margin: 0; padding: 14px 20px 24px; font-size: 14.5px; line-height: 1.5; color: var(--muted); }
 
 .seg button .seg-n { margin-left: 8px; color: var(--muted); font-weight: 500; }

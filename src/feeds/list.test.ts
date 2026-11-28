@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Feed } from '../db';
-import { summarizeFeeds } from './list';
+import { postState, showsPost, summarizeFeeds, type PostShow } from './list';
 
 const feed = (id: string, title: string, addedAt = 0): Feed => ({ id, title, feedUrl: `https://${id}.example/feed`, addedAt });
 const post = (feedId: string, publishedAt: number | undefined, seen = true, firstSeenAt = 1) => ({ feedId, publishedAt, firstSeenAt, seenAt: seen ? 5 : null });
@@ -35,5 +35,42 @@ describe('summarizeFeeds', () => {
     const tied = [feed('x', 'Same'), feed('y', 'Other')];
     expect(ids(summarizeFeeds(tied, [post('x', 7), post('y', 7)], 'recent'))).toEqual(['y', 'x']);
     expect(ids(summarizeFeeds([feed('2', 'Same'), feed('1', 'Same')], [], 'alpha'))).toEqual(['1', '2']);
+  });
+});
+
+describe('postState and showsPost', () => {
+  const articles = new Map([
+    ['queued', {}],
+    ['played', { playedAt: 5, archivedAt: 5 }],
+    ['archived', { archivedAt: 5 }],
+    ['loved', { lovedAt: 9 }],
+    ['loved-played', { lovedAt: 9, playedAt: 5 }],
+    ['deleting', { deletedAt: 7 }],
+  ]);
+  const state = (articleId?: string) => postState({ articleId }, articles);
+
+  it('a post never added is unplayed and can be added', () => {
+    expect(state()).toEqual({ added: false, played: false, favorite: false });
+  });
+
+  it('reads added, played and favorite from the article', () => {
+    expect(state('queued')).toEqual({ added: true, played: false, favorite: false });
+    expect(state('played')).toEqual({ added: true, played: true, favorite: false });
+    expect(state('archived').played).toBe(true);
+    expect(state('loved')).toEqual({ added: true, played: false, favorite: true });
+    expect(state('loved-played')).toEqual({ added: true, played: true, favorite: true });
+  });
+
+  it('a post whose article is gone counts as played, and can be added again', () => {
+    expect(state('missing')).toEqual({ added: false, played: true, favorite: false });
+    expect(state('deleting')).toEqual({ added: false, played: true, favorite: false });
+  });
+
+  it('filters by the chosen view', () => {
+    const shown = (show: PostShow) => [undefined, 'queued', 'played', 'loved', 'loved-played'].filter((id) => showsPost(state(id), show)).map((id) => id ?? 'new');
+    expect(shown('all')).toEqual(['new', 'queued', 'played', 'loved', 'loved-played']);
+    expect(shown('unplayed')).toEqual(['new', 'queued', 'loved']);
+    expect(shown('played')).toEqual(['played', 'loved-played']);
+    expect(shown('favorites')).toEqual(['loved', 'loved-played']);
   });
 });

@@ -91,6 +91,16 @@ function push(patch: Partial<UiState>) {
   set(patch);
 }
 
+// Going a level in (a blog's posts, Settings, a Settings page) and coming back out: the screen that
+// arrives slides in from the side it came from (styles.css "Going in and out"). The mark is on <html>
+// only while the animation runs, so nothing else that mounts later (a select bar, a new row) plays it.
+let navTimer: ReturnType<typeof setTimeout> | undefined;
+function markNav(dir: 'in' | 'out') {
+  clearTimeout(navTimer);
+  document.documentElement.dataset.nav = dir;
+  navTimer = setTimeout(() => delete document.documentElement.dataset.nav, 400);
+}
+
 /**
  * Switches the tab bar. Up next is the bottom of the history stack and the other two sit one entry
  * above it, so Android's back from either returns to Up next, and switching between the two swaps in place.
@@ -108,10 +118,10 @@ export function setTab(tab: Tab) {
   else set({ tab });
 }
 
-export const openSettings = () => !state.settings && push({ settings: 'menu' });
+export const openSettings = () => !state.settings && (markNav('in'), push({ settings: 'menu' }));
 /** Opens one blog's posts, a level into the Subscriptions tab. */
-export const openFeed = (id: string) => !state.feed && push({ feed: id });
-export const openSettingsPage = (page: Exclude<SettingsPage, 'menu'>) => push({ settings: page });
+export const openFeed = (id: string) => !state.feed && (markNav('in'), push({ feed: id }));
+export const openSettingsPage = (page: Exclude<SettingsPage, 'menu'>) => (markNav('in'), push({ settings: page }));
 /** Opens the Now Playing overlay. In the wide layout it's already on screen, so this does nothing. */
 export const openNowPlaying = () => !state.nowPlaying && !wideQuery.matches && push({ nowPlaying: true });
 
@@ -131,9 +141,14 @@ window.addEventListener('popstate', () => {
   if (state.sheet) set({ sheet: null });
   else if (state.nowPlaying) set({ nowPlaying: false });
   // A settings page goes back to the menu; the menu goes back to the queue.
-  else if (state.settings) set({ settings: state.settings === 'menu' ? null : 'menu' });
+  else if (state.settings) {
+    markNav('out');
+    set({ settings: state.settings === 'menu' ? null : 'menu' });
+  }
   // A blog's posts go back to the list of blogs.
   else if (state.feed) {
+    // Leaving for another tab isn't coming back out, so only a plain back slides.
+    if (!pendingTab) markNav('out');
     set({ feed: null });
     const next = pendingTab;
     pendingTab = null;

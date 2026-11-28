@@ -200,6 +200,10 @@ export interface Settings {
   shareName?: string;
   /** How the list of blogs on Subscriptions is ordered. Unset means 'recent'. */
   feedSort?: 'recent' | 'alpha';
+  /** Which posts a blog's page shows. Unset means 'unplayed'. */
+  feedShow?: 'unplayed' | 'played' | 'favorites' | 'all';
+  /** Which list the Saved tab shows. Unset means 'favorites'. */
+  savedShow?: 'favorites' | 'archived';
 }
 
 export const DEFAULT_SETTINGS: Settings = {

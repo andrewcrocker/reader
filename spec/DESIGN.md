@@ -235,11 +235,12 @@ Every row shows a 16 dp status glyph at the start of its meta line, then text. E
 
 ### 1a. Saved
 
-The last tab. The same rows, gestures, and multi-select as Up next, in two sections, except that rows can't be reordered: a hold goes straight to multi-select. Header: "Saved", a line such as "8 loved · 12 archived", and a **Share** icon button (the share glyph in a plain 48 icon button, like Settings on Up next; disabled when nothing loved can be shared). Nothing in the header is `accent`-filled.
+The last tab. The same rows, gestures, and multi-select as Up next, except that rows can't be reordered: a hold goes straight to multi-select. It shows one list at a time, picked from the header's ⋮ menu. Header: "Saved", a line that counts the list on show ("8 favorites" or "12 archived"), a **Share** icon button (the share glyph in a plain 48 icon button, like Settings on Up next; disabled when nothing loved can be shared), and a ⋮ button. Nothing in the header is `accent`-filled.
 
-- **Loved** (section label, caps): every loved article, newest love first, whether or not it's archived. Rows aren't dimmed, so the top of the tab stays bright. With none, a `muted` line: "Tap the heart on an article to keep it here. You can share what you love."
-- **Archive** (section label): archived articles that aren't loved. An article that is both is listed once, under Loved. (Showing it twice would make "12 archived" and the list disagree, and the Archive would no longer read as "what's left once the favorites are pulled out".) Hidden when empty.
-- Swipe left deletes; swipe right marks played unless the row is archived. Multi-select has the same header (including Share as list), Select all and action bar as Up next. Mark played is disabled if every selected row is archived. Move to top returns an archived row to Up next. Loving an archived row lifts it into Loved; unloving drops it back into Archive.
+- **⋮ menu:** a small-caps "Show" label over two choices, with a check mark on the current one: **Favorites** (the default) and **Archived**. The choice is remembered.
+- **Favorites:** every loved article, newest love first, whether or not it's archived. Rows aren't dimmed. With none, a `muted` line: "Tap the heart on an article to keep it here. You can share your favorites."
+- **Archived:** every archived article, most recently played first, dimmed as played. A loved one is listed here too, since the two lists are never on screen together. With none, a `muted` line: "Articles you've listened to land here."
+- Swipe left deletes; swipe right marks played unless the row is archived. Multi-select has the same header (including Share as list), Select all and action bar as Up next. Mark played is disabled if every selected row is archived. Move to top returns an archived row to Up next. Select all takes the list on show.
 - **Empty state** (nothing loved or archived): the heart glyph, "Nothing saved yet", "Love an article to keep it here, and share your favorites. Articles you've listened to land here too."
 
 ### 2. Mini player
@@ -389,12 +390,14 @@ The first tab. It's pull only: the blogs you follow are listed here with how man
 
 One level into Subscriptions, opened from a blog's row. The tab bar stays.
 
-- **Header:** the same height as the tab headers. A back arrow ("Back to subscriptions"), then the blog's name (Literata 24, one line) over a line such as "3 new · 20 posts · Checked 12 m ago".
+- **Header:** the same height as the tab headers. A back arrow ("Back to subscriptions"), then the blog's name (Literata 24, one line) over a line such as "3 new · 12 of 20 posts · Checked 12 m ago", and a ⋮ button at the end.
+- **⋮ menu:** a small-caps "Show" label over four choices, with a check mark on the current one: **Unplayed** (the default), **Played**, **Favorites** and **All**. The choice is remembered, and is the same for every blog. A post is played once the article made from it has been listened to; a post never added is unplayed. Favorites are posts whose article has a heart.
 - **Posts:** newest first. A row has the title (Literata 16, 2 lines) and a short date ("Nov 26").
   - **New:** an 8 dp `accent` dot in the row's left margin, level with the title, so titles stay aligned whether or not a post is new. It reads "New." to a screen reader. Posts stay marked until you leave the blog.
   - **Add:** a 48 icon button at the end, a plus in a ring, in `accent` (`aria-label` "Add <title> to your queue"). A snackbar says "Saved to your queue". A post that's already an article isn't added twice: the snackbar says "Already in your queue".
   - **Added:** the button becomes a filled `accent` disc with a check, which isn't a button ("Added to your queue").
-- **Empty:** a `muted` line, "No posts yet."
+  - **Played and favorite:** each post has two states, added or not and played or not, and they show separately. A played post has a `muted` 400-weight title, like a played row in Up next, and its meta line starts "Played ·". A favorite has a small filled `accent` heart and "Favorite ·" there. The button at the end still says whether it is in the queue: a played post that was cleared from the queue shows Add again.
+- **Empty:** a `muted` line: "No posts yet.", or for a view with nothing in it "No unplayed posts.", "No played posts yet.", "No favorites from this blog yet."
 
 ### 12. Settings · artboard "Settings …"
 
@@ -494,7 +497,7 @@ A snapshot of some articles, sent as one link (SPEC §4). Nothing is uploaded an
 | Scroll (lyrics) | Pause follow, show Back to current |
 | Pull to refresh | None |
 
-- **Motion:** most transitions under 250 ms, standard easing; sheets slide up at 250 ms.
+- **Motion:** most transitions under 250 ms, standard easing; sheets slide up at 250 ms. Going a level in (a blog's posts, Settings, a Settings page) the new screen fades in while sliding 32 from the right over 280 ms; coming back out, the screen you return to does the same from the left. The dock stays still. Switching tabs doesn't animate.
 - **Snackbars:** stay 6 s; only one at a time, and a newer one replaces the older.
 - **Reduced motion:** removes the shared-element transition (crossfade instead), lyrics easing, and the tint crossfade.
 
