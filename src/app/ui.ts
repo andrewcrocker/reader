@@ -95,11 +95,16 @@ function push(patch: Partial<UiState>) {
 // arrives slides in from the side it came from (styles.css "Going in and out"). The mark is on <html>
 // only while the animation runs, so nothing else that mounts later (a select bar, a new row) plays it.
 let navTimer: ReturnType<typeof setTimeout> | undefined;
-function markNav(dir: 'in' | 'out') {
+function markNav(dir: 'in' | 'out' | 'tab-next' | 'tab-prev') {
   clearTimeout(navTimer);
   document.documentElement.dataset.nav = dir;
-  navTimer = setTimeout(() => delete document.documentElement.dataset.nav, 400);
+  navTimer = setTimeout(() => delete document.documentElement.dataset.nav, 500);
 }
+
+/** The tabs in the order the bar shows them, so a switch knows which way to pan. */
+const TAB_ORDER: Tab[] = ['subscriptions', 'queue', 'saved'];
+/** Switching tabs: the new list pans in from the side its tab is on, and its icon gives a small twist. */
+const markTab = (to: Tab) => markNav(TAB_ORDER.indexOf(to) > TAB_ORDER.indexOf(state.tab) ? 'tab-next' : 'tab-prev');
 
 /**
  * Switches the tab bar. Up next is the bottom of the history stack and the other two sit one entry
@@ -113,6 +118,8 @@ export function setTab(tab: Tab) {
     return history.back();
   }
   if (tab === state.tab) return;
+  // Going to Up next is a back, and the popstate handler marks that one.
+  if (tab !== 'queue') markTab(tab);
   if (tab === 'queue') history.back();
   else if (state.tab === 'queue') push({ tab });
   else set({ tab });
@@ -162,7 +169,10 @@ window.addEventListener('popstate', () => {
     const next = pendingTab;
     pendingTab = null;
     if (next) setTab(next);
-  } else if (state.tab !== 'queue') set({ tab: 'queue' });
+  } else if (state.tab !== 'queue') {
+    markTab('queue');
+    set({ tab: 'queue' });
+  }
 });
 
 // ---- Snackbar: one at a time, 6 s, a newer one replaces the older (DESIGN "Interactions") ----

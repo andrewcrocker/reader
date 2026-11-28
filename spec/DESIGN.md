@@ -499,7 +499,7 @@ A snapshot of some articles, sent as one link (SPEC §4). Nothing is uploaded an
 | Scroll (lyrics) | Pause follow, show Back to current |
 | Pull to refresh | None |
 
-- **Motion:** most transitions under 250 ms, standard easing; sheets slide up at 250 ms. Going a level in (a blog's posts, Settings, a Settings page) the new screen fades in while sliding 32 from the right over 280 ms; coming back out, the screen you return to does the same from the left. The dock stays still. Switching tabs doesn't animate.
+- **Motion:** most transitions under 250 ms, standard easing; sheets slide up at 250 ms. Going a level in (a blog's posts, Settings, a Settings page) the new screen fades in while sliding 32 from the right over 280 ms; coming back out, the screen you return to does the same from the left. The dock stays still. Switching tabs pans the new list in the same way, 44 over 190 ms, from the side its tab is on, and the pressed tab's icon dips, twists and bounces back over 420 ms.
 - **Snackbars:** stay 6 s; only one at a time, and a newer one replaces the older.
 - **Reduced motion:** removes the shared-element transition (crossfade instead), lyrics easing, and the tint crossfade.
 

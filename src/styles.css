@@ -517,6 +517,21 @@ textarea.input { height: auto; padding: 12px 14px; font: 400 15px/1.5 var(--seri
 :root[data-nav='in'] .screen > :not(.dock) { animation: nav-in 280ms var(--ease) both; }
 :root[data-nav='out'] .screen > :not(.dock) { animation: nav-out 280ms var(--ease) both; }
 
+/* Switching tabs: the same idea, quicker and a little further, from the side the new tab is on. */
+@keyframes tab-next { from { opacity: 0; transform: translateX(44px); } to { opacity: 1; transform: none; } }
+@keyframes tab-prev { from { opacity: 0; transform: translateX(-44px); } to { opacity: 1; transform: none; } }
+:root[data-nav='tab-next'] .screen > :not(.dock) { animation: tab-next 190ms var(--ease) both; }
+:root[data-nav='tab-prev'] .screen > :not(.dock) { animation: tab-prev 190ms var(--ease) both; }
+/* The tab you pressed: its icon dips, twists and bounces back. Only during a switch, so it doesn't replay when the bar remounts. */
+@keyframes tab-pop {
+  0% { transform: none; }
+  30% { transform: scale(0.84) rotate(-14deg); }
+  62% { transform: scale(1.14) rotate(9deg); }
+  82% { transform: scale(0.97) rotate(-3deg); }
+  100% { transform: none; }
+}
+:root[data-nav^='tab'] .tab[aria-current='page'] .tab-ico svg { animation: tab-pop 420ms ease-out both; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
 }
