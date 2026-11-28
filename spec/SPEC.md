@@ -36,7 +36,8 @@ Status: reconciled with DESIGN.md (Oct 28, 2026). DESIGN.md owns screens, states
 
 **Non-goals (for now)**
 
-- Accounts, logins, or sync. Everything lives on the device. The one exception: rendered audio waits on the server (R2) until the app downloads it, then it's deleted (7 days at most).
+- Accounts, logins, or sync. A person's queue and settings live on their device.
+- Anything the owner has to look after. The server may keep things when that makes the app better, as long as they expire on their own, can be switched off, and need no watching or cleanup by hand. Today that is rendered audio, which waits in R2 until the app downloads it and is then deleted (7 days at most).
 - Multi-device support. One phone (Pixel 8 / Chrome).
 - Highlights, notes, tags, search. These might come later.
 - A reading mode without audio.

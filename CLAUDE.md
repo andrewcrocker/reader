@@ -26,6 +26,13 @@ Most people working here are on a fork and send changes back to the original rep
 
 - Pushing to the original repo's `main` and deploying (`npm run deploy:app`, `npm run deploy:worker`). Merged PRs go live when the maintainer deploys.
 - Anything that costs money or changes the shared voice budget (`DAILY_CHAR_CAP`, the voice host).
+- Anything that makes other people's writing public, such as audio anyone can play without an invite. That is a copyright decision.
+
+## How the owner weighs a change
+
+- **Low upkeep comes first.** The owner is a designer who runs this alone and doesn't want to do devops. Keeping something on the server is fine when it looks after itself: it expires on its own, it has an off switch, and nobody has to watch it, clean it up or migrate it by hand. In a PR, say what upkeep the change adds, if any.
+- **Good UX beats privacy.** Reader holds articles people chose to listen to, nothing sensitive. When the two pull apart, pick the better experience. Don't add limits, flags or gates for privacy alone.
+- Copyright and cost are separate from both, and stay the owner's call (see "Leave to the maintainer").
 
 ## Things that are easy to get wrong
 
