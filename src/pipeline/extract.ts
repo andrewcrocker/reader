@@ -4,6 +4,7 @@ import { noteInviteRejected } from '../app/invite';
 import { absUrl, parseHtml } from './dom';
 import type { Block } from './textprep';
 import { parsePdf } from './pdf';
+import { wpcomArticle } from './wpcom';
 
 export interface Extracted {
   /** Empty for an uploaded file. */
@@ -38,6 +39,9 @@ export class ExtractError extends Error {
   ) {
     super(message);
   }
+
+  /** The site refused our fetch service (401 or 403). The device may still be let in (see `wpcom.ts`). */
+  blocked = false;
 }
 
 const SERVICE_DOWN = 'Couldn’t reach the service that fetches pages. Check your connection and try again.';
@@ -70,7 +74,9 @@ export function siteFailure(status: number): ExtractError | null {
           : status >= 500
             ? `The site had a problem (${status}). Try again later.`
             : `The site returned an error (${status}).`;
-  return new ExtractError(m, 'page');
+  const err = new ExtractError(m, 'page');
+  err.blocked = status === 401 || status === 403;
+  return err;
 }
 
 /** What `/fetch` returned: a web page's HTML, or a PDF's bytes. */
@@ -135,7 +141,35 @@ async function fromArchives(url: string, settings: Settings, parse: typeof parse
   return partial;
 }
 
-/** Fetch and parse the page; if that fails, fall back to an existing archived copy (SPEC §5, ladder step 5). */
+/**
+ * A post on a WordPress.com blog, read from its public API on the device. WordPress.com blocks our
+ * fetch service but not the device. Null if it isn't such a post, or has no usable text.
+ */
+async function fromWpcom(url: string, parse: typeof parseArticle): Promise<Extracted | null> {
+  try {
+    const post = await wpcomArticle(url);
+    if (!post) return null;
+    // Through the same parser as a fetched page, so the text is cleaned and checked the same way.
+    const page = parse(`<!doctype html><html><head><title>${post.title.replace(/[<&]/g, ' ')}</title></head><body><article>${post.contentHtml}</article></body></html>`, post.link);
+    return {
+      ...page,
+      canonicalUrl: post.link,
+      title: post.title,
+      byline: post.byline ?? page.byline,
+      siteName: post.siteName ?? page.siteName,
+      imageUrl: post.imageUrl ?? page.imageUrl,
+      iconUrl: post.iconUrl ?? page.iconUrl,
+      method: 'wpcom',
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetch and parse the page. If the site blocks the fetch, try WordPress.com's API from the device;
+ * if that fails too, fall back to an existing archived copy (SPEC §5, ladder step 5).
+ */
 export async function loadArticle(url: string, settings: Settings, parse: typeof parseArticle = parseArticle): Promise<Extracted> {
   try {
     const page = await fetchHtml(url, settings);
@@ -143,6 +177,8 @@ export async function loadArticle(url: string, settings: Settings, parse: typeof
     return parse(page.html, page.finalUrl);
   } catch (err) {
     if (!archiveMightHelp(err)) throw err;
+    const direct = err.blocked ? await fromWpcom(url, parse) : null;
+    if (direct) return direct;
     const copy = await fromArchives(url, settings, parse);
     if (copy) return copy;
     throw new ExtractError(`${err.message} No archived copy was found either.`, 'page');

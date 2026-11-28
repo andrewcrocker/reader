@@ -238,6 +238,13 @@ A check that is already running covers a later one (launch and "back in front" c
 
 A page the Worker declines to return (too large, not HTML) still counts as answering, since the site did. Rebasing changes only the stored link: a post's id still hashes the guid or link as the feed gave it, so ids don't move when `linkBase` is set. Posts stored before it was set are rebased when they're added to the queue (Add), and the Your subscriptions row shows the host the posts are read from.
 
+**Blocked sites.** WordPress.com answers the Worker with a 403 browser check, on every blog it hosts. Its public API (`public-api.wordpress.com`) is open to any web page, so the device asks it directly (`pipeline/wpcom.ts`). This happens only after the site has blocked the fetch (401 or 403):
+- Subscribing: the API gives the blog's name, icon and newest 20 posts. The feed is stored as `https://<host>/feed/`, the address every WordPress blog has, so pasting the site, the feed or a post makes the same subscription.
+- Checking: the feed is tried through the Worker first each time, then the API. If the block lifts, the feed is read as usual. Post ids are the same either way, so no post shows twice.
+- A blocked site that WordPress.com doesn't host shows the usual "The site blocked the request (403)."
+
+Adding a post from such a blog uses the same API (§5).
+
 **New-post indicators.** A post is new while its `seenAt` is null. That drives three things: the dot on the Subscriptions tab (any blog has one), the dot and count on a blog's row, and the dot on the post itself. A blog's posts are marked seen when the user leaves that blog (back, or another tab), or when the app goes to the background while it is open (`markFeedSeen()`). Marking them on arrival would clear the dots before anyone could read them. Opening the Subscriptions tab alone marks nothing.
 
 **Add.** Tapping Add on a post checks the existing articles by address (ignoring the scheme, `www.`, a trailing slash, the `#fragment`, and `utm_` parameters, against both `url` and `canonicalUrl`). If one exists, the post links to it. Otherwise it goes through the normal save flow above (`addUrl`, with the post's title as the provisional title). Either way the post stores `articleId`, and its button reads "Added".
@@ -263,6 +270,7 @@ Each step produces a candidate. A **quality check** decides whether to accept it
 | 2 | Embedded data: JSON-LD `articleBody`, `__NEXT_DATA__`, Apollo/Redux state, `<script type="application/json">` blobs | Phone | Soft paywalls that ship the full text in page data |
 | 3 | AMP version (`<link rel="amphtml">`) | Worker + phone | Sites with lighter AMP paywalls |
 | 4 | Alternate fetch profiles (no cookies, search/social referrer) | Worker | Some metered walls. ToS-gray; can be disabled per site |
+| 4a | WordPress.com API, only when the site blocked step 1 (401 or 403): the post is looked up by the slug its address ends in, and its text goes through the same parser | Phone | Blogs on WordPress.com, which blocks the Worker |
 | 5 | Existing archives: Wayback availability API, archive.today newest snapshot | Worker + phone | Hard paywalls, if someone else already archived the page |
 | 6 | Graceful failure | Phone | If any text was found: keep the best candidate, set `extractionQuality: "partial"`, continue to render. If nothing usable: `status: "failed"` with a one-line reason |
 
@@ -270,7 +278,7 @@ Each step produces a candidate. A **quality check** decides whether to accept it
 
 **Later:** per-domain overrides (skip straight to step N for known sites), and a "this extraction is bad, retry with the next method" action on any article.
 
-**Known limits:** the Worker fetches from datacenter IPs, which some sites block. If that becomes a real problem, see Alternative B (§12).
+**Known limits:** the Worker fetches from datacenter IPs, which some sites block. WordPress.com is one, and step 4a gets around it. If others become a real problem, see Alternative B (§12).
 
 ---
 

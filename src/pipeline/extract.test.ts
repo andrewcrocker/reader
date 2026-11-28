@@ -33,6 +33,19 @@ describe('loadArticle', () => {
     expect(await loadArticle(url, settings, parse)).toMatchObject({ method: 'archive-today', finalUrl: url, canonicalUrl: undefined });
   });
 
+  it('reads a blocked WordPress.com post from its API on the device, before any archive', async () => {
+    const post = { URL: url, title: 'Sulla and friends', content: '<p>body</p>', author: { name: 'Bret' } };
+    const seen = stub({ '/fetch': blocked, 'public-api.wordpress.com/rest/v1.1/sites/example.com/posts/slug:story': () => Response.json(post), 'source=wayback': () => new Response('copy') });
+    expect(await loadArticle(url, settings, parse)).toMatchObject({ method: 'wpcom', title: 'Sulla and friends', byline: 'Bret', finalUrl: url, canonicalUrl: url });
+    expect(seen.some((u) => u.includes('/archive'))).toBe(false);
+  });
+
+  it('only asks WordPress.com when the site blocked the fetch', async () => {
+    const seen = stub({ '/fetch': () => new Response('down', { headers: { 'X-Upstream-Status': '503' } }), 'source=wayback': () => new Response('copy') });
+    expect((await loadArticle(url, settings, parse)).method).toBe('wayback');
+    expect(seen.some((u) => u.includes('wordpress.com'))).toBe(false);
+  });
+
   it('falls back when the page loads but has no article text', async () => {
     stub({ '/fetch': () => new Response('stub', { headers: { 'X-Upstream-Status': '200' } }), 'source=wayback': () => new Response('copy') });
     const parseOrFail = (html: string, finalUrl: string) => {

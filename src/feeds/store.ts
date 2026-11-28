@@ -1,10 +1,11 @@
 import { db, getSettings, type Feed, type FeedItem, type Settings } from '../db';
 import { ExtractError, fetchHtml } from '../pipeline/extract';
 import { addUrl } from '../pipeline/runner';
-import { discoverFeed, FeedError, probeLinkBase, type FetchText } from './discover';
+import { wpcomFeed, wpcomFeedUrl } from '../pipeline/wpcom';
+import { discoverFeed, FeedError, probeLinkBase, type Discovered, type FetchText } from './discover';
 import { diffItems, idsToPrune, isDue, rebaseLink, urlKey, WINDOW } from './diff';
 import { fetchFeedArt, feedArtKey } from './art';
-import { parseFeed } from './parse';
+import { normalizeAddress, parseFeed, type ParsedFeed } from './parse';
 import { singleFlight } from './singleFlight';
 
 // Subscriptions on the device (SPEC §4 "Feed inbox"). Pull only: feeds are read when the app
@@ -30,13 +31,49 @@ const probeFetcher =
     }
   };
 
+/**
+ * A blog whose site blocks our fetch service, read from WordPress.com's API on the device instead
+ * (SPEC §4c "Blocked sites"). Null if the failure wasn't a block, or WordPress.com doesn't host the blog.
+ */
+async function blockedFeed(address: string | undefined, e: unknown): Promise<Discovered | null> {
+  if (!(e instanceof ExtractError) || !e.blocked || !address) return null;
+  const feedUrl = wpcomFeedUrl(address);
+  const feed = feedUrl ? await wpcomFeed(address) : null;
+  return feedUrl && feed ? { feedUrl, feed } : null;
+}
+
+/** Finds the feed for what a person pasted. A WordPress.com blog that blocks the fetch is read from its API. */
+async function discover(input: string, settings: Settings): Promise<Discovered> {
+  try {
+    return await discoverFeed(input, fetcher(settings));
+  } catch (e) {
+    const direct = await blockedFeed(normalizeAddress(input), e);
+    if (!direct) throw e;
+    return direct;
+  }
+}
+
+/** A subscribed feed's posts as they are now. Tries the feed first each time, so a block that lifts is noticed. */
+async function readFeed(feedUrl: string, settings: Settings): Promise<ParsedFeed> {
+  try {
+    const page = await fetcher(settings)(feedUrl);
+    const parsed = parseFeed(page.text, page.finalUrl);
+    if (!parsed) throw new FeedError('That address no longer gives a feed.');
+    return parsed;
+  } catch (e) {
+    const direct = await blockedFeed(feedUrl, e);
+    if (!direct) throw e;
+    return direct.feed;
+  }
+}
+
 /** One line for the user: our own errors say what's wrong; anything else gets a general line. */
 const reason = (e: unknown) => (e instanceof FeedError || e instanceof ExtractError ? e.message : 'Couldn’t read the feed.');
 
 /** Subscribes to what a person pasted (a site or a feed address). The posts already there are kept as seen. */
 export async function subscribe(input: string): Promise<Feed> {
   const settings = await getSettings();
-  const { feedUrl, feed: parsed } = await discoverFeed(input, fetcher(settings));
+  const { feedUrl, feed: parsed } = await discover(input, settings);
   if (await db.feeds.where('feedUrl').equals(feedUrl).first()) throw new FeedError('You’re already subscribed to that.');
 
   // Whether the post links still work, or should move onto the feed's host (see `probeLinkBase`).
@@ -98,9 +135,7 @@ async function run(force: boolean): Promise<CheckResult> {
 /** How many posts were added, or null if the feed couldn't be read. */
 async function checkOne(feed: Feed, settings: Settings): Promise<number | null> {
   try {
-    const page = await fetcher(settings)(feed.feedUrl);
-    const parsed = parseFeed(page.text, page.finalUrl);
-    if (!parsed) throw new FeedError('That address no longer gives a feed.');
+    const parsed = await readFeed(feed.feedUrl, settings);
     // Feeds saved before `linkBase` existed (and feeds with no posts when they were checked) are looked at once, here.
     const linkBase = feed.linkBase !== undefined ? feed.linkBase : await probeLinkBase(feed.feedUrl, parsed.items, probeFetcher(settings));
     // Looked for once (and again after an undo, which clears it). Not awaited: a picture never holds up a check.

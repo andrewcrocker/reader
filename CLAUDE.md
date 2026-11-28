@@ -37,5 +37,5 @@ Most people working here are on a fork and send changes back to the original rep
 ## Things that are easy to get wrong
 
 - The Worker runs on the Cloudflare free plan (about 10 ms of CPU per request). Parsing pages and PDFs stays on the device or in the service worker, not the Worker.
-- Code in `src/pipeline/` that the service worker imports (`background.ts`, `serverSync.ts`, `extract.ts`, `textprep.ts`, `pdf.ts`, `dom.ts`) can't use DOM-only APIs (`DOMParser`, `document`, `window`, audio decoding). Use `parseHtml` from `dom.ts` for HTML.
+- Code in `src/pipeline/` that the service worker imports (`background.ts`, `serverSync.ts`, `extract.ts`, `textprep.ts`, `pdf.ts`, `dom.ts`, `wpcom.ts`) can't use DOM-only APIs (`DOMParser`, `document`, `window`, audio decoding). Use `parseHtml` from `dom.ts` for HTML.
 - The service worker builds as a classic script (IIFE); it can't use `import()`.
