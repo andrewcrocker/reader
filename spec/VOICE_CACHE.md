@@ -1,6 +1,6 @@
 # Voice cache
 
-A spike, behind `VOICE_CACHE` (off by default). Design discussion: [issue #4](https://github.com/andrewcrocker/reader/issues/4). The short rules are in [SPEC.md §6.4](SPEC.md).
+A spike, behind `VOICE_CACHE` (off by default). The original app has it **on since 2026-11-27**, with a 180-day expiry rule on `cache/`; a fork starts with it off until its owner turns it on. Design discussion: [issue #4](https://github.com/andrewcrocker/reader/issues/4). The short rules are in [SPEC.md §6.4](SPEC.md).
 
 Make each chunk of audio once and let everyone reuse it. A repeat costs nothing and skips the voice host's queue.
 
