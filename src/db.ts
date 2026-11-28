@@ -202,6 +202,8 @@ export interface Settings {
   feedSort?: 'recent' | 'alpha';
   /** Which posts a blog's page shows. Unset means 'unplayed'. */
   feedShow?: 'unplayed' | 'played' | 'favorites' | 'all';
+  /** What an article opens in when you tap it: the player, or read-along. Unset means 'player'. */
+  defaultView?: 'player' | 'read-along';
   /** Which list the Saved tab shows. Unset means 'favorites'. */
   savedShow?: 'favorites' | 'archived';
 }

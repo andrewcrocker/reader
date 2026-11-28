@@ -21,7 +21,7 @@ export async function purgeDeleted(ids?: string[]): Promise<void> {
   for (const a of rows) if (a.deletedAt) await purgeArticle(a.id);
 }
 
-/** Mark played: moves the rows to Archive. Undo restores what each row had before. */
+/** Mark played: moves the rows to Played (stored as `archivedAt`). Undo restores what each row had before. */
 export async function markPlayed(ids: string[]): Promise<Undo> {
   const before = await db.articles.where('id').anyOf(ids).toArray();
   const now = Date.now();
@@ -48,6 +48,21 @@ export async function moveToTop(ids: string[]): Promise<Undo> {
   const top = await firstQueueOrder();
   await db.transaction('rw', db.articles, async () => {
     for (const [i, a] of rows.entries()) await db.articles.update(a.id, { queueOrder: top - rows.length + 1 + i, archivedAt: undefined });
+  });
+  void kick();
+  return async () => {
+    await db.transaction('rw', db.articles, async () => {
+      for (const a of rows) await db.articles.update(a.id, { queueOrder: a.queueOrder, archivedAt: a.archivedAt });
+    });
+  };
+}
+
+/** Add to queue, from Played: back to the end of Up next, in the order given. Audio that was cleared is made again. */
+export async function requeue(ids: string[]): Promise<Undo> {
+  const rows = (await db.articles.where('id').anyOf(ids).toArray()).filter((a) => a.archivedAt);
+  const end = await nextQueueOrder();
+  await db.transaction('rw', db.articles, async () => {
+    for (const [i, a] of rows.entries()) await db.articles.update(a.id, { queueOrder: end + i, archivedAt: undefined });
   });
   void kick();
   return async () => {
@@ -100,16 +115,32 @@ export async function moveBy(ids: string[], id: string, delta: number): Promise<
   return true;
 }
 
-export async function retryMany(ids: string[]): Promise<void> {
-  for (const id of ids) await retryArticle(id);
-}
-
-export async function rerenderMany(ids: string[]): Promise<void> {
-  for (const id of ids) await rerenderArticle(id);
-}
-
-/** Can this row be re-rendered (it has text to speak)? */
+/** Can this row's audio be made again (it has text to speak)? */
 export const isRenderable = (a: Article) => !!a.chunks?.length;
+
+/** Does Refresh do anything for this row? A failed one is tried again; one with text gets its audio made again. */
+export const isRefreshable = (a: Article) => a.status === 'failed' || isRenderable(a);
+
+/**
+ * Refresh (multi-select): one action for "this didn't work" and "make this again". A failed article is
+ * tried again from where it stopped. Any other gets its audio made again in the current voice, keeping
+ * its text and position. Returns how many of each, for the snackbar.
+ */
+export async function refreshMany(ids: string[]): Promise<{ retried: number; rerendered: number }> {
+  const rows = await db.articles.where('id').anyOf(ids).toArray();
+  let retried = 0;
+  let rerendered = 0;
+  for (const a of rows) {
+    if (a.status === 'failed') {
+      await retryArticle(a.id);
+      retried++;
+    } else if (isRenderable(a)) {
+      await rerenderArticle(a.id);
+      rerendered++;
+    }
+  }
+  return { retried, rerendered };
+}
 
 /** "Clear all articles…" in Settings (confirmed there). */
 export async function clearAll(): Promise<void> {

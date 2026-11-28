@@ -6,7 +6,7 @@ import { plural } from '../format';
 import { goToFeed, openNowPlaying, openSettings, openSheet, showSnack, useUi, useWide } from '../app/ui';
 import { isPlayable, usePlayer } from '../player/PlayerProvider';
 import { displayState, isBusy, queueSummary, rowMeta, voiceReady, type Ctx } from '../queue/display';
-import { isRenderable, markPlayed, moveBy, moveToTop, placeAt, purgeDeleted, rerenderMany, retryMany, reorder, setLoved, softDelete } from '../queue/actions';
+import { isRefreshable, isRenderable, markPlayed, moveBy, moveToTop, placeAt, purgeDeleted, refreshMany, reorder, requeue, setLoved, softDelete } from '../queue/actions';
 import { retryArticle } from '../pipeline/runner';
 import { updateSettings } from '../db';
 import { Icon } from '../ui/Icon';
@@ -30,8 +30,13 @@ export function deleteWithUndo(ids: string[]) {
 
 export function markPlayedWithUndo(ids: string[]) {
   void markPlayed(ids).then((undo) =>
-    showSnack({ text: ids.length === 1 ? 'Moved to Archive' : `${plural(ids.length, 'article')} moved to Archive`, actions: [{ label: 'Undo', run: undo }] }),
+    showSnack({ text: ids.length === 1 ? 'Marked as played' : `${plural(ids.length, 'article')} marked as played`, actions: [{ label: 'Undo', run: undo }] }),
   );
+}
+
+/** Add to queue, from Played: back to the end of Up next. */
+export function requeueWithUndo(ids: string[]) {
+  void requeue(ids).then((undo) => showSnack({ text: ids.length === 1 ? 'Added to Up next' : `${plural(ids.length, 'article')} added to Up next`, actions: [{ label: 'Undo', run: undo }] }));
 }
 
 export function Queue() {
@@ -87,6 +92,9 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
 
   const tap = (a: Article) => {
     if (selecting) return toggle(a.id);
+    // Settings › Playback › Default view: each article you open starts in the view you chose, whatever the last one was left in.
+    const lyricsOn = settings.defaultView === 'read-along';
+    if (settings.lyricsOn !== lyricsOn) void updateSettings({ lyricsOn });
     const state = displayState(a, ctx);
     if (state === 'failed') return openSheet({ kind: 'explain', id: a.id });
     if (isPlayable(a)) return player.play(a.id);
@@ -119,7 +127,7 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
   });
   const move = (id: string, delta: number) => void moveBy(upIds, id, delta);
 
-  // `inArchive`: the row is archived (no swipe to mark played). `dim`: draw it as played. Loved rows aren't dimmed, so the top of Saved stays bright.
+  // `inArchive`: the row is played (a right swipe adds it back to the queue instead of marking it played). `dim`: draw it as played. Loved rows aren't dimmed, so the top of Saved stays bright.
   // Only Up next rows can be reordered; in Saved a hold goes straight to multi-select.
   const row = (a: Article, inArchive: boolean, dim = inArchive) => {
     const reorderable = !saved && !inArchive;
@@ -142,8 +150,8 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
         lifted={drag.liftedId === a.id}
         onTap={() => tap(a)}
         onLongPress={() => setSelected((s) => new Set(s).add(a.id))}
-        onSwipe={(dir) => (dir === 'left' ? deleteWithUndo([a.id]) : !inArchive && markPlayedWithUndo([a.id]))}
-        canMarkPlayed={!inArchive}
+        onSwipe={(dir) => (dir === 'left' ? deleteWithUndo([a.id]) : inArchive ? requeueWithUndo([a.id]) : markPlayedWithUndo([a.id]))}
+        rightSwipe={inArchive ? 'queue' : 'played'}
         onStatus={() => openSheet({ kind: 'explain', id: a.id })}
         onRetry={state === 'failed' ? () => void retryArticle(a.id) : undefined}
         onGrab={reorderable ? (p, phase) => drag.grab(a.id, p, phase) : undefined}
@@ -154,7 +162,7 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
           // Reordering by menu is for pointers; on a phone you hold a row and drag it.
           ...(!wide || !reorderable || a.id === upIds[0] ? [] : [{ label: 'Move up', icon: 'arrow-up' as const, run: () => move(a.id, -1) }]),
           ...(!wide || !reorderable || a.id === upIds[upIds.length - 1] ? [] : [{ label: 'Move down', icon: 'arrow-down' as const, run: () => move(a.id, 1) }]),
-          ...(inArchive ? [] : [{ label: 'Mark played', icon: 'mark-played' as const, run: () => markPlayedWithUndo([a.id]) }]),
+          inArchive ? { label: 'Add to queue', icon: 'queue' as const, run: () => requeueWithUndo([a.id]) } : { label: 'Mark played', icon: 'mark-played' as const, run: () => markPlayedWithUndo([a.id]) },
           ...(feed ? [{ label: 'Go to subscription', icon: 'rss' as const, run: () => goToFeed(feed.id) }] : []),
           { label: 'Delete', icon: 'trash' as const, danger: true, run: () => deleteWithUndo([a.id]) },
         ]}
@@ -191,7 +199,7 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
           <div className="q-header-row">
             <div style={{ minWidth: 0 }}>
               <h1 className="screen-title">{saved ? 'Saved' : 'Up next'}</h1>
-              {!empty && <p className="q-sub">{saved ? (savedShow === 'favorites' ? plural(loved.length, 'favorite') : `${archive.length} archived`) : queueSummary(upNext, ctx)}</p>}
+              {!empty && <p className="q-sub">{saved ? (savedShow === 'favorites' ? plural(loved.length, 'favorite') : `${archive.length} played`) : queueSummary(upNext, ctx)}</p>}
             </div>
             {saved ? (
               <div className="q-actions">
@@ -204,7 +212,7 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
                   items={[
                     { heading: 'Show' },
                     { label: 'Favorites', checked: savedShow === 'favorites', run: () => void updateSettings({ savedShow: 'favorites' }) },
-                    { label: 'Archived', checked: savedShow === 'archived', run: () => void updateSettings({ savedShow: 'archived' }) },
+                    { label: 'Played', checked: savedShow === 'archived', run: () => void updateSettings({ savedShow: 'archived' }) },
                   ]}
                 />
               </div>
@@ -254,8 +262,8 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
       ) : saved && !savedList.length ? (
         <p className="q-hint q-hint-top">{savedShow === 'favorites' ? 'Add an article to your favorites to keep it here. You can share your favorites.' : 'Articles you’ve listened to land here.'}</p>
       ) : saved ? (
-        // Favorites: newest first, archived or not, never dimmed. Archived: most recently played first.
-        <ul className="q-list" aria-label={savedShow === 'favorites' ? 'Favorites' : 'Archived'}>
+        // Favorites: newest first, played or not, never dimmed. Played: most recently played first.
+        <ul className="q-list" aria-label={savedShow === 'favorites' ? 'Favorites' : 'Played'}>
           {savedList.map((a) => (savedShow === 'favorites' ? row(a, !!a.archivedAt, false) : row(a, true)))}
         </ul>
       ) : (
@@ -281,16 +289,18 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
               <Icon name="mark-played" />
               Mark played
             </button>
+            {/* One action for "this didn't work" and "make this again": failed articles are tried again, the rest get new audio in the current voice. */}
             <button
-              disabled={!chosen.some(isRenderable)}
-              onClick={() => void rerenderMany(ids.filter((id) => isRenderable(byId.get(id)!))).then(() => (done(), showSnack({ text: 'Preparing the audio again' })))}
+              disabled={!online || !chosen.some(isRefreshable)}
+              onClick={() =>
+                void refreshMany(ids).then(({ retried, rerendered }) => {
+                  done();
+                  showSnack({ text: rerendered ? 'Preparing the audio again' : retried ? 'Trying again' : 'Nothing to refresh' });
+                })
+              }
             >
               <Icon name="re-render" />
-              Re-render
-            </button>
-            <button disabled={!online || !chosen.some((a) => a.status === 'failed')} onClick={() => void retryMany(chosen.filter((a) => a.status === 'failed').map((a) => a.id)).then(done)}>
-              <Icon name="retry" />
-              Retry
+              Refresh
             </button>
           </div>
         ) : (

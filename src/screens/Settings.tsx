@@ -253,10 +253,17 @@ function PlaybackPage() {
       </div>
       <div className="s-row">
         <span>
-          <span className="k">When an article finishes</span>
-          <span className="d">{s.keepPlayed === 'archive' ? 'Moves to Archive, where you can replay it' : 'Deleted with its audio, except loved articles'}</span>
+          <span className="k">Default view</span>
+          <span className="d">What an article opens in when you tap it</span>
         </span>
-        <Seg label="When an article finishes" value={s.keepPlayed} options={[{ v: 'archive', label: 'Archive' }, { v: 'delete', label: 'Delete' }]} onChange={(v) => set({ keepPlayed: v })} />
+        <Seg label="Default view" value={s.defaultView ?? 'player'} options={[{ v: 'player', label: 'Player' }, { v: 'read-along', label: 'Read along' }]} onChange={(v) => set({ defaultView: v })} />
+      </div>
+      <div className="s-row">
+        <span>
+          <span className="k">When an article finishes</span>
+          <span className="d">{s.keepPlayed === 'archive' ? 'Moves to Played, where you can replay it' : 'Deleted with its audio, except loved articles'}</span>
+        </span>
+        <Seg label="When an article finishes" value={s.keepPlayed} options={[{ v: 'archive', label: 'Keep' }, { v: 'delete', label: 'Delete' }]} onChange={(v) => set({ keepPlayed: v })} />
       </div>
     </div>
   );
@@ -328,7 +335,7 @@ function StoragePage() {
       </div>
       <button className="s-row" disabled={!usage?.freeable} onClick={() => void deleteArchivedAudio().then((n) => showSnack({ text: `Freed ${fmtBytes(n)}` }))}>
         <span>
-          <span className="k">Delete audio for archived articles</span>
+          <span className="k">Delete audio for played articles</span>
           <span className="d">{usage?.freeable ? `Frees about ${fmtBytes(usage.freeable)} · text is kept` : 'Nothing to free · text is kept'}</span>
         </span>
       </button>
@@ -366,7 +373,7 @@ function StoragePage() {
           <div className="scrim" style={{ zIndex: 50 }} onClick={() => setConfirmClear(false)} aria-hidden="true" />
           <div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="clear-title" aria-describedby="clear-desc">
             <h2 id="clear-title">Clear all articles?</h2>
-            <p id="clear-desc">This deletes every article in Up next and Archive, with its audio. It can’t be undone.</p>
+            <p id="clear-desc">This deletes every article in Up next and Saved, with its audio. It can’t be undone.</p>
             <div className="actions">
               <button className="text-btn" autoFocus onClick={() => setConfirmClear(false)}>
                 Cancel

@@ -282,7 +282,7 @@ a { color: var(--accent); }
 
 .action-bar {
   border-top: 1px solid var(--line); background: var(--select-bar); padding: 6px 6px 22px;
-  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px;
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px;
 }
 .action-bar button {
   min-height: 64px; border: 0; border-radius: 12px; background: transparent; color: var(--fg);

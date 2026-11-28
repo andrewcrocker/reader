@@ -16,10 +16,10 @@ Read these first if you've seen the brief.
 | Sleep timer | In Now Playing's secondary row | **Removed** from v1. No button, no mode, no setting |
 | Secondary row | Speed, auto-advance, sleep, lyrics | **Speed, auto-advance, read along** (3 pills) |
 | Tap row | Play, or open a preview | **Plays immediately** (or resumes) |
-| Swipe right | Move to top, or mark played | **Mark played**, which moves the row to Archive |
-| Finished articles | Disappear, dim, or Archive | **Move to Archive** (a section on the Saved tab). Settings keeps "delete instead" as an option, except for loved articles |
+| Swipe right | Move to top, or mark played | **Mark played**, which moves the row to Played |
+| Finished articles | Disappear, dim, or Archive | **Move to Played** (a list on the Saved tab). Settings keeps "delete instead" as an option, except for loved articles |
 | Navigation | Queue as the only hub | **Bottom tab bar:** Subscriptions, Up next, Saved. Up next is home |
-| Keeping and sharing favorites | Not covered | **Love** an article (a heart) to keep it, apart from Archive, which only means done. **Saved** is the place for what you want to keep: loved articles first, then the archive. It can be shared: a **Share** button there sends a list of what you loved this week or all time, with a card image (see Reading lists) |
+| Keeping and sharing favorites | Not covered | **Love** an article (a heart) to keep it, apart from Played, which only means done. **Saved** is the place for what you want to keep: loved articles first, then the archive. It can be shared: a **Share** button there sends a list of what you loved this week or all time, with a card image (see Reading lists) |
 | Finding new articles | A feed inbox, not designed yet | **Subscriptions:** pull only. You add a blog's address from the Subscriptions header, the tab lists your blogs with how many posts are new, and nothing joins the queue until you tap Add on a post |
 | Shared text | Not covered | Text (not a URL) shared from another app opens the **Add sheet on the Text tab**, prefilled |
 | Up-next peek | Peek or swipe | **Peek** of the next article at the bottom of Now Playing |
@@ -204,7 +204,7 @@ Every row shows a 16 dp status glyph at the start of its meta line, then text. E
 | Partial | Half-filled circle | "**Partial** · 6 m found · Site" | `warn` | Yes, what was found |
 | Failed | Triangle with ! | "**Couldn't load the page**" + Retry button | `error` | No |
 | Waiting for connection | Cloud with slash | "Will fetch when online" | `muted` | No |
-| Played (Archive) | Check | "Played · Site" | Title and art dimmed (`muted`, art 60% opacity), except under Loved on Saved, which stays bright | Yes, if audio kept |
+| Played | Check | "Played · Site" | Title and art dimmed (`muted`, art 60% opacity), except under Loved on Saved, which stays bright | Yes, if audio kept |
 
 - Fetching, Failed, and Waiting rows show the URL (domain + path) as the title until a real title arrives, with a link glyph on `fill` as placeholder art.
 - Durations are estimated at the current speed and update when speed changes.
@@ -217,7 +217,7 @@ Every row shows a 16 dp status glyph at the start of its meta line, then text. E
 
 - **Header:** "Up next" (Literata 30), then a line with count and total time at speed ("8 articles · 2 h 46 m at 1.4×"). Settings (sliders icon) and Add (filled `accent` circle, 48) on the right.
 - **List:**
-  - Up next rows in order. Archived rows are on the Saved tab.
+  - Up next rows in order. Played rows are on the Saved tab.
   - Each row ends with a **⋮** button (48 touch target), hidden in multi-select. A Failed row has Retry before it. The heart is the first item in its menu (see ⋮ menu below).
   - The currently playing row uses `row-playing`.
   - Rows are separated by space, not dividers. One divider sits under the header.
@@ -237,12 +237,12 @@ Every row shows a 16 dp status glyph at the start of its meta line, then text. E
 
 ### 1a. Saved
 
-The last tab. The same rows, gestures, and multi-select as Up next, except that rows can't be reordered: a hold goes straight to multi-select. It shows one list at a time, picked from the header's ⋮ menu. Header: "Saved", a line that counts the list on show ("8 favorites" or "12 archived"), a **Share** icon button (the share glyph in a plain 48 icon button, like Settings on Up next; disabled when nothing loved can be shared), and a ⋮ button. Nothing in the header is `accent`-filled.
+The last tab. The same rows, gestures, and multi-select as Up next, except that rows can't be reordered: a hold goes straight to multi-select. It shows one list at a time, picked from the header's ⋮ menu. Header: "Saved", a line that counts the list on show ("8 favorites" or "12 played"), a **Share** icon button (the share glyph in a plain 48 icon button, like Settings on Up next; disabled when nothing loved can be shared), and a ⋮ button. Nothing in the header is `accent`-filled.
 
-- **⋮ menu:** a small-caps "Show" label over two choices, with a check mark on the current one: **Favorites** (the default) and **Archived**. The choice is remembered.
+- **⋮ menu:** a small-caps "Show" label over two choices, with a check mark on the current one: **Favorites** (the default) and **Played**. The choice is remembered.
 - **Favorites:** every loved article, newest love first, whether or not it's archived. Rows aren't dimmed. With none, a `muted` line: "Add an article to your favorites to keep it here. You can share your favorites."
-- **Archived:** every archived article, most recently played first, dimmed as played. A loved one is listed here too, since the two lists are never on screen together. With none, a `muted` line: "Articles you've listened to land here."
-- Swipe left deletes; swipe right marks played unless the row is archived. Multi-select has the same header (including Share as list), Select all and action bar as Up next. Mark played is disabled if every selected row is archived. Move to top returns an archived row to Up next. Select all takes the list on show.
+- **Played:** every played article, most recently played first, dimmed as played. A loved one is listed here too, since the two lists are never on screen together. With none, a `muted` line: "Articles you've listened to land here."
+- Swipe left deletes. Swipe right marks played; on a played row it is **Add to queue** instead (`accent` ground, queue glyph), which puts the article back at the end of Up next with an "Added to Up next · Undo" snackbar. The row's ⋮ menu has the same action in place of Mark played. Multi-select has the same header (including Share as list), Select all and action bar as Up next. Mark played is disabled if every selected row is archived. Move to top returns an archived row to Up next. Select all takes the list on show.
 - **Empty state** (nothing loved or archived): the heart glyph, "Nothing saved yet", "Love an article to keep it here, and share your favorites. Articles you've listened to land here too."
 
 ### 2. Mini player
@@ -341,12 +341,12 @@ Bottom sheet on `surface-sheet`, scrim behind. Header: "Add to queue" and close.
 - **Enter:** hold a row and let go without moving it (holding and moving reorders; see Queue). On Saved a hold goes straight to multi-select, since nothing there reorders.
 - **Header** (on a slightly darker `bg`): close, "N selected," Share as list (share glyph; see 14), Select all.
 - **Rows:** a checkbox (accent-colored) leads; selected rows use `row-selected`; drag handles appear at the trailing edge. A focused handle moves its row with the up and down arrow keys.
-- **Bottom action bar** (replaces the mini player and the tab bar): Delete (`error`), Move to top, Mark played, Re-render, Retry. Each has an icon over a label.
-  - Disable Retry if no failed row is selected.
-  - Disable Re-render if nothing renderable is selected.
+- **Bottom action bar** (replaces the mini player and the tab bar): Delete (`error`), Move to top, Mark played, Refresh. Each has an icon over a label.
+  - **Refresh** is one action for "this didn't work" and "make this again": a failed article is tried again, and any other gets its audio made again in the current voice, keeping its text and position. The snackbar says which ("Trying again" or "Preparing the audio again").
+  - Disable Refresh offline, or if nothing selected is failed or has text to speak.
 - **Delete:** exits selection and shows the "N articles deleted · Undo" snackbar for 6 s.
 - **Swipe left on a row:** delete, with the same snackbar.
-- **Swipe right:** mark played, with a "Moved to Archive · Undo" snackbar. Archived rows are already played, so they only swipe left.
+- **Swipe right:** mark played, with a "Marked as played · Undo" snackbar. A played row swipes right to Add to queue instead (see Saved).
 - **"Clear all"** (Settings only) is the one action with a confirmation dialog.
 
 ### 8. Speed picker · artboard "Speed picker / …"
@@ -413,12 +413,13 @@ Pushed screen: back arrow and "Settings." The top level is a menu: **Voice**, **
   - Skip interval (segmented 10s / 15s / 30s).
   - Auto-advance switch.
   - Chimes switch ("A short sound when an article starts and ends").
-  - "When an article finishes": Archive / Delete. The line under it says what the choice does: "Moves to Archive, where you can replay it" or "Deleted with its audio, except loved articles". A loved article is archived instead of deleted, because loving it says you want to keep it.
+  - "Default view": Player / Read along (Player by default), with "What an article opens in when you tap it" under it. Each article you tap in a list starts in that view, whatever the last one was left in; the Read-along pill still switches for the one you're in.
+  - "When an article finishes": Keep / Delete. The line under it says what the choice does: "Moves to Played, where you can replay it" or "Deleted with its audio, except loved articles". A loved article is archived instead of deleted, because loving it says you want to keep it.
 - **Storage:**
   - Total used (Literata 28).
   - A stacked bar plus legend (Audio, Voice, Art; legend uses shape and color).
   - Persistent storage status ("Storage is protected" with a shield glyph, or a warning plus "Allow" if not granted).
-  - "Delete audio for archived articles" (shows space freed; text is kept).
+  - "Delete audio for played articles" (shows space freed; text is kept).
   - Export queue, Import queue.
   - "Clear all articles…" (`error`, confirms).
 - **About:** "Invite a friend" with a Share button (system share of the invite link), and the version.
@@ -486,7 +487,7 @@ A snapshot of some articles, sent as one link (SPEC §4). Nothing is uploaded an
 | Tap row | Play (or resume) immediately |
 | Tap Partial/Failed status | Open the explainer sheet |
 | Swipe row left | Delete, undo snackbar |
-| Swipe row right | Mark played → Archive, undo snackbar (rows that aren't archived) |
+| Swipe row right | Mark played, undo snackbar. On a played row: Add to queue, undo snackbar |
 | Hold row, then drag (Up next) | Reorder |
 | Hold row, then let go (or hold on Saved) | Multi-select |
 | Drag handle (multi-select) | Reorder |

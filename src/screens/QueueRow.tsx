@@ -29,8 +29,8 @@ export interface RowProps {
   /** Move up / down one place (handle keyboard). */
   onMove?: (delta: number) => void;
   onSwipe?: (dir: 'left' | 'right') => void;
-  /** False for an archived row: it's already played, so a right drag doesn't swipe (it's ignored, as a vertical drag is). Default true. */
-  canMarkPlayed?: boolean;
+  /** What a right swipe does: mark it played (Up next, the default), add it back to the queue (a played row), or nothing. */
+  rightSwipe?: 'played' | 'queue' | 'none';
   onStatus?: () => void;
   onRetry?: () => void;
   rowRef?: (el: HTMLElement | null) => void;
@@ -80,12 +80,12 @@ export function QueueRow(p: RowProps) {
     const my = e.clientY - s.y;
     if (s.mode === 'idle' && (Math.abs(mx) > SLOP || Math.abs(my) > SLOP)) {
       clearTimeout(s.timer);
-      const allowed = mx < 0 || p.canMarkPlayed !== false;
+      const allowed = mx < 0 || p.rightSwipe !== 'none';
       s.mode = !p.selecting && p.onSwipe && allowed && Math.abs(mx) > Math.abs(my) ? 'swipe' : 'scroll';
       if (s.mode === 'swipe') (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     }
     // Once a left swipe is under way, dragging back past the start stops at the start instead of showing "Mark played".
-    if (s.mode === 'swipe') setDx(p.canMarkPlayed === false ? Math.min(0, mx) : mx);
+    if (s.mode === 'swipe') setDx(p.rightSwipe === 'none' ? Math.min(0, mx) : mx);
   };
   const up = (e: RPointerEvent) => {
     const s = g.current;
@@ -130,9 +130,15 @@ export function QueueRow(p: RowProps) {
       {dx !== 0 && (
         <div className={`row-swipe-bg ${dx > 0 ? 'right' : 'left'}`} aria-hidden="true">
           {dx > 0 ? (
-            <>
-              <Icon name="mark-played" /> Mark played
-            </>
+            p.rightSwipe === 'queue' ? (
+              <>
+                <Icon name="queue" /> Add to queue
+              </>
+            ) : (
+              <>
+                <Icon name="mark-played" /> Mark played
+              </>
+            )
           ) : (
             <>
               Delete <Icon name="trash" />
