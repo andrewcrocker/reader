@@ -20,7 +20,7 @@ Read these first if you've seen the brief.
 | Finished articles | Disappear, dim, or Archive | **Move to Archive** (a section on the Saved tab). Settings keeps "delete instead" as an option, except for loved articles |
 | Navigation | Queue as the only hub | **Bottom tab bar:** Subscriptions, Up next, Saved. Up next is home |
 | Keeping and sharing favorites | Not covered | **Love** an article (a heart) to keep it, apart from Archive, which only means done. **Saved** is the place for what you want to keep: loved articles first, then the archive. It can be shared: a **Share** button there sends a list of what you loved this week or all time, with a card image (see Reading lists) |
-| Finding new articles | A feed inbox, not designed yet | **Subscriptions:** pull only. You paste a blog's address on **Your subscriptions** (Manage, from the Subscriptions header), new posts wait in the Subscriptions tab, and nothing joins the queue until you tap Add |
+| Finding new articles | A feed inbox, not designed yet | **Subscriptions:** pull only. You add a blog's address from the Subscriptions header, the tab lists your blogs with how many posts are new, and nothing joins the queue until you tap Add on a post |
 | Shared text | Not covered | Text (not a URL) shared from another app opens the **Add sheet on the Text tab**, prefilled |
 | Up-next peek | Peek or swipe | **Peek** of the next article at the bottom of Now Playing |
 | Reorder | Handles always, or in edit mode | **Hold a row and drag it.** Handles appear only in multi-select |
@@ -42,7 +42,7 @@ This is a podcast player for articles. Listening is the main job and reading is 
 
 1. **Audio first.** Every screen answers "what's playing and what's next." The player is never more than one tap away.
 2. **One-handed and eyes-free.** Primary controls sit in the bottom third.
-3. **Calm, not busy.** No streaks, badges, or guilt counts, and nothing that pushes: Subscriptions is pull only. The only indicator in the app is one small `accent` dot on the Subscriptions tab when a blog you follow has new posts. No counts, no red. (The quiet "New" text on a blog's three newest posts is part of the list, not an indicator.)
+3. **Calm, not busy.** No streaks, badges, or guilt counts, and nothing that pushes: Subscriptions is pull only. New posts are marked one way everywhere: a small `accent` dot. It sits on the Subscriptions tab, on a blog's row (there with a plain count, "3 new"), and beside a post. No red, and no count on the tab bar.
 4. **Honest status.** Always show what's happening, how far along it is, and whether an article plays offline.
 5. **Forgiving.** Destructive actions undo. Everything resumes where you left off.
 6. **Native-feeling.** Standard Android gestures, dark mode, and system text size.
@@ -62,21 +62,21 @@ This is a podcast player for articles. Listening is the main job and reading is 
 
 ## Navigation
 
-A **bottom tab bar** switches between three views: **Subscriptions | Up next | Saved**. Up next is the hub and the home view, in the middle. Archive is a section of Saved, not a tab. Now Playing opens from the mini player on any tab. Lyrics view is a mode inside Now Playing. Settings is a pushed screen from the Up next header, and Your subscriptions is a pushed screen from the Subscriptions header. Neither has a tab bar. The Add sheet, speed picker, Partial explainer, and the share sheets are bottom sheets.
+A **bottom tab bar** switches between three views: **Subscriptions | Up next | Saved**. Up next is the hub and the home view, in the middle. Archive is a section of Saved, not a tab. Now Playing opens from the mini player on any tab. Lyrics view is a mode inside Now Playing. Settings is a pushed screen from the Up next header, with no tab bar. A blog's posts open one level into Subscriptions, and keep the tab bar. The Add sheet, speed picker, Partial explainer, and the share sheets are bottom sheets.
 
 Ways in: app icon → Up next; share sheet → Up next (URL) or Add sheet on Text (text); `#add=` link → Up next; `#list=` link → Up next, with the reading-list sheet open (see Reading lists); invite link → First run → empty Up next. The app always opens on Up next. The tab isn't remembered between launches.
 
-**Back:** Up next is the bottom of the back stack. Subscriptions and Saved each sit one step above it, so back from either returns to Up next. Switching between those two swaps in place, and tapping Up next does the same as back. Your subscriptions sits one step above Subscriptions, so back from it returns to the inbox. It's a push, the same as Settings from Up next, with the same back arrow and the same back gesture.
+**Back:** Up next is the bottom of the back stack. Subscriptions and Saved each sit one step above it, so back from either returns to Up next. Switching between those two swaps in place, and tapping Up next does the same as back. A blog's posts sit one step above Subscriptions, so back from them returns to the list of blogs. Choosing another tab from a blog's posts leaves the blog first, so the stack never holds more than it shows, and tapping Subscriptions there goes back to the list.
 
 **Tab bar:**
 - **Layout:** three equal tabs in a 64 tall bar, plus the bottom safe-area inset, on `bg` with a `line` top border. Each tab is an outline icon over a 12 label.
 - **Current tab:** a `row-selected` pill behind the icon, the icon and label in `accent`, and the label at 600. Other tabs are `muted`. It's marked with `aria-current="page"`, so state isn't carried by color alone.
 - **Dock:** the bar is the last item in the bottom dock. The snackbar and mini player sit above it, and the bar gives way to the multi-select action bar while selecting.
-- **New-post dot:** a 9 dp filled `accent` dot at the top right of the Subscriptions icon, with a 2 dp ring in the background color. The tab's accessible name becomes "Subscriptions, new posts". Posts count as seen when you leave Subscriptions (or the app goes to the background while it's open), and the dot goes with that.
+- **New-post dot:** a 9 dp filled `accent` dot at the top right of the Subscriptions icon, with a 2 dp ring in the background color. The tab's accessible name becomes "Subscriptions, new posts". A blog's posts count as seen when you leave that blog (or the app goes to the background while it's open); the dot goes when no blog has any left.
 
 **Between a phone and two panes (481 to 719 px):** the single column fills the window instead of sitting in the middle. Sheets and Now Playing stay 480 wide, centered. First run and the invite screen stay phone-width.
 
-**Wide screens (720 px and up):** two panes. At 720 they are 360 each. The Up next, Subscriptions, Saved, Settings, or Your subscriptions view is a column on the left, at most 440 wide, with the tab bar at the bottom of that column. Now Playing (or Lyrics view) stays open on the right. There's no mini player, collapse control, or swipe-down, and the Up next peek isn't a link because the queue is already beside it. The cover shrinks to fit the screen height. Sheets stay bottom sheets.
+**Wide screens (720 px and up):** two panes. At 720 they are 360 each. The Up next, Subscriptions, Saved, or Settings view is a column on the left, at most 440 wide, with the tab bar at the bottom of that column. Now Playing (or Lyrics view) stays open on the right. There's no mini player, collapse control, or swipe-down, and the Up next peek isn't a link because the queue is already beside it. The cover shrinks to fit the screen height. Sheets stay bottom sheets.
 
 
 ## Design tokens
@@ -371,24 +371,30 @@ Tapping a Partial row's status (or a Failed row) opens a sheet:
 
 ### 10. Subscriptions
 
-The first tab. It's pull only: new posts from the blogs you follow wait here, and nothing is added to the queue, fetched, or rendered until you tap **Add**.
+The first tab. It's pull only: the blogs you follow are listed here with how many posts are new, and nothing is added to the queue, fetched, or rendered until you tap **Add** on a post.
 
-- **Header:** "Subscriptions" (Literata 30) and a line such as "Checked 12 m ago". On the right, **Check now** (a circular-arrow icon button, shown once there's a subscription; disabled offline) and **Manage** (a bulleted-list icon button, 48, the same quiet style as Settings on Up next; `aria-label` "Manage subscriptions"). Nothing in this header is `accent`-filled, so it can't be mistaken for Up next's Add.
-- **Posts:** every blog's posts in one list, newest first. A row has the title (Literata 16, 2 lines), then the blog's name and a short date ("Vitalik Buterin's website · Nov 26"), and a text button **Add** (`accent`) at the end.
-  - **Unseen posts** have a 600-weight title and read "Unread" to a screen reader. They stay marked until you leave the tab. There's no per-post dot: beside the "New" label it would say the same thing twice. The tab's dot stays.
-  - **Recent posts:** each blog's three newest posts start the meta line with a quiet "New" (13, 600, `muted`, the meta line's own size and color, so no fill, pill or `accent`): "New · Vitalik Buterin's website · Nov 26". It shows right after subscribing, doesn't depend on unseen, and moves to newer posts as they arrive. It's text, so a screen reader reads it as is.
-  - **After Add:** the button becomes a quiet "Added" with a check, which isn't a button. A snackbar says "Saved to your queue". A post that's already an article isn't added twice: the snackbar says "Already in your queue".
-- **Blogs that couldn't be checked:** if any blog's last check failed, one quiet `muted` line sits above the posts, with a warning glyph and a chevron: "1 blog couldn't be checked" (or "2 blogs …"). Tapping it opens Your subscriptions, where each blog shows why. It isn't a banner, has no color, and goes away when the next check works.
-- **Empty state:** the feed glyph in an 88 circle, "No subscriptions yet", "New posts from the blogs you follow show up here.", and an outline "Add a blog" button that opens Your subscriptions.
-- **When it checks:** on launch, when the app comes back to the front, and on Check now. A blog checked in the last 30 minutes is skipped, except by Check now. Only the newest 20 posts of a blog are considered.
+- **Header:** the same as Up next. "Subscriptions" (Literata 30) and a line such as "4 blogs · Checked 12 m ago". On the right, a ⋮ button (48, plain, shown once there's a subscription) and **Add** (48, `accent`-filled, plus glyph; `aria-label` "Add a subscription").
+- **⋮ menu:** the popup menu rows use. **Refresh** (circular arrow) checks every blog now: a snackbar says "Checking for new posts…", then "3 new posts" or "No new posts". Under a `line` rule and a small-caps "Sort by" label, two choices with a check mark on the current one: **Recent** (the blog that posted last comes first; the default) and **Alphabetical**. The choice is remembered.
+- **Blogs:** one row per blog, 72 tall.
+  - **Picture:** 44, 5 radius. The blog's icon if it has one, else its initials on a color from its address, like article art.
+  - **Name:** Literata 16, one line.
+  - **New posts:** under the name, an 8 dp filled `accent` dot and a count in `accent` 600 ("3 new"), then the date of the latest post in `muted` ("· Nov 26"). With nothing new, just the date. A blog that couldn't be checked shows a warning glyph and why in place of the date ("Couldn't check. The page wasn't found (404).").
+  - **⋮ and chevron:** a ⋮ menu with **Refresh** (checks this blog now) and **Delete** (`error`; removes the blog and its posts, with an Undo snackbar "Deleted Vitalik Buterin's website"), then a right chevron. The whole row opens the blog; the chevron does the same.
+- **Empty state:** the feed glyph in an 88 circle, "No subscriptions yet", "New posts from the blogs you follow show up here.", and an outline "Add a blog" button that opens the Add sheet. The header's Add button is there too.
+- **When it checks:** on launch, when the app comes back to the front, and on Refresh. A blog checked in the last 30 minutes is skipped, except by Refresh. Only the newest 20 posts of a blog are considered.
 
-### 11. Your subscriptions
+**Add a subscription** (bottom sheet, built like Add to queue's Link tab): a large `accent` **Paste address** button ("From your clipboard", or the address when it can be read), an "or type it" divider, a "Blog address" field (`type="text"`, so a bare domain like `vitalik.eth.limo` works) with a **Subscribe** button, and a hint ("Paste a blog's address, or its feed address. New posts show up in Subscriptions, and you pick which ones to add."). Subscribe is disabled while the field is empty, while it's looking ("Looking…"), and offline. Errors show as a `fill` note ("Couldn't find a feed at that address.", "You're already subscribed to that.") and the text stays so it can be fixed. On success the sheet closes and a snackbar says "Subscribed to Vitalik Buterin's website". The posts already on the blog count as seen, so subscribing doesn't light a dot.
 
-A pushed screen from **Manage** in the Subscriptions header, built like Settings: a 60 header with a back arrow ("Back to subscriptions") and "Your subscriptions" (Literata 24), no tab bar, and the snackbar and mini player in the dock. Back (the arrow or the back gesture) returns to the inbox.
+### 11. A blog's posts
 
-- **Subscribe, at the top:** a "Blog address" label, one field (`type="text"`, so a bare domain like `vitalik.eth.limo` works) with a Subscribe button beside it, and a hint ("Paste a blog's address, or its feed address. New posts show up in Subscriptions, and you pick which ones to add."). Subscribe is disabled while the field is empty, while it's looking ("Looking…"), and offline. Errors show as a `fill` note under the field ("Couldn't find a feed at that address.", "You're already subscribed to that.") and the text stays so it can be fixed. On success the field clears, the new blog appears at the top of the list below, and a snackbar says "Subscribed to Vitalik Buterin's website". The posts already on the blog count as seen, so subscribing doesn't light the dot.
-- **List:** one row per blog, newest first, under a `line` divider: the blog's name (Literata 16), then its address and when it was checked ("vitalik.eth.limo · Checked 12 m ago"). The address is where the posts are read: the blog's moved host if it has one, else its site, else its feed address, without `www.`. **Remove** (`.text-btn.danger`, `error` text) sits at the end, with an Undo snackbar ("Removed Vitalik Buterin's website"). A blog that couldn't be checked shows a quiet line under that, with a warning glyph: "Couldn't check. The page wasn't found (404)." There are no banners, and checks try again by themselves.
-- **Empty state:** a `muted` line under the field: "No subscriptions yet. Paste a blog's address above."
+One level into Subscriptions, opened from a blog's row. The tab bar stays.
+
+- **Header:** the same height as the tab headers. A back arrow ("Back to subscriptions"), then the blog's name (Literata 24, one line) over a line such as "3 new · 20 posts · Checked 12 m ago".
+- **Posts:** newest first. A row has the title (Literata 16, 2 lines) and a short date ("Nov 26").
+  - **New:** an 8 dp `accent` dot in the row's left margin, level with the title, so titles stay aligned whether or not a post is new. It reads "New." to a screen reader. Posts stay marked until you leave the blog.
+  - **Add:** a 48 icon button at the end, a plus in a ring, in `accent` (`aria-label` "Add <title> to your queue"). A snackbar says "Saved to your queue". A post that's already an article isn't added twice: the snackbar says "Already in your queue".
+  - **Added:** the button becomes a filled `accent` disc with a check, which isn't a button ("Added to your queue").
+- **Empty:** a `muted` line, "No posts yet."
 
 ### 12. Settings · artboard "Settings …"
 
@@ -466,9 +472,11 @@ A snapshot of some articles, sent as one link (SPEC §4). Nothing is uploaded an
 | Tap a tab | Switch view. Back from Subscriptions or Saved returns to Up next |
 | Tap the heart (row, Now Playing, Lyrics) | Love or unlove, no snackbar |
 | Tap Share (Saved header) | Open the share sheet |
-| Tap Manage (Subscriptions header) | Push Your subscriptions. Back returns to the inbox |
-| Tap Subscribe (Your subscriptions) | Looks up the feed; on success clears the field, lists the blog, and shows a "Subscribed to …" snackbar |
-| Tap Remove (Your subscriptions) | Removes the blog and its posts, undo snackbar |
+| Tap Add (Subscriptions header) | Open the Add a subscription sheet |
+| Tap Subscribe (Add a subscription) | Looks up the feed; on success closes the sheet and shows a "Subscribed to …" snackbar |
+| Tap a blog's row or chevron | Open that blog's posts. Back returns to the list of blogs |
+| ⋮ on a blog › Refresh / Delete | Check that blog now / remove it and its posts, undo snackbar |
+| ⋮ in the Subscriptions header | Refresh every blog, or sort by Recent or Alphabetical |
 | Tap Add on a post | Add it to Up next ("Saved to your queue" snackbar) |
 | Tap row | Play (or resume) immediately |
 | Tap Partial/Failed status | Open the explainer sheet |

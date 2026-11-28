@@ -13,6 +13,8 @@ export interface ParsedFeed {
   title: string;
   /** The blog's home page, when the feed says where it is. */
   siteUrl?: string;
+  /** The feed's own picture: RSS `<image><url>`, Atom `<logo>` or `<icon>`. */
+  imageUrl?: string;
   items: ParsedItem[];
 }
 
@@ -88,7 +90,7 @@ export function parseFeed(xml: string, baseUrl: string): ParsedFeed | null {
         publishedAt: dateOf(child(e, 'published'), child(e, 'updated')),
       });
     }
-    return { title: plainText(child(root, 'title')?.textContent ?? ''), siteUrl: atomLink(root, baseUrl), items };
+    return { title: plainText(child(root, 'title')?.textContent ?? ''), siteUrl: atomLink(root, baseUrl), imageUrl: httpUrl((child(root, 'logo') ?? child(root, 'icon'))?.textContent, baseUrl), items };
   }
 
   if (root.localName === 'rss' || root.localName === 'RDF') {
@@ -108,7 +110,8 @@ export function parseFeed(xml: string, baseUrl: string): ParsedFeed | null {
         publishedAt: dateOf(child(e, 'pubDate'), child(e, 'date')),
       });
     }
-    return { title: plainText(child(channel, 'title')?.textContent ?? ''), siteUrl: rssLink(channel, baseUrl), items };
+    const image = child(channel, 'image') ?? child(root, 'image');
+    return { title: plainText(child(channel, 'title')?.textContent ?? ''), siteUrl: rssLink(channel, baseUrl), imageUrl: httpUrl(image && child(image, 'url')?.textContent, baseUrl), items };
   }
 
   return null;

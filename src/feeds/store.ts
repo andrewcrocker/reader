@@ -3,6 +3,7 @@ import { ExtractError, fetchHtml } from '../pipeline/extract';
 import { addUrl } from '../pipeline/runner';
 import { discoverFeed, FeedError, probeLinkBase, type FetchText } from './discover';
 import { diffItems, idsToPrune, isDue, rebaseLink, urlKey, WINDOW } from './diff';
+import { fetchFeedArt, feedArtKey } from './art';
 import { parseFeed } from './parse';
 import { singleFlight } from './singleFlight';
 
@@ -56,6 +57,8 @@ export async function subscribe(input: string): Promise<Feed> {
     await db.feeds.add(feed);
     await db.feedItems.bulkAdd(items);
   });
+  // The blog's picture arrives on its own; the row shows initials until then.
+  void fetchFeedArt(feed, parsed.imageUrl);
   return feed;
 }
 
@@ -68,7 +71,7 @@ export interface CheckResult {
 const NONE: CheckResult = { checked: 0, added: 0, failed: 0 };
 
 // A check already under way covers a later one (launch and "back in front" can land together). The
-// exception is `force`: a check that skipped recently checked feeds can't stand in for "Check now",
+// exception is `force`: a check that skipped recently checked feeds can't stand in for Refresh,
 // so a forced call waits for it to finish and then checks every feed (see `singleFlight`).
 const flight = singleFlight((force: boolean) => run(force).catch(() => NONE));
 
@@ -100,6 +103,8 @@ async function checkOne(feed: Feed, settings: Settings): Promise<number | null> 
     if (!parsed) throw new FeedError('That address no longer gives a feed.');
     // Feeds saved before `linkBase` existed (and feeds with no posts when they were checked) are looked at once, here.
     const linkBase = feed.linkBase !== undefined ? feed.linkBase : await probeLinkBase(feed.feedUrl, parsed.items, probeFetcher(settings));
+    // Looked for once (and again after an undo, which clears it). Not awaited: a picture never holds up a check.
+    if (feed.artKey === undefined) void fetchFeedArt({ ...feed, linkBase }, parsed.imageUrl);
     return await db.transaction('rw', db.feeds, db.feedItems, async () => {
       // Removed while the request was out: don't bring its posts back.
       if (!(await db.feeds.get(feed.id))) return 0;
@@ -129,10 +134,23 @@ export function startFeedChecks(): void {
   void checkFeeds();
 }
 
-/** Marks every post as seen, which clears the dot. */
-export async function markAllSeen(): Promise<void> {
+/**
+ * Checks one blog now, whenever it was last checked (Refresh on its row). Offline or not set up
+ * does nothing and records nothing, like `checkFeeds`. Returns how many posts were added, or null
+ * if the blog couldn't be read.
+ */
+export async function refreshFeed(feedId: string): Promise<number | null> {
+  if (!navigator.onLine) return null;
+  const settings = await getSettings();
+  if (!settings.proxySecret || settings.inviteRejected) return null;
+  const feed = await db.feeds.get(feedId);
+  return feed ? checkOne(feed, settings) : null;
+}
+
+/** Marks one blog's posts as seen: its dots and its count clear, and the tab's dot goes when no blog has any left. */
+export async function markFeedSeen(feedId: string): Promise<void> {
   const now = Date.now();
-  await db.feedItems.filter((i) => i.seenAt === null).modify({ seenAt: now });
+  await db.feedItems.where('feedId').equals(feedId).filter((i) => i.seenAt === null).modify({ seenAt: now });
 }
 
 /**
@@ -154,13 +172,15 @@ export async function addFeedItem(item: FeedItem): Promise<{ articleId: string; 
 /** Removes a subscription and its posts. Articles already added stay. Returns the undo. */
 export async function removeFeed(feed: Feed): Promise<() => Promise<void>> {
   const items = await db.feedItems.where('feedId').equals(feed.id).toArray();
-  await db.transaction('rw', db.feeds, db.feedItems, async () => {
+  await db.transaction('rw', db.feeds, db.feedItems, db.art, async () => {
     await db.feedItems.where('feedId').equals(feed.id).delete();
     await db.feeds.delete(feed.id);
+    await db.art.delete(feedArtKey(feed.id));
   });
   return async () => {
     await db.transaction('rw', db.feeds, db.feedItems, async () => {
-      await db.feeds.put(feed);
+      // Its picture went with it, so it's looked for again on the next check.
+      await db.feeds.put({ ...feed, artKey: undefined });
       await db.feedItems.bulkPut(items);
     });
   };

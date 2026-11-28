@@ -11,7 +11,7 @@ type Name =
   | 'prev-sentence' | 'next-sentence' | 'auto-advance' | 'read-along' | 'link' | 'clipboard' | 'share'
   | 'cloud-off' | 'check' | 'arrow-up' | 'arrow-down' | 'trash' | 'move-top' | 'mark-played' | 're-render' | 'retry' | 'drag'
   | 'minus' | 'plus' | 'shield' | 'warn' | 'download' | 'upload' | 'speaker' | 'more' | 'clock'
-  | 'rss' | 'queue' | 'manage' | 'heart' | 'heart-filled';
+  | 'rss' | 'queue' | 'heart' | 'heart-filled' | 'add-circle' | 'check-circle';
 
 const P: Record<Name, ReactNode> = {
   add: <path d="M12 5v14M5 12h14" />,
@@ -22,14 +22,21 @@ const P: Record<Name, ReactNode> = {
       <circle cx="9" cy="17" r="2" />
     </>
   ),
-  // A bulleted list: the blogs you follow, to manage. (Settings already has the sliders.)
-  manage: (
+  // Add this post: a plus in a ring.
+  'add-circle': (
     <>
-      <path d="M9 6.5h11M9 12h11M9 17.5h11" />
-      <circle cx="4.8" cy="6.5" r="1" fill="currentColor" />
-      <circle cx="4.8" cy="12" r="1" fill="currentColor" />
-      <circle cx="4.8" cy="17.5" r="1" fill="currentColor" />
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 8v8M8 12h8" />
     </>
+  ),
+  // Added: a filled disc with the check cut out of it, so it reads on any background.
+  'check-circle': (
+    <path
+      fillRule="evenodd"
+      fill="currentColor"
+      stroke="none"
+      d="M12 2.25a9.75 9.75 0 1 0 0 19.5 9.75 9.75 0 0 0 0-19.5Zm4.78 7.53a.9.9 0 0 0-1.27-1.27l-4.67 4.66-1.85-1.85a.9.9 0 0 0-1.27 1.28l2.49 2.48a.9.9 0 0 0 1.27 0l5.3-5.3Z"
+    />
   ),
   pause: (
     <g fill="currentColor" stroke="none">

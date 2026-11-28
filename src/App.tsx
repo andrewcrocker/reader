@@ -1,9 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { getSettings, updateSettings } from './db';
 import { AppDataProvider, useAppData } from './app/data';
 import { classifyShare, decodeList, readHash, type Shared } from './app/share';
-import { getUi, openNowPlaying, openSheet, setNewId, showSnack, useUi, useWide } from './app/ui';
-import { markAllSeen, startFeedChecks } from './feeds/store';
+import { openNowPlaying, openSheet, setNewId, showSnack, useUi, useWide } from './app/ui';
+import { startFeedChecks } from './feeds/store';
 import { addUrl, kick, startRunner } from './pipeline/runner';
 import { acceptInvite, checkInvite } from './app/invite';
 import { InviteNeeded } from './screens/InviteNeeded';
@@ -16,8 +16,8 @@ import { Settings } from './screens/Settings';
 import { AddSheet, ExplainSheet, SpeedSheet } from './screens/sheets';
 import { ReadingListSheet, ShareListSheet } from './screens/listSheets';
 import { ShareSavedSheet } from './screens/ShareSheet';
-import { Manage } from './screens/Manage';
-import { Subscriptions } from './screens/Subscriptions';
+import { SubscribeSheet } from './screens/SubscribeSheet';
+import { FeedPosts, Subscriptions } from './screens/Subscriptions';
 import { Spike } from './pages/Spike';
 
 export function App() {
@@ -119,21 +119,6 @@ function Shell() {
     });
   }, [player.play]);
 
-  // New posts count as seen once the user leaves Subscriptions (or the app goes to the background
-  // while it's open). Marking them on arrival would clear the markers before they could be read.
-  const lastTab = useRef(ui.tab);
-  useEffect(() => {
-    if (lastTab.current === 'subscriptions' && ui.tab !== 'subscriptions') void markAllSeen();
-    lastTab.current = ui.tab;
-  }, [ui.tab]);
-  useEffect(() => {
-    const onHide = () => {
-      if (document.visibilityState === 'hidden' && getUi().tab === 'subscriptions') void markAllSeen();
-    };
-    document.addEventListener('visibilitychange', onHide);
-    return () => document.removeEventListener('visibilitychange', onHide);
-  }, []);
-
   if (!loaded) return <div className="app" />;
   // A just-opened invite counts until it's saved; after that, a 401 from the Worker shows the screen again.
   const fresh = !!launchInvite && launchInvite !== settings.proxySecret;
@@ -153,13 +138,14 @@ function Shell() {
       {sheet?.kind === 'explain' && <ExplainSheet id={sheet.id} />}
       {sheet?.kind === 'share-list' && <ShareListSheet ids={sheet.ids} onShared={sheet.onShared} />}
       {sheet?.kind === 'share-saved' && <ShareSavedSheet />}
+      {sheet?.kind === 'subscribe' && <SubscribeSheet />}
       {sheet?.kind === 'list' && <ReadingListSheet list={sheet.list} />}
     </>
   );
-  // Settings and Your subscriptions are their own screens; otherwise the tab bar picks the list. Up next is the home view.
-  const screen = ui.settings ? <Settings /> : ui.manage ? <Manage /> : ui.tab === 'subscriptions' ? <Subscriptions /> : ui.tab === 'saved' ? <Saved /> : <Queue />;
+  // Settings is its own screen; otherwise the tab bar picks the list. A blog's posts sit one level into Subscriptions. Up next is the home view.
+  const screen = ui.settings ? <Settings /> : ui.tab === 'subscriptions' ? ui.feed ? <FeedPosts key={ui.feed} feedId={ui.feed} /> : <Subscriptions /> : ui.tab === 'saved' ? <Saved /> : <Queue />;
   if (wide) {
-    // Wide screens: the queue, Subscriptions, Saved, Settings or Your subscriptions on the left, Now Playing always open on the right.
+    // Wide screens: the queue, Subscriptions, Saved or Settings on the left, Now Playing always open on the right.
     return (
       <div className="app wide">
         <div className="pane-left">{screen}</div>

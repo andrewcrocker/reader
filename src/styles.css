@@ -185,26 +185,33 @@ a { color: var(--accent); }
 .row-check { width: 22px; height: 22px; margin: 0 2px 0 0; flex: none; accent-color: var(--accent); }
 .drag-handle { width: 44px; height: 48px; flex: none; border: 0; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; padding: 0; cursor: grab; touch-action: none; }
 
-/* ---------- Subscriptions ---------- */
-.feed-body { flex: 1; border-top: 1px solid var(--line); }
-.feed-list { list-style: none; margin: 0; padding: 0; }
+/* ---------- Subscriptions: the blogs you follow, then one blog's posts (DESIGN §10) ---------- */
+.feed-list { list-style: none; margin: 0; padding: 0 0 8px; border-top: 1px solid var(--line); flex: 1; }
 .feed-none { margin: 0; padding: 24px 20px; font-size: 15px; color: var(--muted); }
-.feed-row { align-items: center; padding-right: 8px; }
-.feed-row.unread .row-title { font-weight: 600; }
-.new-tag { font-weight: inherit; }
-.feed-added { height: 48px; padding: 0 12px; flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; color: var(--muted); }
-/* One quiet line above the posts when a blog couldn't be checked; it opens Your subscriptions. */
-.feed-issue { width: 100%; min-height: 48px; padding: 0 20px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--muted); display: flex; align-items: center; gap: 8px; font-size: 13.5px; text-align: left; }
-.feed-issue .chev { margin-left: auto; }
+/* New: a small filled accent dot. On a blog's row it comes with a count; on a post it sits in the row's left margin, so titles stay aligned. */
+.new-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--accent); }
+.new-count { flex: none; display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font-weight: 600; }
+.new-count + .segs::before { content: '·'; margin-right: 6px; }
+.row-title.one-line { display: block; white-space: nowrap; text-overflow: ellipsis; }
 
-/* ---------- Your subscriptions ---------- */
-.manage-add { display: flex; flex-direction: column; gap: 12px; margin-top: 20px; }
-.manage-none { margin: 28px 0 0; font-size: 15px; line-height: 1.5; color: var(--muted); }
-.manage-list { list-style: none; margin: 28px 0 0; padding: 0; border-top: 1px solid var(--line); }
-.manage-row { display: flex; align-items: center; gap: 14px; min-height: 64px; padding: 10px 0; border-bottom: 1px solid var(--line); }
-.manage-row .row-main { gap: 3px; }
-.manage-row .row-meta > span.segs { white-space: normal; }
-.manage-row .text-btn { margin-right: -8px; }
+.blog-row { align-items: center; padding: 0 0 0 20px; gap: 0; min-height: 72px; }
+/* The art and the name are one button that opens the blog; the kebab and the chevron sit after it. */
+.blog-open { flex: 1; min-width: 0; align-self: stretch; display: flex; align-items: center; gap: 14px; padding: 12px 4px 12px 0; border: 0; background: none; color: inherit; text-align: left; }
+.blog-open .row-main { gap: 4px; }
+.blog-row .icon-btn { width: 40px; }
+.blog-row .blog-chevron { margin-right: 4px; }
+
+.post-row { align-items: center; padding-right: 8px; }
+.post-dot { position: absolute; left: 6px; top: 19px; }
+.post-add { color: var(--accent); }
+.post-added { color: var(--accent); cursor: default; }
+
+/* A screen one level into a tab: back arrow, then the title on one line. Same height as the tab headers. */
+.q-header.pushed { padding-left: 8px; }
+.q-header.pushed .q-header-row { justify-content: flex-start; gap: 4px; }
+.pushed-text { flex: 1; min-width: 0; }
+.pushed-text .screen-title { font-size: 24px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pushed-text .screen-title:focus { outline: none; }
 
 /* ---------- Art ---------- */
 .art {
@@ -562,6 +569,8 @@ textarea.input { height: auto; padding: 12px 14px; font: 400 15px/1.5 var(--seri
 }
 .menu button:hover, .menu button:focus-visible { background: var(--fill); outline: none; }
 .menu button.danger { color: var(--error); }
+.menu-heading { margin: 0; padding: 10px 14px 4px 12px; border-top: 1px solid var(--line); margin-top: 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.menu-slot { width: 20px; flex: none; }
 .row .icon-btn.row-action { color: var(--muted); }
 
 /* Invite needed (SPEC §10a): the empty-state layout, full height, no header above it. */

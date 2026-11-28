@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import type { ReadingList } from './share';
 
 // App-wide UI state: which overlay is open and the one snackbar. Overlays push a history entry so
-// Android's back gesture closes the top one (sheet, then Now Playing, then Settings or Your subscriptions).
+// Android's back gesture closes the top one (sheet, then Now Playing, then Settings or a blog's posts).
 
 export type Sheet =
   | { kind: 'add'; tab: 'link' | 'text' | 'pdf'; text?: string; title?: string; shared?: boolean; replaceId?: string }
@@ -12,6 +12,8 @@ export type Sheet =
   | { kind: 'share-list'; ids: string[]; onShared?: () => void }
   /** Share what you've loved (this week or all time) from the Saved tab. */
   | { kind: 'share-saved' }
+  /** Subscribe to a blog (the Add button on Subscriptions). */
+  | { kind: 'subscribe' }
   /** A reading list arrived in a `#list=` link. */
   | { kind: 'list'; list: ReadingList };
 
@@ -37,8 +39,8 @@ export type Tab = 'subscriptions' | 'queue' | 'saved';
 interface UiState {
   tab: Tab;
   settings: SettingsPage | null;
-  /** Your subscriptions: a full screen pushed from the Subscriptions header, like Settings from Up next. */
-  manage: boolean;
+  /** The blog whose posts are open, one level into Subscriptions (a feed id). Null on the list of blogs. */
+  feed: string | null;
   nowPlaying: boolean;
   sheet: Sheet | null;
   snack: Snack | null;
@@ -46,7 +48,7 @@ interface UiState {
   newId?: string;
 }
 
-let state: UiState = { tab: 'queue', settings: null, manage: false, nowPlaying: false, sheet: null, snack: null };
+let state: UiState = { tab: 'queue', settings: null, feed: null, nowPlaying: false, sheet: null, snack: null };
 const listeners = new Set<() => void>();
 
 function set(patch: Partial<UiState>) {
@@ -81,6 +83,9 @@ export function useWide(): boolean {
   );
 }
 
+/** A tab chosen while a blog's posts were open, applied once that entry has been popped. */
+let pendingTab: Tab | null = null;
+
 function push(patch: Partial<UiState>) {
   history.pushState({ overlay: true }, '');
   set(patch);
@@ -91,6 +96,12 @@ function push(patch: Partial<UiState>) {
  * above it, so Android's back from either returns to Up next, and switching between the two swaps in place.
  */
 export function setTab(tab: Tab) {
+  // A blog's posts sit one more entry up. Leave them first; the popstate handler then finishes the switch.
+  // Tapping Subscriptions itself from there just goes back to the list of blogs.
+  if (state.feed && !state.sheet && !state.nowPlaying && !state.settings) {
+    pendingTab = tab === 'subscriptions' ? null : tab;
+    return history.back();
+  }
   if (tab === state.tab) return;
   if (tab === 'queue') history.back();
   else if (state.tab === 'queue') push({ tab });
@@ -98,7 +109,8 @@ export function setTab(tab: Tab) {
 }
 
 export const openSettings = () => !state.settings && push({ settings: 'menu' });
-export const openManage = () => !state.manage && push({ manage: true });
+/** Opens one blog's posts, a level into the Subscriptions tab. */
+export const openFeed = (id: string) => !state.feed && push({ feed: id });
 export const openSettingsPage = (page: Exclude<SettingsPage, 'menu'>) => push({ settings: page });
 /** Opens the Now Playing overlay. In the wide layout it's already on screen, so this does nothing. */
 export const openNowPlaying = () => !state.nowPlaying && !wideQuery.matches && push({ nowPlaying: true });
@@ -112,7 +124,7 @@ export function openSheet(sheet: Sheet) {
 
 /** Close the top overlay through history, so the back stack stays in step. */
 export function back() {
-  if (state.sheet || state.nowPlaying || state.settings || state.manage) history.back();
+  if (state.sheet || state.nowPlaying || state.settings || state.feed) history.back();
 }
 
 window.addEventListener('popstate', () => {
@@ -120,9 +132,13 @@ window.addEventListener('popstate', () => {
   else if (state.nowPlaying) set({ nowPlaying: false });
   // A settings page goes back to the menu; the menu goes back to the queue.
   else if (state.settings) set({ settings: state.settings === 'menu' ? null : 'menu' });
-  // Your subscriptions goes back to the Subscriptions tab it was opened from.
-  else if (state.manage) set({ manage: false });
-  else if (state.tab !== 'queue') set({ tab: 'queue' });
+  // A blog's posts go back to the list of blogs.
+  else if (state.feed) {
+    set({ feed: null });
+    const next = pendingTab;
+    pendingTab = null;
+    if (next) setTab(next);
+  } else if (state.tab !== 'queue') set({ tab: 'queue' });
 });
 
 // ---- Snackbar: one at a time, 6 s, a newer one replaces the older (DESIGN "Interactions") ----

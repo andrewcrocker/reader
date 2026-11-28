@@ -135,26 +135,6 @@ export function inboxOrder<T extends { publishedAt?: number; firstSeenAt: number
   return [...items].sort((a, b) => when(b) - when(a));
 }
 
-/** How many of each feed's newest posts are marked "New" in Subscriptions. */
-export const RECENT_PER_FEED = 3;
-
-/**
- * Ids of each feed's `perFeed` newest posts, in inbox order (publish date, else first-seen time;
- * equal times keep the order given). Independent of `seenAt`, so it holds right after subscribing.
- * As newer posts are stored the set moves to them and older posts drop out.
- */
-export function recentIds(items: { id: string; feedId: string; publishedAt?: number; firstSeenAt: number }[], perFeed = RECENT_PER_FEED): Set<string> {
-  const byFeed = new Map<string, typeof items>();
-  for (const it of items) {
-    const list = byFeed.get(it.feedId);
-    if (list) list.push(it);
-    else byFeed.set(it.feedId, [it]);
-  }
-  const out = new Set<string>();
-  for (const list of byFeed.values()) for (const it of inboxOrder(list).slice(0, perFeed)) out.add(it.id);
-  return out;
-}
-
 /**
  * Two addresses for the same page: ignores the scheme, "www.", a trailing slash, the #fragment
  * and utm_ tracking parameters. Used to spot a post that's already an article.

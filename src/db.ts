@@ -141,6 +141,8 @@ export interface Feed {
    * means the links were checked and are kept as they are; unset means not checked yet. Not indexed.
    */
   linkBase?: string | null;
+  /** The blog's picture in the art table (`feed:<id>`). '' means we looked and found none; unset means not looked yet. Not indexed. */
+  artKey?: string;
 }
 
 /** One post from a feed. `id` is a stable hash of the feed id and the post's guid or link as the feed gave them. */
@@ -196,6 +198,8 @@ export interface Settings {
   onboarded?: boolean;
   /** "Your name" on the share sheet, remembered for the next list. */
   shareName?: string;
+  /** How the list of blogs on Subscriptions is ordered. Unset means 'recent'. */
+  feedSort?: 'recent' | 'alpha';
 }
 
 export const DEFAULT_SETTINGS: Settings = {
