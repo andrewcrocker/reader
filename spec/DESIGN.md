@@ -74,7 +74,9 @@ Ways in: app icon → Up next; share sheet → Up next (URL) or Add sheet on Tex
 - **Dock:** the bar is the last item in the bottom dock. The snackbar and mini player sit above it, and the bar gives way to the multi-select action bar while selecting.
 - **New-post dot:** a 9 dp filled `accent` dot at the top right of the Subscriptions icon, with a 2 dp ring in the background color. The tab's accessible name becomes "Subscriptions, new posts". Posts count as seen when you leave Subscriptions (or the app goes to the background while it's open), and the dot goes with that.
 
-**Wide screens (900 px and up):** two panes. The Up next, Subscriptions, Saved, Settings, or Your subscriptions view is a column on the left, at most 440 wide, with the tab bar at the bottom of that column. Now Playing (or Lyrics view) stays open on the right. There's no mini player, collapse control, or swipe-down, and the Up next peek isn't a link because the queue is already beside it. The cover shrinks to fit the screen height. Sheets stay bottom sheets.
+**Between a phone and two panes (481 to 719 px):** the single column fills the window instead of sitting in the middle. Sheets and Now Playing stay 480 wide, centered. First run and the invite screen stay phone-width.
+
+**Wide screens (720 px and up):** two panes. At 720 they are 360 each. The Up next, Subscriptions, Saved, Settings, or Your subscriptions view is a column on the left, at most 440 wide, with the tab bar at the bottom of that column. Now Playing (or Lyrics view) stays open on the right. There's no mini player, collapse control, or swipe-down, and the Up next peek isn't a link because the queue is already beside it. The cover shrinks to fit the screen height. Sheets stay bottom sheets.
 
 
 ## Design tokens
@@ -233,7 +235,7 @@ Every row shows a 16 dp status glyph at the start of its meta line, then text. E
 
 ### 1a. Saved
 
-The last tab. The same rows, gestures, and multi-select as Up next, in two sections, except that rows can't be reordered: a hold goes straight to multi-select. Header: "Saved", a line such as "8 loved · 12 archived", and a **Share** button (outline pill with the share glyph and label, 40 tall, `input-border`; disabled when nothing loved can be shared). Nothing in the header is `accent`-filled.
+The last tab. The same rows, gestures, and multi-select as Up next, in two sections, except that rows can't be reordered: a hold goes straight to multi-select. Header: "Saved", a line such as "8 loved · 12 archived", and a **Share** icon button (the share glyph in a plain 48 icon button, like Settings on Up next; disabled when nothing loved can be shared). Nothing in the header is `accent`-filled.
 
 - **Loved** (section label, caps): every loved article, newest love first, whether or not it's archived. Rows aren't dimmed, so the top of the tab stays bright. With none, a `muted` line: "Tap the heart on an article to keep it here. You can share what you love."
 - **Archive** (section label): archived articles that aren't loved. An article that is both is listed once, under Loved. (Showing it twice would make "12 archived" and the list disagree, and the Archive would no longer read as "what's left once the favorites are pulled out".) Hidden when empty.

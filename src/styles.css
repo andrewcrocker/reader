@@ -99,8 +99,10 @@ a { color: var(--accent); }
 .tabular { font-variant-numeric: tabular-nums; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-/* The app is a single phone-width column, centered on larger screens. */
+/* One column. First run and the invite screen stay phone-width and centered; the app itself fills the window
+   until it is wide enough for two panes (720 px, below). */
 .app { position: relative; max-width: 480px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; }
+.app.fluid { max-width: none; }
 .screen { position: relative; flex: 1; display: flex; flex-direction: column; min-height: 100dvh; padding-top: env(safe-area-inset-top); }
 
 /* ---------- Buttons ---------- */
@@ -126,7 +128,8 @@ a { color: var(--accent); }
 
 /* ---------- Queue header ---------- */
 .q-header { padding: 10px 8px 12px 20px; flex: none; }
-.q-header-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* Tall enough for the title and its summary line, so the header is the same height on every tab and when a list is empty. */
+.q-header-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 58px; }
 
 .screen-title { margin: 0; font-family: var(--serif); font-weight: 500; font-size: 30px; line-height: 1.2; letter-spacing: -0.01em; }
 .q-sub { margin: 2px 0 0; font-size: 13.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -518,8 +521,9 @@ textarea.input { height: auto; padding: 12px 14px; font: 400 15px/1.5 var(--seri
 .icon-btn:disabled { opacity: 0.45; }
 .chip-btn:disabled { color: var(--input-border); }
 
-/* ---------- Wide layout (≥ 900 px): queue left, Now Playing right ---------- */
-.app.wide { max-width: none; display: grid; grid-template-columns: minmax(360px, 440px) minmax(0, 1fr); align-items: start; }
+/* ---------- Wide layout (≥ 720 px): queue left, Now Playing right ---------- */
+/* At 720 the panes are 360 each (the narrowest phone the design holds at); the list grows to 440, then the player takes the rest. */
+.app.wide { max-width: none; display: grid; grid-template-columns: minmax(360px, 440px) minmax(360px, 1fr); align-items: start; }
 .pane-left { min-width: 0; border-right: 1px solid var(--line); }
 .pane-right { position: sticky; top: 0; height: 100dvh; min-width: 0; overflow: hidden; }
 .np.embedded { position: relative; inset: auto; z-index: auto; height: 100%; animation: none; }
@@ -599,11 +603,6 @@ textarea.input { height: auto; padding: 12px 14px; font: 400 15px/1.5 var(--seri
 .q-sections { flex: 1; }
 .q-list.under { border-top: 0; flex: none; }
 .q-hint { margin: 0; padding: 14px 20px 24px; font-size: 14.5px; line-height: 1.5; color: var(--muted); }
-.share-btn {
-  height: 40px; margin-right: 12px; padding: 0 16px 0 12px; border: 1.5px solid var(--input-border); border-radius: 20px; background: transparent;
-  color: var(--fg); display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px;
-}
-.share-btn:disabled { color: var(--input-border); border-color: var(--line); }
 
 .seg button .seg-n { margin-left: 8px; color: var(--muted); font-weight: 500; }
 .seg button:disabled, .seg button:disabled .seg-n { color: var(--input-border); cursor: default; }

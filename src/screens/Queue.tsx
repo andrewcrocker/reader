@@ -191,9 +191,8 @@ function QueueView({ view }: { view: 'queue' | 'saved' }) {
             </div>
             {saved ? (
               <div className="q-actions">
-                <button className="share-btn" disabled={!canShare} onClick={() => openSheet({ kind: 'share-saved' })} aria-label={canShare ? 'Share loved articles' : 'Share loved articles, love an article first'}>
-                  <Icon name="share" size={20} />
-                  Share
+                <button className="icon-btn" disabled={!canShare} onClick={() => openSheet({ kind: 'share-saved' })} aria-label={canShare ? 'Share loved articles' : 'Share loved articles, love an article first'} title="Share loved articles">
+                  <Icon name="share" />
                 </button>
               </div>
             ) : (

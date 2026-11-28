@@ -68,7 +68,7 @@ export const getUi = () => state;
 
 // ---- Wide layout: Queue on the left, Now Playing always open on the right ----
 
-const WIDE = '(min-width: 900px)';
+const WIDE = '(min-width: 720px)';
 const wideQuery = matchMedia(WIDE);
 
 export function useWide(): boolean {

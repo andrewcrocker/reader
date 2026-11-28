@@ -169,7 +169,7 @@ function Shell() {
     );
   }
   return (
-    <div className="app">
+    <div className="app fluid">
       {screen}
       {ui.nowPlaying && <NowPlaying />}
       {sheets}
