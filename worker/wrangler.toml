@@ -9,6 +9,9 @@ preview_urls = false
 ALLOWED_ORIGINS = "https://pocketreader.me,https://read-aloud-c1w.pages.dev,http://localhost:5173,http://localhost:4173"
 # Characters a day sent to the voice host, across everyone (~$0.33/day at $0.99 per million).
 DAILY_CHAR_CAP = "330000"
+# The shared voice cache (spec/VOICE_CACHE.md): audio of articles fetched from a URL is kept so a repeat costs
+# nothing. Off unless this is "on". It stores audio, so turning it on is the owner's call.
+VOICE_CACHE = "off"
 
 # Secrets: locally from worker/.dev.vars, in production from `wrangler secret put <NAME>`:
 #   APP_SECRET         shared with the app's invite link
@@ -18,6 +21,9 @@ DAILY_CHAR_CAP = "330000"
 
 # Rendered chunks wait here until the app downloads them. In production, add a 7-day expiry:
 #   wrangler r2 bucket lifecycle add reader-audio expire-jobs jobs/ --expire-days 7
+# The voice cache keeps its audio under cache/ in this same bucket, so it needs no new binding, and the rule
+# above (scoped to jobs/) never touches it. If you turn the cache on, give cache/ its own, longer rule:
+#   wrangler r2 bucket lifecycle add reader-audio expire-cache cache/ --expire-days 180
 [[r2_buckets]]
 binding = "AUDIO"
 bucket_name = "reader-audio"

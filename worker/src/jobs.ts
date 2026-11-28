@@ -1,6 +1,7 @@
 import { DurableObject, WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from 'cloudflare:workers';
 import { NonRetryableError } from 'cloudflare:workflows';
-import { applyReservation, synthesizeChunk, VoiceHostError, type PartParams, type QuotaApi, type RenderEnv, type Reservation } from './render';
+import { applyReservation, renderChunk, VoiceHostError, type Lookup, type PartParams, type QuotaApi, type RenderChunk, type RenderEnv, type Reservation } from './render';
+import { planRender } from './voiceCache';
 
 /** How many chunks go to the voice host at once. More didn't help in the spike: its queue is per account. */
 const PARALLEL = 4;
@@ -17,9 +18,7 @@ export class RenderWorkflow extends WorkflowEntrypoint<RenderEnv, PartParams> {
             { retries: { limit: 5, delay: '5 seconds', backoff: 'exponential' }, timeout: '3 minutes' },
             async () => {
               try {
-                const { mp3, sec } = await synthesizeChunk(this.env, voice, chunk.text);
-                await this.env.AUDIO.put(`jobs/${job}/${chunk.i}.mp3`, mp3, { customMetadata: { sec: sec.toFixed(3) } });
-                return sec;
+                return await renderChunk(this.env, job, voice, chunk);
               } catch (err) {
                 if (err instanceof VoiceHostError && err.permanent) throw new NonRetryableError(err.message);
                 throw err;
@@ -41,5 +40,17 @@ export class QuotaCounter extends DurableObject<RenderEnv> implements QuotaApi {
     const { state, result } = applyReservation(prev, chars, cap, now);
     await this.ctx.storage.put('state', state);
     return result;
+  }
+
+  /**
+   * `reserve` for the voice cache: looks the chunks up first, so the budget is charged for the misses only.
+   * The lookups wait on R2 before the state is read, so the read-and-write below stays one uninterrupted step.
+   */
+  async reserveMisses(voice: string, chunks: RenderChunk[], cap: number, now: number): Promise<Reservation & { lookups: Lookup[] }> {
+    const { lookups, missChars } = await planRender(this.env.AUDIO, voice, chunks, now);
+    const prev = (await this.ctx.storage.get<QuotaState>('state')) ?? { day: '', used: 0, alerted80: false, alerted100: false };
+    const { state, result } = applyReservation(prev, missChars, cap, now);
+    await this.ctx.storage.put('state', state);
+    return { ...result, lookups };
   }
 }

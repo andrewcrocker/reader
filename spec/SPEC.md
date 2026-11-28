@@ -37,7 +37,7 @@ Status: reconciled with DESIGN.md (Oct 28, 2026). DESIGN.md owns screens, states
 
 **Non-goals (for now)**
 
-- Accounts, logins, or sync. Everything lives on the device. The one exception: rendered audio waits on the server (R2) until the app downloads it, then it's deleted (7 days at most).
+- Accounts, logins, or sync. Everything lives on the device. Two exceptions. Rendered audio waits on the server (R2) until the app downloads it, then it's deleted (7 days at most). And, only if the owner turns on the voice cache (off by default, §6.4), the server keeps the audio of articles fetched from a URL for months so others can reuse it: it holds audio of what people listened to, not who. Pasted text and uploaded files are never kept.
 - Multi-device support. One phone (Pixel 8 / Chrome).
 - Highlights, notes, tags, search. These might come later.
 - A reading mode without audio.
@@ -303,6 +303,16 @@ Both engines run the same model (**Kokoro-82M**) and the same three voices, **He
 - Spike: a 7.9-minute article rendered in 78 s for 0.73¢; requests take 3–12 s each, mostly queueing at the host.
 - **Budget:** one global counter (a Durable Object) allows 330,000 characters a day (about 33 articles, $0.33), which keeps a month under $10. Refused requests get `429 {error:"busy", retryAt}`; the app shows "Voices are busy" and retries after the reset (midnight UTC). The owner gets an email (Resend) at 80% and when the budget runs out, once each per day. DeepInfra's own spending limit is the backstop.
 - Article text goes to the voice host; DeepInfra lists zero retention.
+- **Cache (off by default):** an article that was already rendered costs nothing and skips the queue (§6.4).
+
+### 6.4 Voice cache (behind `VOICE_CACHE`, off by default)
+
+Details, cost math and the free-plan limits are in [VOICE_CACHE.md](VOICE_CACHE.md). The rules:
+
+- **Per chunk, by content.** A chunk's MP3 is kept at `cache/<voice>/<sha256>.mp3` in the same R2 bucket (no new binding). The hash covers a hand-set `VOICE_CACHE_VERSION`, the voice and the chunk's exact text. Another voice, a changed sentence or a new version is a new key, so there's nothing to invalidate. The length (`sec`) is stored with the audio and sent back on a hit.
+- **Only URL articles.** The app sends `cacheable: true` for articles fetched from a URL (`source: 'url'`, text not pasted over). Pasted text and uploaded files (`source: 'text'` or `'file'`) never read or write the cache. Invited users only: there is no public route and no "does this exist" check.
+- **Hits are free.** `POST /render` looks every chunk up before it reserves budget, and reserves only the characters the voice host will be asked to say. A hit is listed as ready in the job's manifest at once, and only the misses go to the Workflow. An article that is all hits is done at once, and is never "busy". Without the flag, or without `cacheable`, `/render` works exactly as before.
+- **Expiry.** `jobs/` keeps its 7-day rule. `cache/` gets a longer age-based rule (180 days); older entries just re-render.
 
 **Former default: on-device neural TTS.** Removed from Settings on 2026-10-28; the engine stays in the code for the `/spike` benchmark.
 - **Kokoro-82M** via `kokoro-js` (transformers.js), running in the browser on WebGPU, falling back to WASM. Open weights (Apache 2.0). Piper is a lighter fallback with lower quality.
@@ -579,16 +589,17 @@ GET  /asset?url=<encoded>
 GET  /archive?url=<encoded>
   → 200 { wayback?: string, archiveToday?: string }   // snapshot URLs, if any
 
-POST /render   { voice, chunks: [{ i, text }] }       // voice: af_heart | af_bella | am_michael
+POST /render   { voice, chunks: [{ i, text }], cacheable? }  // voice: af_heart | af_bella | am_michael
+                                                      // cacheable: true only for URL articles; used only if VOICE_CACHE is on (§6.4)
   → 202 { job, chunks }
   → 429 { error: "busy", retryAt }                  // day's voice budget spent
   → 400 { error }                                   // bad voice, empty/too long chunk, >400 chunks
-GET    /render/:job      → 200 { status, ready: [{ i, sec }] }   // status from the Workflow
+GET    /render/:job      → 200 { status, ready: [{ i, sec }] }   // status from the Workflow; chunks served from the voice cache are ready from the start
 GET    /render/:job/:i   → 200 audio/mpeg (one chunk, header frame stripped) + X-Chunk-Seconds
-DELETE /render/:job      → 204 (deletes the chunks; an R2 lifecycle rule expires leftovers after 7 days)
+DELETE /render/:job      → 204 (deletes the chunks, never the voice cache; an R2 lifecycle rule expires leftovers after 7 days)
 ```
 
-Only rendered audio is stored, and only until the app downloads it. No logging of URLs or content beyond Cloudflare's defaults.
+Only rendered audio is stored, and only until the app downloads it, except the voice cache (§6.4) when it's on. No logging of URLs or content beyond Cloudflare's defaults; the cache logs only counts (hits, misses, characters and bytes saved).
 
 ---
 

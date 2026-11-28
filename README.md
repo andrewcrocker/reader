@@ -9,7 +9,7 @@ A "listen later" app. Share an article from your phone (or paste a link or text)
 - **Stack:** React + Vite PWA, Dexie (IndexedDB), a Cloudflare Worker for fetching pages and making voices, Cloudflare Pages for the app
 - **Contributing:** see [CONTRIBUTING.md](CONTRIBUTING.md). MIT licensed ([LICENSE](LICENSE)).
 
-**How voices work.** The Worker renders them: the app sends an article's text once, a Cloudflare Workflow sends it to a hosted Kokoro API (DeepInfra) in parts, and the audio waits in R2 until the app collects it, so articles finish even with the app closed. The app's service worker (`src/sw.ts`) takes shares, sends articles off and downloads finished audio after the app closes too (SPEC §11b). It costs about 1¢ per article, capped at about $10 a month. On-device Kokoro (WebGPU/WASM) was the original plan and its engine is still in the code (the `/spike` page uses it), but it struggled on a Pixel 8 (memory, background limits, heat), so the app no longer offers it.
+**How voices work.** The Worker renders them: the app sends an article's text once, a Cloudflare Workflow sends it to a hosted Kokoro API (DeepInfra) in parts, and the audio waits in R2 until the app collects it, so articles finish even with the app closed. The app's service worker (`src/sw.ts`) takes shares, sends articles off and downloads finished audio after the app closes too (SPEC §11b). It costs about 1¢ per article, capped at about $10 a month. An optional voice cache (off by default) keeps each chunk's audio of articles fetched from a URL, so the same article added again costs nothing and starts at once; see [spec/VOICE_CACHE.md](spec/VOICE_CACHE.md). On-device Kokoro (WebGPU/WASM) was the original plan and its engine is still in the code (the `/spike` page uses it), but it struggled on a Pixel 8 (memory, background limits, heat), so the app no longer offers it.
 
 **Built:** the full design (queue, Now Playing, read-along, sheets, Settings, First run, wide layout, bottom tab bar), a pull-only Subscriptions inbox for blogs' RSS/Atom feeds, server voices with a daily budget and email alerts, share target, invite links, offline playback, progressive playback while audio renders, link previews.
 
@@ -136,6 +136,12 @@ How it was set up the first time:
    npx wrangler r2 bucket lifecycle add reader-audio expire-jobs jobs/ --expire-days 7
    ```
 
+   Optional: the voice cache stores audio, which is the owner's call, so it ships off (`VOICE_CACHE = "off"` in `worker/wrangler.toml`). To turn it on, give its audio (kept under `cache/` in the same bucket, so no new binding) a longer expiry, then set `VOICE_CACHE = "on"` and deploy the Worker. See [spec/VOICE_CACHE.md](spec/VOICE_CACHE.md) for the cost and privacy notes.
+
+   ```bash
+   npx wrangler r2 bucket lifecycle add reader-audio expire-cache cache/ --expire-days 180
+   ```
+
 3. Edit `ALLOWED_ORIGINS` in [worker/wrangler.toml](worker/wrangler.toml) to your app's origin (for example `https://reader.pages.dev`). Then deploy the Worker:
 
    ```bash
@@ -171,6 +177,7 @@ How it was set up the first time:
 | Fetch proxy (Hono on Workers): auth, origin check, SSRF guard, 5 MB cap, 15 s timeout | [worker/src/index.ts](worker/src/index.ts) |
 | Server voices: `/render` routes, voice allowlist, daily budget, alert email, MP3 header stripping | [worker/src/render.ts](worker/src/render.ts) |
 | Render Workflow (one step per chunk) and the budget counter (Durable Object) | [worker/src/jobs.ts](worker/src/jobs.ts) |
+| Voice cache (off by default): chunk keys, lookups, hit/miss split | [worker/src/voiceCache.ts](worker/src/voiceCache.ts), [spec/VOICE_CACHE.md](spec/VOICE_CACHE.md) |
 | App side of server voices: send once, collect chunks, build the file | [src/tts/server.ts](src/tts/server.ts), [src/pipeline/serverRender.ts](src/pipeline/serverRender.ts) |
 | Dexie schema, settings | [src/db.ts](src/db.ts) |
 | Reading lists (§4, no server): the `#list=` link, Share as list, sharing from Saved with a card image | [src/app/share.ts](src/app/share.ts), [src/screens/listSheets.tsx](src/screens/listSheets.tsx), [src/screens/ShareSheet.tsx](src/screens/ShareSheet.tsx), [src/share/](src/share) |

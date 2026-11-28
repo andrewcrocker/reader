@@ -9,6 +9,11 @@ describe('parseRenderRequest', () => {
   it('accepts a known voice and chunks', () => {
     expect(parseRenderRequest(ok)).toEqual(ok);
   });
+  it('keeps cacheable only when it is exactly true; a missing flag means not cacheable', () => {
+    expect(parseRenderRequest({ ...ok, cacheable: true })).toEqual({ ...ok, cacheable: true });
+    for (const cacheable of [false, 'true', 1, null]) expect(parseRenderRequest({ ...ok, cacheable })).toEqual(ok);
+    expect(parseRenderRequest(ok)).not.toHaveProperty('cacheable');
+  });
   it.each([
     [{ ...ok, voice: 'bf_emma' }, /unknown voice/],
     [{ ...ok, chunks: [] }, /no chunks/],
