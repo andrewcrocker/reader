@@ -579,6 +579,17 @@ textarea.input { height: auto; padding: 12px 14px; font: 400 15px/1.5 var(--seri
 .np-empty h2 { margin: 0; font-family: var(--serif); font-weight: 500; font-size: 26px; }
 .np-empty p { margin: 10px 0 0; color: var(--muted); font-size: 15.5px; }
 
+/* ---------- Now Playing and read-along in wider windows ---------- */
+/* Read-along fills whatever it's given (the window below 720, the right pane above): the rules run edge to edge,
+   and the header, the text and the controls share one column that stops growing at 720 so lines stay readable. */
+.np.lyrics .np-inner { max-width: none; --gutter: max(0px, calc((100% - 720px) / 2)); }
+.np.lyrics .lyrics-head { padding-inline: calc(8px + var(--gutter)); }
+.np.lyrics .lyrics-scroll { padding-inline: calc(28px + var(--gutter)); }
+.np.lyrics .lyrics-transport { padding-inline: calc(20px + var(--gutter)); }
+/* The player as an overlay (below 720): it fills the window too. The cover gives way to the window's height, like in the right pane. */
+.np:not(.embedded):not(.lyrics) .np-inner { max-width: none; }
+.np:not(.embedded):not(.lyrics) .np-cover { width: min(calc(100% - 64px), 46dvh); margin-inline: auto; }
+
 /* Settings menu: the version sits at the foot of the page, above the dock. */
 .s-menu { display: flex; flex-direction: column; min-height: calc(100dvh - 60px - 140px); }
 .s-version { margin-top: auto; padding-top: 32px; text-align: center; }

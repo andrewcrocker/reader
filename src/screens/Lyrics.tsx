@@ -108,7 +108,7 @@ export function Lyrics({ embedded }: { embedded?: boolean }) {
   };
 
   return (
-    <div className={`np${embedded ? ' embedded' : ''}`} role={embedded ? 'region' : 'dialog'} aria-label="Now playing, read along">
+    <div className={`np lyrics${embedded ? ' embedded' : ''}`} role={embedded ? 'region' : 'dialog'} aria-label="Now playing, read along">
       <div className="np-inner" style={{ height: '100%', minHeight: 0 }}>
         <div className="lyrics-head">
           {!embedded && (

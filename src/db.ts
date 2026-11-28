@@ -309,9 +309,16 @@ export async function getSettings(): Promise<Settings> {
   return { ...DEFAULT_SETTINGS, ...s };
 }
 
+/**
+ * Merges `patch` into the stored settings. Read and write happen in one transaction: two updates made in
+ * the same moment (tapping an article sets the view while the player saves what's playing) would otherwise
+ * both read the old row, and the second write would undo the first.
+ */
 export async function updateSettings(patch: Partial<Settings>): Promise<void> {
-  const current = await getSettings();
-  await db.settings.put({ ...current, ...patch, id: 'app' });
+  await db.transaction('rw', db.settings, async () => {
+    const current = await getSettings();
+    await db.settings.put({ ...current, ...patch, id: 'app' });
+  });
 }
 
 /** End of Up next. */

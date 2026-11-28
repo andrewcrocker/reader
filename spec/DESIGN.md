@@ -74,7 +74,9 @@ Ways in: app icon → Up next; share sheet → Up next (URL) or Add sheet on Tex
 - **Dock:** the bar is the last item in the bottom dock. The snackbar and mini player sit above it, and the bar gives way to the multi-select action bar while selecting.
 - **New-post dot:** a 9 dp filled `accent` dot at the top right of the Subscriptions icon, with a 2 dp ring in the background color. The tab's accessible name becomes "Subscriptions, new posts". A blog's posts count as seen when you leave that blog (or the app goes to the background while it's open); the dot goes when no blog has any left.
 
-**Between a phone and two panes (481 to 719 px):** the single column fills the window instead of sitting in the middle. Sheets and Now Playing stay 480 wide, centered. First run and the invite screen stay phone-width.
+**Between a phone and two panes (481 to 719 px):** the single column fills the window instead of sitting in the middle. Now Playing fills it too, with the cover held to 46% of the window's height so the controls stay on screen. Sheets stay 480 wide, centered.
+
+**Read-along at any width:** it fills what it's given, the window below 720 and the right pane above. The rules under the header and over the controls run edge to edge; the header, the text and the controls share one column that stops growing at 720, so lines stay a readable length. First run and the invite screen stay phone-width.
 
 **Wide screens (720 px and up):** two panes. At 720 they are 360 each. The Up next, Subscriptions, Saved, or Settings view is a column on the left, at most 440 wide, with the tab bar at the bottom of that column. Now Playing (or Lyrics view) stays open on the right. There's no mini player, collapse control, or swipe-down, and the Up next peek isn't a link because the queue is already beside it. The cover shrinks to fit the screen height. Sheets stay bottom sheets.
 
